@@ -116,27 +116,17 @@ export default function HomePage() {
       <section className="py-20 px-4">
         <div className="container mx-auto text-center max-w-4xl">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 text-balance">
-            Streamline Your Form Submissions with <span className="text-emerald-500">SubmitEase</span>
+            Streamline Your Academic Submissions with <span className="text-emerald-500">SubmitEase</span>
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 text-pretty max-w-2xl mx-auto">
-            Effortless form handling for your website. No backend required, no complex setup. Just simple, reliable form
-            processing that works.
+          <p className="text-xl text-muted-foreground mb-8 text-pretty max-w-3xl mx-auto">
+            The academic submission process is inefficient and fragmented. SubmitEase provides a single, intelligent platform to manage journal submissions, conference papers, and peer reviews in one seamless environment.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={() => {
-                setIsSignUp(true)
-                setShowAuthModal(true)
-              }}
-              className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 text-lg px-8 py-6"
-            >
-              Get Started Free
+            <a href="/auth" className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 text-lg px-8 py-6">
+              Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
-            </button>
+            </a>
           </div>
-          <p className="text-sm text-muted-foreground mt-4">
-            No credit card required • 14-day free trial • Cancel anytime
-          </p>
         </div>
       </section>
 
