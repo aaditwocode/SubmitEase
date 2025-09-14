@@ -1,16 +1,13 @@
 // import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import Header from "./components/Header";
 
-import AuthPage from "./components/AuthPage"
+import homePage from "./components/homePage"
 
 
 
 
 function App() {
   return (
-  
-      <AuthPage />
-     
+    <homePage/>     
   );
 }
 
