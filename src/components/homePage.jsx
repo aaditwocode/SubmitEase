@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Zap, Shield, Users, ArrowRight, Star } from "lucide-react"
+import { BookOpen, Users, Lightbulb, ArrowRight, Star } from "lucide-react"
 export default function HomePage() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0)
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -17,43 +17,43 @@ export default function HomePage() {
 
   const testimonials = [
     {
-      name: "Sarah Johnson",
-      role: "Web Developer",
-      company: "TechStart Inc.",
-      content: "SubmitEase transformed how we handle form submissions. Setup took minutes, not hours!",
+      name: "Dr. Alisha Sharma",
+      role: "Postdoctoral Researcher",
+      company: "Institute of Science",
+      content: "SubmitEase's AI recommendations saved me days of searching for the right journal. The automated formatting checks are a lifesaver!",
       rating: 5,
     },
     {
-      name: "Mike Chen",
-      role: "Product Manager",
-      company: "Digital Solutions",
-      content: "The reliability and ease of use is outstanding. Our conversion rates improved by 30%.",
+      name: "Prof. Ben Carter",
+      role: "Journal Editor",
+      company: "Global Engineering Review",
+      content: "Managing peer reviews has never been smoother. The platform's intuitive dashboard simplifies the entire workflow for our editorial team.",
       rating: 5,
     },
     {
-      name: "Emily Rodriguez",
-      role: "Freelance Designer",
-      company: "Creative Studio",
-      content: "Finally, a form service that just works. My clients love the seamless experience.",
+      name: "Mei Lin",
+      role: "PhD Candidate",
+      company: "University of Technology",
+      content: "Collaborating with my co-authors on our conference paper was seamless. A must-have tool for any research team.",
       rating: 5,
     },
   ]
 
-  const features = [
+    const features = [
     {
-      icon: <Zap className="h-8 w-8 text-emerald-500" />,
-      title: "Lightning Fast Processing",
-      description: "Process form submissions in milliseconds with our optimized infrastructure.",
+      icon: <Lightbulb className="h-8 w-8 text-emerald-500" />,
+      title: "AI-Powered Suggestions",
+      description: "Analyze your paper to recommend the most suitable journals or conferences for submission.",
     },
     {
-      icon: <Shield className="h-8 w-8 text-emerald-500" />,
-      title: "Enterprise Security",
-      description: "Bank-level encryption and GDPR compliance to keep your data safe.",
+      icon: <BookOpen className="h-8 w-8 text-emerald-500" />,
+      title: "Unified Dashboard",
+      description: "A central hub to monitor the status of all your journal submissions and conference activities in one place.",
     },
     {
       icon: <Users className="h-8 w-8 text-emerald-500" />,
-      title: "24/7 Reliable Support",
-      description: "Get help when you need it with our dedicated support team.",
+      title: "Multi-Author Collaboration",
+      description: "Our system is designed for modern research teams, allowing multiple authors to be easily associated with a single manuscript.",
     },
   ]
 
@@ -105,15 +105,9 @@ export default function HomePage() {
             >
               Sign In
             </a>
-            <button
-              onClick={() => {
-                setIsSignUp(true)
-                setShowAuthModal(true)
-              }}
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-emerald-500 text-primary-foreground hover:bg-emerald-600"
-            >
+            <a href="/auth" className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 h-9 px-4">
               Get Started
-            </button>
+            </a>
           </nav>
         </div>
       </header>
@@ -174,8 +168,8 @@ export default function HomePage() {
       <section className="py-20 px-4">
         <div className="container mx-auto max-w-4xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Get Started in Minutes</h2>
-            <p className="text-xl text-muted-foreground">Three simple steps to transform your form handling</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Get Started in 3 Simple Steps</h2>
+            <p className="text-xl text-muted-foreground">Transform your submission workflow from start to finish.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -183,22 +177,22 @@ export default function HomePage() {
               <div className="w-12 h-12 bg-emerald-500 text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                 1
               </div>
-              <h3 className="text-lg font-semibold mb-2">Create Your Form</h3>
-              <p className="text-muted-foreground">Design your form with any HTML or framework you prefer.</p>
+              <h3 className="text-lg font-semibold mb-2">Select a Venue</h3>
+              <p className="text-muted-foreground">Choose from a comprehensive list of journals and conferences.</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 bg-emerald-500 text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                 2
               </div>
-              <h3 className="text-lg font-semibold mb-2">Connect to SubmitEase</h3>
-              <p className="text-muted-foreground">Point your form to our secure endpoint with one line of code.</p>
+              <h3 className="text-lg font-semibold mb-2">Submit Your Paper</h3>
+              <p className="text-muted-foreground">Our AI-assisted form helps you fill out submission details and check formatting.</p>
             </div>
             <div className="text-center">
               <div className="w-12 h-12 bg-emerald-500 text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                 3
               </div>
-              <h3 className="text-lg font-semibold mb-2">Start Collecting</h3>
-              <p className="text-muted-foreground">Receive submissions instantly via email, webhook, or dashboard.</p>
+              <h3 className="text-lg font-semibold mb-2">Track Your Progress</h3>
+              <p className="text-muted-foreground">Monitor your submission status from initial review to final decision on your dashboard.</p>
             </div>
           </div>
         </div>
@@ -208,8 +202,8 @@ export default function HomePage() {
       <section id="testimonials" className="py-20 px-4 bg-muted/30">
         <div className="container mx-auto max-w-4xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted by Developers Worldwide</h2>
-            <p className="text-xl text-muted-foreground">See what our customers have to say about SubmitEase</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted by Researchers and Academics</h2>
+            <p className="text-xl text-muted-foreground">See what our users have to say about SubmitEase</p>
           </div>
 
           <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm max-w-2xl mx-auto">
@@ -248,21 +242,15 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-20 px-4">
         <div className="container mx-auto text-center max-w-3xl">
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">Ready to Simplify Your Forms?</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">Ready to Accelerate Your Research?</h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Join thousands of developers who trust SubmitEase for their form processing needs.
+            Join thousands of academics who trust SubmitEase to streamline their publishing workflow.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={() => {
-                setIsSignUp(true)
-                setShowAuthModal(true)
-              }}
-              className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 text-lg px-8 py-6"
-            >
-              Start Free Trial
+            <a href="/auth" className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 text-lg px-8 py-6">
+              Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
-            </button>
+            </a>
           </div>
         </div>
       </section>
@@ -278,7 +266,7 @@ export default function HomePage() {
                 </div>
                 <span className="font-bold text-foreground">SubmitEase</span>
               </div>
-              <p className="text-sm text-muted-foreground">Effortless form handling for modern websites.</p>
+              <p className="text-sm text-muted-foreground">The future of academic publishing.</p>
             </div>
             <div>
               <h4 className="font-semibold text-foreground mb-3">Product</h4>
@@ -315,11 +303,6 @@ export default function HomePage() {
                 </li>
                 <li>
                   <a href="#" className="hover:text-foreground transition-colors">
-                    Careers
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-foreground transition-colors">
                     Contact
                   </a>
                 </li>
@@ -338,16 +321,6 @@ export default function HomePage() {
                     Terms of Service
                   </a>
                 </li>
-                <li>
-                  <a href="#" className="hover:text-foreground transition-colors">
-                    Cookie Policy
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-foreground transition-colors">
-                    GDPR
-                  </a>
-                </li>
               </ul>
             </div>
           </div>
@@ -356,192 +329,6 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-
-      {showAuthModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-background rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-foreground">{isSignUp ? "Create Account" : "Welcome Back"}</h3>
-                <button onClick={() => setShowAuthModal(false)} className="text-muted-foreground hover:text-foreground">
-                  ✕
-                </button>
-              </div>
-
-              {/* Sign In Form */}
-              {!isSignUp && (
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                      Email address
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <a href="#" className="text-sm text-emerald-500 hover:text-emerald-600">
-                      Forgot your password?
-                    </a>
-                  </div>
-
-                  <button type="submit" className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4 py-2 bg-emerald-500 text-primary-foreground hover:bg-emerald-600">
-                    Sign In
-                  </button>
-
-                  <div className="text-center">
-                    <span className="text-muted-foreground">Don't have an account? </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsSignUp(true)}
-                      className="text-emerald-500 hover:text-emerald-600 font-medium"
-                    >
-                      Sign up
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Sign Up Form */}
-              {isSignUp && (
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="firstName" className="block text-sm font-medium text-foreground mb-2">
-                        First Name
-                      </label>
-                      <input
-                        type="text"
-                        id="firstName"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="lastName" className="block text-sm font-medium text-foreground mb-2">
-                        Last Name
-                      </label>
-                      <input
-                        type="text"
-                        id="lastName"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-2">
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="role" className="block text-sm font-medium text-foreground mb-2">
-                      I am a...
-                    </label>
-                    <select
-                      id="role"
-                      name="role"
-                      value={formData.role}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                    >
-                      <option value="Author">Author</option>
-                      <option value="Reviewer">Reviewer</option>
-                      <option value="Editor">Editor</option>
-                    </select>
-                  </div>
-
-                  <button type="submit" className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4 py-2 bg-emerald-500 text-primary-foreground hover:bg-emerald-600">
-                    Create Account
-                  </button>
-
-                  <div className="text-center">
-                    <span className="text-muted-foreground">Already have an account? </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsSignUp(false)}
-                      className="text-emerald-500 hover:text-emerald-600 font-medium"
-                    >
-                      Sign in
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
-
-
