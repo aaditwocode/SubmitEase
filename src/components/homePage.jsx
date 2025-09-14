@@ -1,11 +1,8 @@
 "use client"
 
 import { useState } from "react"
-// import { Button } from "@/components/ui/button"
-// import { Card, CardContent } from "@/components/ui/card"
-// import { Zap, Shield, Users, ArrowRight, Star } from "lucide-react"
-
-export default function homePage() {
+import { Zap, Shield, Users, ArrowRight, Star } from "lucide-react"
+export default function HomePage() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
@@ -44,17 +41,17 @@ export default function homePage() {
 
   const features = [
     {
-      icon: <Zap className="h-8 w-8 text-primary" />,
+      icon: <Zap className="h-8 w-8 text-emerald-500" />,
       title: "Lightning Fast Processing",
       description: "Process form submissions in milliseconds with our optimized infrastructure.",
     },
     {
-      icon: <Shield className="h-8 w-8 text-primary" />,
+      icon: <Shield className="h-8 w-8 text-emerald-500" />,
       title: "Enterprise Security",
       description: "Bank-level encryption and GDPR compliance to keep your data safe.",
     },
     {
-      icon: <Users className="h-8 w-8 text-primary" />,
+      icon: <Users className="h-8 w-8 text-emerald-500" />,
       title: "24/7 Reliable Support",
       description: "Get help when you need it with our dedicated support team.",
     },
@@ -90,7 +87,7 @@ export default function homePage() {
       <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
+            <div className="h-8 w-8 bg-emerald-500 rounded-lg flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-lg">S</span>
             </div>
             <span className="text-xl font-bold text-foreground">SubmitEase</span>
@@ -102,25 +99,21 @@ export default function homePage() {
             <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
               Reviews
             </a>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsSignUp(false)
-                setShowAuthModal(true)
-              }}
+            <a
+              href="/auth"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 border border-input bg-background hover:bg-accent hover:text-accent-foreground"
             >
               Sign In
-            </Button>
-            <Button
-              size="sm"
+            </a>
+            <button
               onClick={() => {
                 setIsSignUp(true)
                 setShowAuthModal(true)
               }}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-9 px-3 bg-emerald-500 text-primary-foreground hover:bg-emerald-600"
             >
               Get Started
-            </Button>
+            </button>
           </nav>
         </div>
       </header>
@@ -129,24 +122,23 @@ export default function homePage() {
       <section className="py-20 px-4">
         <div className="container mx-auto text-center max-w-4xl">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 text-balance">
-            Streamline Your Form Submissions with <span className="text-primary">SubmitEase</span>
+            Streamline Your Form Submissions with <span className="text-emerald-500">SubmitEase</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 text-pretty max-w-2xl mx-auto">
             Effortless form handling for your website. No backend required, no complex setup. Just simple, reliable form
             processing that works.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              className="text-lg px-8 py-6"
+            <button
               onClick={() => {
                 setIsSignUp(true)
                 setShowAuthModal(true)
               }}
+              className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 text-lg px-8 py-6"
             >
               Get Started Free
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            </button>
           </div>
           <p className="text-sm text-muted-foreground mt-4">
             No credit card required • 14-day free trial • Cancel anytime
@@ -166,13 +158,13 @@ export default function homePage() {
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {features.map((feature, index) => (
-              <Card key={index} className="border-border bg-card hover:shadow-lg transition-shadow">
-                <CardContent className="p-8 text-center">
+              <div key={index} className="rounded-lg border border-border bg-card text-card-foreground shadow-sm hover:shadow-lg transition-shadow">
+                <div className="p-8 text-center">
                   <div className="flex justify-center mb-4">{feature.icon}</div>
                   <h3 className="text-xl font-semibold text-card-foreground mb-3">{feature.title}</h3>
                   <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -188,21 +180,21 @@ export default function homePage() {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
+              <div className="w-12 h-12 bg-emerald-500 text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                 1
               </div>
               <h3 className="text-lg font-semibold mb-2">Create Your Form</h3>
               <p className="text-muted-foreground">Design your form with any HTML or framework you prefer.</p>
             </div>
             <div className="text-center">
-              <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
+              <div className="w-12 h-12 bg-emerald-500 text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                 2
               </div>
               <h3 className="text-lg font-semibold mb-2">Connect to SubmitEase</h3>
               <p className="text-muted-foreground">Point your form to our secure endpoint with one line of code.</p>
             </div>
             <div className="text-center">
-              <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
+              <div className="w-12 h-12 bg-emerald-500 text-primary-foreground rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
                 3
               </div>
               <h3 className="text-lg font-semibold mb-2">Start Collecting</h3>
@@ -220,11 +212,11 @@ export default function homePage() {
             <p className="text-xl text-muted-foreground">See what our customers have to say about SubmitEase</p>
           </div>
 
-          <Card className="border-border bg-card max-w-2xl mx-auto">
-            <CardContent className="p-8 text-center">
+          <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm max-w-2xl mx-auto">
+            <div className="p-8 text-center">
               <div className="flex justify-center mb-4">
                 {[...Array(testimonials[currentTestimonial].rating)].map((_, i) => (
-                  <Star key={i} className="h-5 w-5 text-yellow-400 fill-current" />
+                  <Star key={i} className="h-5 w-5 text-emerald-400 fill-current" />
                 ))}
               </div>
               <blockquote className="text-lg text-card-foreground mb-6 italic">
@@ -236,8 +228,8 @@ export default function homePage() {
                   {testimonials[currentTestimonial].role} at {testimonials[currentTestimonial].company}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <div className="flex justify-center mt-6 space-x-2">
             {testimonials.map((_, index) => (
@@ -245,7 +237,7 @@ export default function homePage() {
                 key={index}
                 onClick={() => setCurrentTestimonial(index)}
                 className={`w-3 h-3 rounded-full transition-colors ${
-                  index === currentTestimonial ? "bg-primary" : "bg-border"
+                  index === currentTestimonial ? "bg-emerald-500" : "bg-border"
                 }`}
               />
             ))}
@@ -261,17 +253,16 @@ export default function homePage() {
             Join thousands of developers who trust SubmitEase for their form processing needs.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              className="text-lg px-8 py-6"
+            <button
               onClick={() => {
                 setIsSignUp(true)
                 setShowAuthModal(true)
               }}
+              className="inline-flex items-center justify-center rounded-md font-medium transition-colors bg-emerald-500 text-primary-foreground hover:bg-emerald-600 text-lg px-8 py-6"
             >
               Start Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            </button>
           </div>
         </div>
       </section>
@@ -282,7 +273,7 @@ export default function homePage() {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="h-6 w-6 bg-primary rounded flex items-center justify-center">
+                <div className="h-6 w-6 bg-emerald-500 rounded flex items-center justify-center">
                   <span className="text-primary-foreground font-bold text-sm">S</span>
                 </div>
                 <span className="font-bold text-foreground">SubmitEase</span>
@@ -390,7 +381,7 @@ export default function homePage() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       required
                     />
                   </div>
@@ -405,27 +396,27 @@ export default function homePage() {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       required
                     />
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <a href="#" className="text-sm text-primary hover:text-primary/80">
+                    <a href="#" className="text-sm text-emerald-500 hover:text-emerald-600">
                       Forgot your password?
                     </a>
                   </div>
 
-                  <Button type="submit" className="w-full">
+                  <button type="submit" className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4 py-2 bg-emerald-500 text-primary-foreground hover:bg-emerald-600">
                     Sign In
-                  </Button>
+                  </button>
 
                   <div className="text-center">
                     <span className="text-muted-foreground">Don't have an account? </span>
                     <button
                       type="button"
                       onClick={() => setIsSignUp(true)}
-                      className="text-primary hover:text-primary/80 font-medium"
+                      className="text-emerald-500 hover:text-emerald-600 font-medium"
                     >
                       Sign up
                     </button>
@@ -447,7 +438,7 @@ export default function homePage() {
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         required
                       />
                     </div>
@@ -461,7 +452,7 @@ export default function homePage() {
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
-                        className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         required
                       />
                     </div>
@@ -477,7 +468,7 @@ export default function homePage() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       required
                     />
                   </div>
@@ -492,7 +483,7 @@ export default function homePage() {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       required
                     />
                   </div>
@@ -507,7 +498,7 @@ export default function homePage() {
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       required
                     />
                   </div>
@@ -521,7 +512,7 @@ export default function homePage() {
                       name="role"
                       value={formData.role}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className="w-full px-3 py-2 border border-border rounded-md bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     >
                       <option value="Author">Author</option>
                       <option value="Reviewer">Reviewer</option>
@@ -529,16 +520,16 @@ export default function homePage() {
                     </select>
                   </div>
 
-                  <Button type="submit" className="w-full">
+                  <button type="submit" className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-10 px-4 py-2 bg-emerald-500 text-primary-foreground hover:bg-emerald-600">
                     Create Account
-                  </Button>
+                  </button>
 
                   <div className="text-center">
                     <span className="text-muted-foreground">Already have an account? </span>
                     <button
                       type="button"
                       onClick={() => setIsSignUp(false)}
-                      className="text-primary hover:text-primary/80 font-medium"
+                      className="text-emerald-500 hover:text-emerald-600 font-medium"
                     >
                       Sign in
                     </button>
@@ -552,3 +543,5 @@ export default function homePage() {
     </div>
   )
 }
+
+
