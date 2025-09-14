@@ -6,7 +6,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* This route renders HomePage when the URL is "/" */}
+        <Route path="/" element={<HomePage />} />
+        {/* This route renders HomePage when the URL is "/home" */}
         <Route path="/home" element={<HomePage />} />
 
         {/* This route renders AuthPage when the URL is "/auth" */}
@@ -15,5 +16,4 @@ function App() {
     </BrowserRouter>
   );
 }
-
 export default App;
