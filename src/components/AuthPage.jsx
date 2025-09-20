@@ -7,7 +7,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const goToProfile = () => {
     navigate('/dashboard');
-  };
+};
   const [isSignUp, setIsSignUp] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
@@ -26,19 +26,65 @@ export default function AuthPage() {
     }))
   }
 
-  const handleSignIn = (e) => {
-    e.preventDefault()
-    console.log("Sign in attempt:", { email: formData.email, password: formData.password })
+ const handleSignIn = async (e) => {
+  e.preventDefault();
+
+  try {
+    // Replace this with your actual auth check later
+    const response = await fetch("http://localhost:3001/users");
+    const users = await response.json();
+
+    const user = users.find(
+      (u) => u.email === formData.email && u.password === formData.password
+    );
+
+    if (!user) {
+      alert("Invalid credentials");
+      return;
+    }
+
+    console.log("Signed in:", user);
+    alert(`Welcome back, ${user.name}!`);
+  } catch (err) {
+    console.error(err);
+    alert("Sign in failed. See console for details.");
+  }
+};
+
+
+  const handleSignUp = async (e) => {
+  e.preventDefault();
+
+  if (formData.password !== formData.confirmPassword) {
+    alert("Passwords do not match");
+    return;
   }
 
-  const handleSignUp = (e) => {
-    e.preventDefault()
-    if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match")
-      return
+  try {
+    const response = await fetch("http://localhost:3001/users", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formData),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      alert(`Error: ${err.error}`);
+      return;
     }
-    console.log("Sign up attempt:", formData)
+
+    const user = await response.json();
+    console.log("User created:", user);
+    alert(`Welcome ${user.name}! Account created successfully.`);
+    setIsSignUp(false); 
+  } catch (err) {
+    console.error("Sign up failed:", err);
+    alert("Sign up failed. See console for details.");
   }
+};
+
 
   return (
     <div className="min-h-screen flex flex-col bg-background">

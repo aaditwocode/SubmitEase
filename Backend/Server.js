@@ -1,12 +1,17 @@
 import { PrismaClient } from '@prisma/client';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import express from 'express';
+import cors from 'cors';
 const prisma = new PrismaClient()
   .$extends(withAccelerate());
 
 const app = express();
-const port = 3000;
+const port = 3001;
 
+
+app.use(cors({
+  origin: "http://localhost:3000", // <--- Next.js frontend URL
+}));
 app.use(express.json());
 
 // POST /users: Create a new user
