@@ -1,8 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage() {
+  const navigate = useNavigate();
+  const goToProfile = () => {
+    navigate('/dashboard');
+  };
   const [isSignUp, setIsSignUp] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
@@ -124,7 +129,7 @@ export default function AuthPage() {
                   </div>
 
                   <button
-                    type="submit"
+                    type="submit" onClick={goToProfile}
                     className="w-full bg-emerald-500 text-primary-foreground py-2 px-4 rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition duration-200"
                   >
                     Sign In
