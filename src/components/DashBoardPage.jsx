@@ -13,71 +13,61 @@ export default function DashBoardPage() {
     setActivePortal(portal);
     // Here you would typically navigate to the portal page
     console.log(`[v0] Navigating to ${portal} portal`);
+    navigate(`/${portal}`);
   };
 
   const handleLogout = () => {
     console.log("[v0] Logging out user");
-    // Handle logout logic here
+    navigate("/home");
   };
-
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-white border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Left side - Title */}
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary">SubmitEase</h1>
+    <div className="min-h-screen bg-[#ffffff]">
+      <header className="border-b border-[#e5e7eb] bg-[#ffffff]/95 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/60">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="h-8 w-8 bg-[#059669] rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">S</span>
             </div>
-
-            {/* Center - Navigation */}
-            <nav className="hidden md:flex space-x-8">
-              <button className="text-foreground hover:text-primary transition-colors">
-                About Us
-              </button>
-              <button className="text-foreground hover:text-primary transition-colors">
-                My Submissions
-              </button>
-            </nav>
+            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+          </div>
 
             {/* Right side - Portal buttons and logout */}
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => handlePortalClick("journal")}
-                className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
               >
                 Journal Portal
               </button>
               <button
                 onClick={() => handlePortalClick("conference")}
-                className="px-4 py-2 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/90 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
               >
                 Conference Portal
               </button>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors"
+                className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
               >
                 Logout
               </button>
             </div>
           </div>
-        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <section className="mb-12">
-          <div className="bg-card rounded-xl shadow-sm border border-border p-8">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8">
+            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">
               Profile Information
             </h2>
             <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
               {/* Profile Image */}
               <div className="flex-shrink-0">
                 <img
-                  src="/professional-woman-scientist.png"
+                  src="https://placehold.co/128x128/059669/ffffff?text=SJ"
                   alt="Profile"
-                  className="w-32 h-32 rounded-full object-cover border-4 border-primary/20"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-[#059669]/20 opacity-70"
                 />
               </div>
 
@@ -85,49 +75,35 @@ export default function DashBoardPage() {
               <div className="flex-1 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    <label className="block text-sm font-medium text-[#6b7280] mb-1">
                       Full Name
                     </label>
-                    <p className="text-lg font-semibold text-foreground">
+                    <p className="text-lg font-semibold text-[#1f2937]">
                       Dr. Sarah Johnson
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    <label className="block text-sm font-medium text-[#6b7280] mb-1">
                       Email Address
                     </label>
-                    <p className="text-lg text-foreground">
+                    <p className="text-lg text-[#1f2937]">
                       sarah.johnson@university.edu
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                      Institution
+                    <label className="block text-sm font-medium text-[#6b7280] mb-1">
+                      Organisation
                     </label>
-                    <p className="text-lg text-foreground">
+                    <p className="text-lg text-[#1f2937]">
                       Stanford University
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                      Department
-                    </label>
-                    <p className="text-lg text-foreground">Computer Science</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    <label className="block text-sm font-medium text-[#6b7280] mb-1">
                       Research Area
                     </label>
-                    <p className="text-lg text-foreground">
+                    <p className="text-lg text-[#1f2937]">
                       Machine Learning & AI
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                      ORCID ID
-                    </label>
-                    <p className="text-lg text-foreground">
-                      0000-0002-1825-0097
                     </p>
                   </div>
                 </div>
@@ -137,77 +113,71 @@ export default function DashBoardPage() {
         </section>
 
         <section className="mb-12">
-          <div className="bg-card rounded-xl shadow-sm border border-border p-8">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8">
+            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">
               Academic Statistics
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="text-center p-6 bg-primary/5 rounded-lg border border-primary/20">
-                <div className="text-3xl font-bold text-primary mb-2">24</div>
-                <div className="text-sm font-medium text-muted-foreground">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="text-center p-6 bg-[#059669]/[0.05] rounded-lg border border-[#059669]/20">
+                <div className="text-3xl font-bold text-[#059669] mb-2">24</div>
+                <div className="text-sm font-medium text-[#6b7280]">
                   Conferences Attended
                 </div>
               </div>
-              <div className="text-center p-6 bg-secondary/5 rounded-lg border border-secondary/20">
-                <div className="text-3xl font-bold text-secondary mb-2">18</div>
-                <div className="text-sm font-medium text-muted-foreground">
+              <div className="text-center p-6 bg-[#059669]/[0.05] rounded-lg border border-[#059669]/20">
+                <div className="text-3xl font-bold text-[#059669] mb-2">18</div>
+                <div className="text-sm font-medium text-[#6b7280]">
                   Papers Published
                 </div>
               </div>
-              <div className="text-center p-6 bg-accent/5 rounded-lg border border-accent/20">
-                <div className="text-3xl font-bold text-accent mb-2">156</div>
-                <div className="text-sm font-medium text-muted-foreground">
+              <div className="text-center p-6 bg-[#059669]/[0.05] rounded-lg border border-[#059669]/20">
+                <div className="text-3xl font-bold text-[#059669] mb-2">156</div>
+                <div className="text-sm font-medium text-[#6b7280]">
                   Total Citations
-                </div>
-              </div>
-              <div className="text-center p-6 bg-chart-1/5 rounded-lg border border-chart-1/20">
-                <div className="text-3xl font-bold text-chart-1 mb-2">8.2</div>
-                <div className="text-sm font-medium text-muted-foreground">
-                  H-Index
                 </div>
               </div>
             </div>
 
             {/* Recent Activity */}
             <div className="mt-8">
-              <h3 className="text-lg font-semibold text-foreground mb-4">
+              <h3 className="text-lg font-semibold text-[#1f2937] mb-4">
                 Recent Activity
               </h3>
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-[#f3f4f6]/30 rounded-lg">
                   <div>
-                    <p className="font-medium text-foreground">
+                    <p className="font-medium text-[#1f2937]">
                       ICML 2024 Conference
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[#6b7280]">
                       Presented paper on "Neural Architecture Search"
                     </p>
                   </div>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-[#6b7280]">
                     2 weeks ago
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-[#f3f4f6]/30 rounded-lg">
                   <div>
-                    <p className="font-medium text-foreground">
+                    <p className="font-medium text-[#1f2937]">
                       Nature Machine Intelligence
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-[#6b7280]">
                       Published "Advances in Deep Learning"
                     </p>
                   </div>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-[#6b7280]">
                     1 month ago
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-[#f3f4f6]/30 rounded-lg">
                   <div>
-                    <p className="font-medium text-foreground">NeurIPS 2024</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="font-medium text-[#1f2937]">NeurIPS 2024</p>
+                    <p className="text-sm text-[#6b7280]">
                       Paper accepted for presentation
                     </p>
                   </div>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-[#6b7280]">
                     2 months ago
                   </span>
                 </div>
@@ -217,11 +187,11 @@ export default function DashBoardPage() {
         </section>
 
         <section>
-          <div className="bg-card rounded-xl shadow-sm border border-border p-8">
-            <h2 className="text-2xl font-bold text-foreground mb-6">
+          <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8">
+            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">
               Access Portals
             </h2>
-            <p className="text-muted-foreground mb-8">
+            <p className="text-[#6b7280] mb-8">
               Choose your portal to manage submissions, track progress, and
               access academic resources.
             </p>
@@ -235,12 +205,12 @@ export default function DashBoardPage() {
                     handlePortalClick("conference");
                     onClick = { goToProfile };
                   }}
-                  className="w-full p-8 bg-primary/5 hover:bg-primary/10 border-2 border-primary/20 hover:border-primary/40 rounded-xl transition-all duration-200 group-hover:shadow-lg"
+                  className="w-full p-8 bg-[#059669]/[0.05] hover:bg-[#059669]/10 border-2 border-[#059669]/20 hover:border-[#059669]/40 rounded-xl transition-all duration-200 group-hover:shadow-lg"
                 >
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/30 transition-colors">
+                    <div className="w-16 h-16 bg-[#059669]/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-[#059669]/30 transition-colors">
                       <svg
-                        className="w-8 h-8 text-primary"
+                        className="w-8 h-8 text-[#059669]"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -253,10 +223,10 @@ export default function DashBoardPage() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-primary mb-2">
+                    <h3 className="text-xl font-bold text-[#059669] mb-2">
                       Open Conference Portal
                     </h3>
-                    <p className="text-muted-foreground">
+                    <p className="text-[#6b7280]">
                       Submit papers, track conference submissions, and manage
                       your academic presentations.
                     </p>
@@ -271,12 +241,12 @@ export default function DashBoardPage() {
                   onClick={() => {
                     handlePortalClick("journal");
                   }}
-                  className="w-full p-8 bg-secondary/5 hover:bg-secondary/10 border-2 border-secondary/20 hover:border-secondary/40 rounded-xl transition-all duration-200 group-hover:shadow-lg"
+                  className="w-full p-8 bg-[#059669]/[0.05] hover:bg-[#059669]/10 border-2 border-[#059669]/20 hover:border-[#059669]/40 rounded-xl transition-all duration-200 group-hover:shadow-lg"
                 >
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-secondary/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-secondary/30 transition-colors">
+                    <div className="w-16 h-16 bg-[#059669]/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-[#059669]/30 transition-colors">
                       <svg
-                        className="w-8 h-8 text-secondary"
+                        className="w-8 h-8 text-[#059669]"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -289,10 +259,10 @@ export default function DashBoardPage() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-secondary mb-2">
+                    <h3 className="text-xl font-bold text-[#059669] mb-2">
                       Open Journal Portal
                     </h3>
-                    <p className="text-muted-foreground">
+                    <p className="text-[#6b7280]">
                       Submit to journals, manage peer reviews, and track
                       publication status.
                     </p>
@@ -306,3 +276,4 @@ export default function DashBoardPage() {
     </div>
   );
 }
+
