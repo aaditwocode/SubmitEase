@@ -6,12 +6,16 @@ import { useUserData } from "./UserContext";
 export default function ConferencePage() {
   const [selectedPaper, setSelectedPaper] = useState(null);
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
+  const [selectedConference, setSelectedConference] = useState('');
   const { user, setUser, loginStatus, setloginStatus } = useUserData();
   const navigate = useNavigate();
   const handlePortalClick = (portal) => {
     navigate(`/${portal}`);
   };
-
+const newSubmission = (name) => {
+  setShowSubmissionForm(true);
+  setSelectedConference(name);
+};
   const handleLogout = () => {
     console.log("[v0] Logging out user");
     setUser(null);
@@ -160,7 +164,7 @@ export default function ConferencePage() {
                     </span>
                   </div>
                   <button
-                    onClick={() => setShowSubmissionForm(true)}
+                    onClick={() => newSubmission(conf.name)}
                     className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
                   >
                     New Submission
@@ -279,12 +283,9 @@ export default function ConferencePage() {
                       Conference
                     </label>
                     <select className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                      <option value="">Select Conference</option>
-                      {conferences.map((conf) => (
-                        <option key={conf.id} value={conf.id}>
-                          {conf.name}
-                        </option>
-                      ))}
+                      <option key={1} value={selectedConference}>
+                          {selectedConference}
+                      </option>
                     </select>
                   </div>
 
