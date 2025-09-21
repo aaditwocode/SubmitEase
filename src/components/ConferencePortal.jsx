@@ -102,12 +102,6 @@ export default function ConferencePage() {
             <h2 className="text-3xl font-bold text-[#1f2937]">
               Conference Portal
             </h2>
-            <button
-              onClick={() => setShowSubmissionForm(true)}
-              className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors"
-            >
-              New Submission
-            </button>
           </div>
 
           {/* Quick Stats */}
@@ -149,20 +143,28 @@ export default function ConferencePage() {
                   key={conf.id}
                   className="flex justify-between items-center p-4 border border-[#e5e7eb] rounded-lg"
                 >
-                  <div>
+                  <div className="flex-grow">
                     <h4 className="font-medium text-[#1f2937]">
                       {conf.name}
                     </h4>
                     <p className="text-sm text-[#6b7280]">{conf.location}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right mr-6">
                     <p className="text-sm font-medium text-[#1f2937]">
                       Deadline: {conf.deadline}
                     </p>
-                    <span className="inline-block mt-1 px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-full">
+                  </div>
+                  <div className="text-right mr-6">
+                  <span className="inline-block mt-1 px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-full">
                       {conf.status}
                     </span>
                   </div>
+                  <button
+                    onClick={() => setShowSubmissionForm(true)}
+                    className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
+                  >
+                    New Submission
+                  </button>
                 </div>
               ))}
             </div>
