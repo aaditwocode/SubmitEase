@@ -5,8 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { useUserData } from "./UserContext";
 export default function SignInPage() {
   const { setUser,setLoginStatus } = useUserData();
-  setUser(null);
-  setLoginStatus(false);
   const navigate = useNavigate();
   const [feedback, setFeedback] = useState({ message: '', type: '' });
   const [formData, setFormData] = useState({
@@ -39,6 +37,7 @@ export default function SignInPage() {
       if (!response.ok) throw new Error(data.message || "Sign in failed.");
       setUser(data.user);
       setLoginStatus(true);
+      setFeedback({ message: 'Sign In Successful! Redirecting...', type: 'Success' });
       setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {
       console.error(err);
