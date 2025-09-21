@@ -2,9 +2,12 @@
 
 import { useState } from "react"
 import { useNavigate } from 'react-router-dom';
-
+import {useUserData} from "./UserContext"
 export default function SignUpPage() {
   const navigate = useNavigate();
+  const {setUser,setLoginStatus} = useUserData();
+  setUser(null);
+  setLoginStatus(false);
   const [feedback, setFeedback] = useState({ message: '', type: '' });
   const [formData, setFormData] = useState({
     firstName: "",

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+import { useUserData } from "./UserContext";
 export default function DashBoardPage() {
+  const { user,setUser,loginStatus,setloginStatus } = useUserData();
   const [activePortal, setActivePortal] = useState(null);
   const navigate = useNavigate();
+
   const goToProfile = () => {
     navigate("/conference");
   };
@@ -18,6 +20,8 @@ export default function DashBoardPage() {
 
   const handleLogout = () => {
     console.log("[v0] Logging out user");
+    setUser(null);
+    setloginStatus(false);
     navigate("/home");
   };
   return (
@@ -65,7 +69,7 @@ export default function DashBoardPage() {
               {/* Profile Image */}
               <div className="flex-shrink-0">
                 <img
-                  src="https://placehold.co/128x128/059669/ffffff?text=SJ"
+                  src={`https://placehold.co/128x128/059669/ffffff?text=${user.firstname.charAt(0)}${user.lastname.charAt(0)}`}
                   alt="Profile"
                   className="w-32 h-32 rounded-full object-cover border-4 border-[#059669]/20 opacity-70"
                 />
@@ -79,7 +83,7 @@ export default function DashBoardPage() {
                       Full Name
                     </label>
                     <p className="text-lg font-semibold text-[#1f2937]">
-                      Dr. Sarah Johnson
+                      {user.firstname} {user.lastname}
                     </p>
                   </div>
                   <div>
@@ -87,7 +91,7 @@ export default function DashBoardPage() {
                       Email Address
                     </label>
                     <p className="text-lg text-[#1f2937]">
-                      sarah.johnson@university.edu
+                      {user.email}
                     </p>
                   </div>
                   <div>
@@ -95,7 +99,7 @@ export default function DashBoardPage() {
                       Organisation
                     </label>
                     <p className="text-lg text-[#1f2937]">
-                      Stanford University
+                      {user.organisation}
                     </p>
                   </div>
                   <div>
@@ -103,7 +107,7 @@ export default function DashBoardPage() {
                       Research Area
                     </label>
                     <p className="text-lg text-[#1f2937]">
-                      Machine Learning & AI
+                      {user.expertise.join(', ')}
                     </p>
                   </div>
                 </div>

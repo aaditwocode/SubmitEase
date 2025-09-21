@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import { useUserData } from "./UserContext";
 export default function ConferencePage() {
   const [selectedPaper, setSelectedPaper] = useState(null);
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
+  const { user, setUser, loginStatus, setloginStatus } = useUserData();
   const navigate = useNavigate();
   const handlePortalClick = (portal) => {
     navigate(`/${portal}`);
@@ -13,6 +14,8 @@ export default function ConferencePage() {
 
   const handleLogout = () => {
     console.log("[v0] Logging out user");
+    setUser(null);
+    setloginStatus(false);
     navigate("/home");
   };
   const conferences = [
