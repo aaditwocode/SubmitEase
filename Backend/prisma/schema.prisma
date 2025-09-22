@@ -8,15 +8,26 @@ datasource db {
 }
 
 model User {
-  id      Int      @id @default(autoincrement())
-  email   String   @unique
-  password  String @unique
+  id           Int          @id @default(autoincrement())
+  email        String       @unique
+  password     String
   firstname    String
-  lastname String
-  role    String[]
-  expertise String[]
+  lastname     String
+  role         String[]
+  expertise    String[]
   organisation String
-  country String
+  country      String
+  Conference   Conference[]
 }
 
-
+model Conference {
+  id          Int      @id @default(autoincrement())
+  name        String
+  location    String
+  scheduledAt DateTime
+  deadline    DateTime
+  link        String
+  status      String
+  hostID      Int
+  host        User?    @relation(fields: [hostID], references: [id])
+}

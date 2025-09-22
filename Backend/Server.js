@@ -81,34 +81,30 @@ app.post('/login', async (req, res) => {
   }
 });
 
-
-// GET /users: Get all users (Note: In a real app, this should be a protected route)
-app.get('/users', async (req, res) => {
+app.get('/conferences', async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
-      // Exclude password field from the result
+    const conferences = await prisma.conference.findMany({
+      where: {
+        status: "Open"
+      },
       select: {
         id: true,
-        email: true,
-        firstname: true,
-        lastname: true,
-        role: true,
-        organisation: true,
-        expertise: true,
+        name: true,
+        location: true,
+        scheduledAt: true,
+        deadline: true,
+        link: true,
+        status: true,
       }
     });
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: 'Could not retrieve users', details: error.message });
-  }
-});
+    if (!conferences || conferences.length === 0) {
+      return res.status(404).json({ message: 'No Available Conferences.' });
+    }
 
-app.get('/posts', async (req, res) => {
-  try {
-    const postsByUser = await prisma.post.findMany();
-    res.json(postsByUser);
+    res.status(200).json({ conference: conferences });
+
   } catch (error) {
-    res.status(500).json({ error: 'Could not retrieve users', details: error.message });
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
 

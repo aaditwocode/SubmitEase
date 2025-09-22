@@ -38,7 +38,7 @@ export default function SignInPage() {
       setUser(data.user);
       setLoginStatus(true);
       setFeedback({ message: 'Sign In Successful! Redirecting...', type: 'Success' });
-      setTimeout(() => navigate('/dashboard'), 1500);
+      setTimeout(() => navigate('/dashboard'), 200);
     } catch (err) {
       console.error(err);
       setFeedback({ message: err.message, type: 'error' });

@@ -149,11 +149,11 @@ export default function SignUpPage() {
                 </div>
                  <div>
                     <label htmlFor="organisation" className="block text-sm font-medium text-[#1f2937] mb-2">Organisation</label>
-                    <input type="text" id="organisation" name="organisation" placeholder="e.g., University of Science" value={formData.organisation} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
+                    <input type="text" id="organisation" name="organisation" placeholder="e.g., Jaypee Institute Of Information Technology" value={formData.organisation} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
                   </div>
                    <div>
                     <label htmlFor="country" className="block text-sm font-medium text-[#1f2937] mb-2">Country</label>
-                    <input type="text" id="country" name="country" placeholder="e.g., United States" value={formData.country} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
+                    <input type="text" id="country" name="country" placeholder="e.g., India" value={formData.country} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
                   </div>
                   <div>
                     <label htmlFor="expertise" className="block text-sm font-medium text-[#1f2937] mb-2">Areas of Expertise</label>

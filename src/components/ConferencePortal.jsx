@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 export default function ConferencePage() {
@@ -12,40 +12,43 @@ export default function ConferencePage() {
   const handlePortalClick = (portal) => {
     navigate(`/${portal}`);
   };
-const newSubmission = (name) => {
-  setShowSubmissionForm(true);
-  setSelectedConference(name);
-};
+  const newSubmission = (name) => {
+    setShowSubmissionForm(true);
+    setSelectedConference(name);
+  };
   const handleLogout = () => {
     console.log("[v0] Logging out user");
     setUser(null);
     setloginStatus(false);
     navigate("/home");
   };
-  const conferences = [
-    {
-      id: 1,
-      name: "International Conference on AI & ML 2024",
-      deadline: "2024-10-15",
-      status: "Open",
-      location: "San Francisco, CA",
-    },
-    {
-      id: 2,
-      name: "IEEE Computer Vision Conference",
-      deadline: "2024-11-20",
-      status: "Open",
-      location: "Boston, MA",
-    },
-  ];
+  const [conferences, setConferences] = useState([]);
+
+  useEffect(() => {
+    const getConferences = async () => {
+      try {
+        const response = await fetch("http://localhost:3001/conferences");
+        if (!response.ok) {
+          throw new Error("Data Fetch Failed.");
+        }
+        const data = await response.json();
+        setConferences(data.conference);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    getConferences();
+  }, []);
+
 
   const submittedPapers = [
     {
       id: "P001",
       title: "Deep Learning Approaches for Medical Image Analysis",
-      conference: "International Conference on AI & ML 2024",
+      conference: "International Conference on AI & ML 2025",
       status: "Under Review",
-      submissionDate: "2024-08-10",
+      submissionDate: "15-09-2025",
       abstract:
         "This paper presents novel deep learning methodologies for analyzing medical images, focusing on improving diagnostic accuracy for various conditions through convolutional neural networks.",
       keywords: [
@@ -60,7 +63,7 @@ const newSubmission = (name) => {
       title: "Federated Learning in Edge Computing",
       conference: "IEEE Computer Vision Conference",
       status: "Accepted",
-      submissionDate: "2024-07-15",
+      submissionDate: "01-09-2025",
       abstract:
         "We propose a federated learning framework optimized for edge computing environments, addressing challenges of data privacy and latency in distributed systems.",
       keywords: ["Federated Learning", "Edge Computing", "Distributed Systems"],
@@ -69,7 +72,7 @@ const newSubmission = (name) => {
 
   return (
     <div className="min-h-screen bg-[#ffffff]">
-       <header className="border-b border-[#e5e7eb] bg-[#ffffff]/95 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/60">
+      <header className="border-b border-[#e5e7eb] bg-[#ffffff]/95 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/60">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 bg-[#059669] rounded-lg flex items-center justify-center">
@@ -77,26 +80,26 @@ const newSubmission = (name) => {
             </div>
             <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
           </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => handlePortalClick("journal")}
-                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
-              >
-                Journal Portal
-              </button>
-              <button
-                onClick={() => handlePortalClick("dashboard")}
-                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
-              >
-                Return To Dashboard
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
-              >
-                Logout
-              </button>
-            </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => handlePortalClick("journal")}
+              className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+            >
+              Journal Portal
+            </button>
+            <button
+              onClick={() => handlePortalClick("dashboard")}
+              className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+            >
+              Return To Dashboard
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -145,30 +148,74 @@ const newSubmission = (name) => {
               {conferences.map((conf) => (
                 <div
                   key={conf.id}
-                  className="flex justify-between items-center p-4 border border-[#e5e7eb] rounded-lg"
+                  className="block p-4 border border-[#e5e7eb] rounded-lg"
                 >
-                  <div className="flex-grow">
-                    <h4 className="font-medium text-[#1f2937]">
-                      {conf.name}
-                    </h4>
-                    <p className="text-sm text-[#6b7280]">{conf.location}</p>
-                  </div>
-                  <div className="text-right mr-6">
-                    <p className="text-sm font-medium text-[#1f2937]">
-                      Deadline: {conf.deadline}
-                    </p>
-                  </div>
-                  <div className="text-right mr-6">
-                  <span className="inline-block mt-1 px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-full">
-                      {conf.status}
+                  {/* --- Header: Name and Status --- */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="text-lg font-bold text-[#1f2937]">{conf.name}</h4>
+                      <p className="text-sm text-[#6b7280]">{conf.location}</p>
+                    </div>
+                    <span
+                      className="inline-block mt-1 px-2 py-1 text-xs font-semibold bg-[#059669]/10 text-[#059669] rounded-full whitespace-nowrap"
+                    >
+                      Status: {conf.status}
                     </span>
                   </div>
-                  <button
-                    onClick={() => newSubmission(conf.name)}
-                    className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
-                  >
-                    New Submission
-                  </button>
+
+                  {/* --- Details: Dates and Link --- */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 text-sm border-t border-b border-[#e5e7eb] py-3 my-3">
+
+                    {/* Starts On */}
+                    <p className="text-[#6b7280] text-center">
+                      <span className="font-medium text-[#1f2937]">Starts On:</span>{' '}
+                      {new Date(conf.scheduledAt).toLocaleString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+
+                    {/* Deadline */}
+                    <p className="text-[#6b7280] text-center">
+                      <span className="font-medium text-[#1f2937]">Deadline:</span>{' '}
+                      {new Date(conf.deadline).toLocaleString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
+                        year: 'numeric',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+
+                    {/* Website Link */}
+                    <p className="text-[#6b7280] text-center">
+                      <span className="font-medium text-[#1f2937]">Website:</span>{' '}
+                      <a
+                        href={conf.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {conf.link}
+                      </a>
+                    </p>
+
+                  </div>
+
+                  {/* --- Action Button --- */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => newSubmission(conf.name)}
+                      className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
+                    >
+                      New Submission
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -196,11 +243,10 @@ const newSubmission = (name) => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <span
-                        className={`inline-block px-2 py-1 text-xs rounded-full ${
-                          paper.status === "Accepted"
-                            ? "bg-[#059669]/10 text-[#059669]"
-                            : "bg-[#f59e0b]/10 text-[#f59e0b]"
-                        }`}
+                        className={`inline-block px-2 py-1 text-xs rounded-full ${paper.status === "Accepted"
+                          ? "bg-[#059669]/10 text-[#059669]"
+                          : "bg-[#f59e0b]/10 text-[#f59e0b]"
+                          }`}
                       >
                         {paper.status}
                       </span>
@@ -284,7 +330,7 @@ const newSubmission = (name) => {
                     </label>
                     <select className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]">
                       <option key={1} value={selectedConference}>
-                          {selectedConference}
+                        {selectedConference}
                       </option>
                     </select>
                   </div>
