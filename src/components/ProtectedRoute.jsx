@@ -2,8 +2,8 @@ import { useUserData } from './UserContext';
 import { Navigate } from 'react-router-dom';
 
 const ProtectedRoute = ({ children }) => {
-  const { user,loginStatus } = useUserData();
-  if (!user || !loginStatus) {
+  const { user} = useUserData();
+  if (!user) {
     return <Navigate to="/home" />;
   }
   return children;

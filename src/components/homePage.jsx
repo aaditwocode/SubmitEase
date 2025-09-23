@@ -5,9 +5,8 @@ import { BookOpen, Users, Lightbulb, ArrowRight, Star } from "lucide-react"
 import {useUserData} from "./UserContext"
 export default function WelcomePage() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  const {setUser,setLoginStatus} = useUserData();
+  const {setUser} = useUserData();
   setUser(null);
-  setLoginStatus(false);
   const testimonials = [
     {
       name: "Dr. Alisha Sharma",

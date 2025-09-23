@@ -4,7 +4,7 @@ import { useState,useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 export default function DashBoardPage() {
-  const { user,setUser,loginStatus,setloginStatus } = useUserData();
+  const { user,setUser} = useUserData();
   const [activePortal, setActivePortal] = useState(null);
   const navigate = useNavigate();
 
@@ -21,7 +21,6 @@ export default function DashBoardPage() {
   const handleLogout = () => {
     console.log("[v0] Logging out user");
     setUser(null);
-    setloginStatus(false);
     navigate("/home");
   };
   return (

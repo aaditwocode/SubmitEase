@@ -157,7 +157,9 @@ export default function ConferencePage() {
                       <p className="text-sm text-[#6b7280]">{conf.location}</p>
                     </div>
                     <span
-                      className="inline-block mt-1 px-2 py-1 text-xs font-semibold bg-[#059669]/10 text-[#059669] rounded-full whitespace-nowrap"
+                      className={`inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${conf.status === "Open"
+                            ? "bg-[#059669]/10 text-[#059669]": "bg-red-100 text-red-700"
+                          }`}
                     >
                       Status: {conf.status}
                     </span>
@@ -244,8 +246,10 @@ export default function ConferencePage() {
                     <div className="text-right flex-shrink-0">
                       <span
                         className={`inline-block px-2 py-1 text-xs rounded-full ${paper.status === "Accepted"
-                          ? "bg-[#059669]/10 text-[#059669]"
-                          : "bg-[#f59e0b]/10 text-[#f59e0b]"
+                            ? "bg-[#059669]/10 text-[#059669]"
+                            : paper.status === "Under Review"
+                              ? "bg-[#f59e0b]/10 text-[#f59e0b]"
+                              : "bg-red-100 text-red-700"
                           }`}
                       >
                         {paper.status}
