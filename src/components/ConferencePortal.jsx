@@ -360,7 +360,16 @@ export default function ConferencePage() {
                       placeholder="keyword1, keyword2, keyword3"
                     />
                   </div>
-
+                  <div>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-1">
+                      Authors (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                      placeholder="ABC, DEF, GHI"
+                    />
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-[#1f2937] mb-1">
                       Upload Paper (PDF)
@@ -377,7 +386,7 @@ export default function ConferencePage() {
                       type="submit"
                       className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors"
                     >
-                      Submit Paper
+                      Preview
                     </button>
                     <button
                       type="button"
