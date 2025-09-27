@@ -18,6 +18,7 @@ model User {
   organisation String
   country      String
   Conference   Conference[]
+  Paper        Paper[]
 }
 
 model Conference {
@@ -30,4 +31,17 @@ model Conference {
   status      String
   hostID      Int
   host        User?    @relation(fields: [hostID], references: [id])
+  Paper       Paper[]
+}
+
+model Paper {
+  id           String      @id
+  ConferenceId Int
+  Conference   Conference? @relation(fields: [ConferenceId], references: [id])
+  Authors      Int[]
+  Author       User?       @relation(fields: [Authors], references: [id])
+  URL          String
+  Abstract     String
+  Keywords     String[]
+  Status       String
 }
