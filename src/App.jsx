@@ -13,7 +13,7 @@ function App() {
     <UserProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<ManageConferences />} />
+          <Route path="/" element={<HomePage />} />
           {/* This route renders HomePage when the URL is "/home" */}
           <Route path="/home" element={<HomePage />} />
 

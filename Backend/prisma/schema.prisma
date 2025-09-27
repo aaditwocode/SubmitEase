@@ -38,8 +38,7 @@ model Paper {
   id           String      @id
   ConferenceId Int
   Conference   Conference? @relation(fields: [ConferenceId], references: [id])
-  Authors      Int[]
-  Author       User?       @relation(fields: [Authors], references: [id])
+  Authors      User[]
   URL          String
   Abstract     String
   Keywords     String[]
