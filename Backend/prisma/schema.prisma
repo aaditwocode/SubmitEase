@@ -25,7 +25,8 @@ model Conference {
   id          Int      @id @default(autoincrement())
   name        String
   location    String
-  scheduledAt DateTime
+  startsAt    DateTime
+  endAt       DateTime
   deadline    DateTime
   link        String
   status      String
@@ -36,6 +37,7 @@ model Conference {
 
 model Paper {
   id           String      @id
+  Title        String
   ConferenceId Int
   Conference   Conference? @relation(fields: [ConferenceId], references: [id])
   Authors      User[]
@@ -43,4 +45,5 @@ model Paper {
   Abstract     String
   Keywords     String[]
   Status       String
+  submittedAt  DateTime
 }

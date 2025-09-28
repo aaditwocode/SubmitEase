@@ -1,12 +1,13 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 export default function ManageConferences({ onBack }) {
-  const [selectedConference, setSelectedConference] = useState(null)
-  const [editMode, setEditMode] = useState(false)
-  const [sortBy, setSortBy] = useState("submittedOn")
-  const [sortOrder, setSortOrder] = useState("desc")
+    const navigate = useNavigate();
+  const [selectedConference, setSelectedConference] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [sortBy, setSortBy] = useState("submittedOn");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   // Sample conferences data
   const conferences = [
@@ -49,7 +50,7 @@ export default function ManageConferences({ onBack }) {
       partners: ["IEEE", "Amazon Research", "Apple"],
       status: "Planning",
     },
-  ]
+  ];
 
   // Sample submitted papers data
   const submittedPapers = {
@@ -103,114 +104,124 @@ export default function ManageConferences({ onBack }) {
       },
     ],
     3: [],
-  }
+  };
 
-  const [editFormData, setEditFormData] = useState({})
+  const [editFormData, setEditFormData] = useState({});
 
   const handleConferenceSelect = (conference) => {
-    setSelectedConference(conference)
-    setEditFormData(conference)
-    setEditMode(false)
-  }
+    setSelectedConference(conference);
+    setEditFormData(conference);
+    setEditMode(false);
+  };
 
   const handleEditToggle = () => {
-    setEditMode(!editMode)
+    setEditMode(!editMode);
     if (!editMode) {
-      setEditFormData(selectedConference)
+      setEditFormData(selectedConference);
     }
-  }
+  };
 
   const handleSaveEdit = () => {
     // Here you would typically save to backend
-    console.log("[v0] Saving conference edits:", editFormData)
-    setSelectedConference(editFormData)
-    setEditMode(false)
-  }
+    console.log("[v0] Saving conference edits:", editFormData);
+    setSelectedConference(editFormData);
+    setEditMode(false);
+  };
 
   const handleInputChange = (field, value) => {
-    setEditFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setEditFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSort = (field) => {
     if (sortBy === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
-      setSortBy(field)
-      setSortOrder("asc")
+      setSortBy(field);
+      setSortOrder("asc");
     }
-  }
+  };
 
   const sortedPapers = selectedConference
     ? [...(submittedPapers[selectedConference.id] || [])].sort((a, b) => {
-        let aValue = a[sortBy]
-        let bValue = b[sortBy]
+        let aValue = a[sortBy];
+        let bValue = b[sortBy];
 
         if (sortBy === "submittedOn") {
-          aValue = new Date(aValue)
-          bValue = new Date(bValue)
+          aValue = new Date(aValue);
+          bValue = new Date(bValue);
         }
 
         if (sortOrder === "asc") {
-          return aValue > bValue ? 1 : -1
+          return aValue > bValue ? 1 : -1;
         } else {
-          return aValue < bValue ? 1 : -1
+          return aValue < bValue ? 1 : -1;
         }
       })
-    : []
+    : [];
 
   const getStatusBadge = (status) => {
     const statusStyles = {
-      Accepted: "bg-green-100 text-green-800 border-green-200",
-      "Under Review": "bg-yellow-100 text-yellow-800 border-yellow-200",
+      Accepted: "bg-[#059669]/10 text-[#059669] border-[#059669]/20",
+      "Under Review": "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
       Rejected: "bg-red-100 text-red-800 border-red-200",
-    }
+    };
 
     return (
       <span
-        className={`px-2 py-1 text-xs font-medium rounded-full border ${statusStyles[status] || "bg-gray-100 text-gray-800 border-gray-200"}`}
+        className={`px-2 py-1 text-xs font-medium rounded-full border ${
+          statusStyles[status] || "bg-[#f3f4f6] text-[#6b7280] border-[#e5e7eb]"
+        }`}
       >
         {status}
       </span>
-    )
-  }
+    );
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-    })
-  }
+    });
+  };
+  const handlePortalClick = (portal) => navigate(`/${portal}`);
 
+  const handleLogout = () => {
+    setUser(null);
+    setloginStatus(false);
+    navigate("/home");
+  };
   // Conference List View
   if (!selectedConference) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-[#ffffff]">
         {/* Header */}
-        <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button onClick={onBack} className="p-2 hover:bg-muted rounded-lg transition-colors">
-                <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold text-lg">S</span>
-                </div>
-                <span className="text-xl font-bold text-foreground">SubmitEase</span>
+        <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
               </div>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             </div>
-            <h1 className="text-lg font-semibold text-foreground">Manage Conferences</h1>
+            <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+              <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+              <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+            </nav>
           </div>
-        </header>
+          <div className="flex items-center gap-4">
+            <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
+            <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
+          </div>
+        </div>
+      </header>
 
         {/* Main Content */}
         <main className="container mx-auto px-4 py-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Conference Management</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-3xl font-bold text-[#1f2937] mb-2">Conference Management</h1>
+            <p className="text-[#6b7280]">
               Manage your hosted conferences, review submissions, and track conference progress.
             </p>
           </div>
@@ -220,13 +231,13 @@ export default function ManageConferences({ onBack }) {
             {conferences.map((conference) => (
               <div
                 key={conference.id}
-                className="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-all duration-200 cursor-pointer"
+                className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6 hover:shadow-lg transition-all duration-200 cursor-pointer"
                 onClick={() => handleConferenceSelect(conference)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-card-foreground mb-2">{conference.title}</h3>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                    <h3 className="text-xl font-semibold text-[#1f2937] mb-2">{conference.title}</h3>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-[#6b7280]">
                       <span>
                         📍 {conference.city}, {conference.country}
                       </span>
@@ -236,39 +247,39 @@ export default function ManageConferences({ onBack }) {
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${
                           conference.status === "Active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-yellow-100 text-yellow-800"
+                            ? "bg-[#059669]/10 text-[#059669]"
+                            : "bg-[#f59e0b]/10 text-[#f59e0b]"
                         }`}
                       >
                         {conference.status}
                       </span>
                     </div>
                   </div>
-                  <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                  <button className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors">
                     View
                   </button>
                 </div>
 
-                <div className="border-t border-border pt-4">
+                <div className="border-t border-[#e5e7eb] pt-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">Partners</p>
+                      <p className="text-sm text-[#6b7280] mb-1">Partners</p>
                       <div className="flex flex-wrap gap-1">
                         {conference.partners.slice(0, 3).map((partner, index) => (
-                          <span key={index} className="px-2 py-1 text-xs bg-primary/10 text-primary rounded">
+                          <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded">
                             {partner}
                           </span>
                         ))}
                         {conference.partners.length > 3 && (
-                          <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
+                          <span className="px-2 py-1 text-xs bg-[#f3f4f6] text-[#6b7280] rounded">
                             +{conference.partners.length - 3} more
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Submission Deadline</p>
-                      <p className="text-sm font-medium text-card-foreground">
+                      <p className="text-sm text-[#6b7280]">Submission Deadline</p>
+                      <p className="text-sm font-medium text-[#1f2937]">
                         {formatDate(conference.submissionDueDate)}
                       </p>
                     </div>
@@ -281,8 +292,8 @@ export default function ManageConferences({ onBack }) {
           {/* Empty State */}
           {conferences.length === 0 && (
             <div className="text-center py-12">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 bg-[#f3f4f6] rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -291,40 +302,39 @@ export default function ManageConferences({ onBack }) {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">No Conferences Found</h3>
-              <p className="text-muted-foreground">
+              <h3 className="text-lg font-medium text-[#1f2937] mb-2">No Conferences Found</h3>
+              <p className="text-[#6b7280]">
                 You haven't created any conferences yet. Start by registering a new conference.
               </p>
             </div>
           )}
         </main>
       </div>
-    )
+    );
   }
 
   // Conference Detail View
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#ffffff]">
       {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setSelectedConference(null)}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
-            >
-              <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">S</span>
+      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
               </div>
-              <span className="text-xl font-bold text-foreground">SubmitEase</span>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             </div>
+            <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+              <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+              <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+            </nav>
           </div>
-          <h1 className="text-lg font-semibold text-foreground">Conference Details</h1>
+          <div className="flex items-center gap-4">
+            <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
+            <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
+          </div>
         </div>
       </header>
 
@@ -332,15 +342,15 @@ export default function ManageConferences({ onBack }) {
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Section 1: Conference Details */}
-          <div className="bg-card border border-border rounded-lg p-6">
+          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-card-foreground">Conference Details</h2>
+              <h2 className="text-2xl font-bold text-[#1f2937]">Conference Details</h2>
               <button
                 onClick={editMode ? handleSaveEdit : handleEditToggle}
                 className={`px-4 py-2 rounded-md transition-colors ${
                   editMode
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "border border-border bg-background text-foreground hover:bg-muted"
+                    ? "bg-[#059669] text-white hover:bg-[#059669]/90"
+                    : "border border-[#e5e7eb] bg-[#ffffff] text-[#1f2937] hover:bg-[#f3f4f6]"
                 }`}
               >
                 {editMode ? "Save" : "Edit"}
@@ -350,45 +360,45 @@ export default function ManageConferences({ onBack }) {
             <div className="space-y-6">
               {/* Conference Title */}
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">Conference Title</label>
+                <label className="block text-sm font-medium text-[#6b7280] mb-2">Conference Title</label>
                 {editMode ? (
                   <input
                     type="text"
                     value={editFormData.title || ""}
                     onChange={(e) => handleInputChange("title", e.target.value)}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                    className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                   />
                 ) : (
-                  <p className="text-card-foreground font-medium">{selectedConference.title}</p>
+                  <p className="text-[#1f2937] font-medium">{selectedConference.title}</p>
                 )}
               </div>
 
               {/* City & Country */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">City</label>
+                  <label className="block text-sm font-medium text-[#6b7280] mb-2">City</label>
                   {editMode ? (
                     <input
                       type="text"
                       value={editFormData.city || ""}
                       onChange={(e) => handleInputChange("city", e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                     />
                   ) : (
-                    <p className="text-card-foreground">{selectedConference.city}</p>
+                    <p className="text-[#1f2937]">{selectedConference.city}</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">Country</label>
+                  <label className="block text-sm font-medium text-[#6b7280] mb-2">Country</label>
                   {editMode ? (
                     <input
                       type="text"
                       value={editFormData.country || ""}
                       onChange={(e) => handleInputChange("country", e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                     />
                   ) : (
-                    <p className="text-card-foreground">{selectedConference.country}</p>
+                    <p className="text-[#1f2937]">{selectedConference.country}</p>
                   )}
                 </div>
               </div>
@@ -396,29 +406,29 @@ export default function ManageConferences({ onBack }) {
               {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">Start Date</label>
+                  <label className="block text-sm font-medium text-[#6b7280] mb-2">Start Date</label>
                   {editMode ? (
                     <input
                       type="date"
                       value={editFormData.startDate || ""}
                       onChange={(e) => handleInputChange("startDate", e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                     />
                   ) : (
-                    <p className="text-card-foreground">{formatDate(selectedConference.startDate)}</p>
+                    <p className="text-[#1f2937]">{formatDate(selectedConference.startDate)}</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">End Date</label>
+                  <label className="block text-sm font-medium text-[#6b7280] mb-2">End Date</label>
                   {editMode ? (
                     <input
                       type="date"
                       value={editFormData.endDate || ""}
                       onChange={(e) => handleInputChange("endDate", e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                     />
                   ) : (
-                    <p className="text-card-foreground">{formatDate(selectedConference.endDate)}</p>
+                    <p className="text-[#1f2937]">{formatDate(selectedConference.endDate)}</p>
                   )}
                 </div>
               </div>
@@ -426,49 +436,49 @@ export default function ManageConferences({ onBack }) {
               {/* Submission Due Date & Start Time */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">Submission Due Date</label>
+                  <label className="block text-sm font-medium text-[#6b7280] mb-2">Submission Due Date</label>
                   {editMode ? (
                     <input
                       type="date"
                       value={editFormData.submissionDueDate || ""}
                       onChange={(e) => handleInputChange("submissionDueDate", e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                     />
                   ) : (
-                    <p className="text-card-foreground">{formatDate(selectedConference.submissionDueDate)}</p>
+                    <p className="text-[#1f2937]">{formatDate(selectedConference.submissionDueDate)}</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">Starting Time</label>
+                  <label className="block text-sm font-medium text-[#6b7280] mb-2">Starting Time</label>
                   {editMode ? (
                     <input
                       type="time"
                       value={editFormData.startTime || ""}
                       onChange={(e) => handleInputChange("startTime", e.target.value)}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                      className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                     />
                   ) : (
-                    <p className="text-card-foreground">{selectedConference.startTime}</p>
+                    <p className="text-[#1f2937]">{selectedConference.startTime}</p>
                   )}
                 </div>
               </div>
 
               {/* Web Link */}
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">Web Link</label>
+                <label className="block text-sm font-medium text-[#6b7280] mb-2">Web Link</label>
                 {editMode ? (
                   <input
                     type="url"
                     value={editFormData.webLink || ""}
                     onChange={(e) => handleInputChange("webLink", e.target.value)}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                    className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#ffffff] text-[#1f2937]"
                   />
                 ) : (
                   <a
                     href={selectedConference.webLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className="text-[#059669] hover:underline"
                   >
                     {selectedConference.webLink}
                   </a>
@@ -477,12 +487,12 @@ export default function ManageConferences({ onBack }) {
 
               {/* Partners */}
               <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">Partners</label>
+                <label className="block text-sm font-medium text-[#6b7280] mb-2">Partners</label>
                 <div className="flex flex-wrap gap-2">
                   {selectedConference.partners.map((partner, index) => (
                     <span
                       key={index}
-                      className="px-3 py-1 text-sm bg-primary/10 text-primary rounded-full border border-primary/20"
+                      className="px-3 py-1 text-sm bg-[#059669]/10 text-[#059669] rounded-full border border-[#059669]/20"
                     >
                       {partner}
                     </span>
@@ -493,10 +503,10 @@ export default function ManageConferences({ onBack }) {
           </div>
 
           {/* Section 2: Submitted Research Papers */}
-          <div className="bg-card border border-border rounded-lg p-6">
+          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-card-foreground">Submitted Research Papers</h2>
-              <div className="text-sm text-muted-foreground">
+              <h2 className="text-2xl font-bold text-[#1f2937]">Submitted Research Papers</h2>
+              <div className="text-sm text-[#6b7280]">
                 {sortedPapers.length} submission{sortedPapers.length !== 1 ? "s" : ""}
               </div>
             </div>
@@ -505,55 +515,55 @@ export default function ManageConferences({ onBack }) {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-border">
+                    <tr className="border-b border-[#e5e7eb]">
                       <th
-                        className="text-left py-3 px-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-left py-3 px-2 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                         onClick={() => handleSort("id")}
                       >
                         Paper ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
                       </th>
                       <th
-                        className="text-left py-3 px-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-left py-3 px-2 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                         onClick={() => handleSort("name")}
                       >
                         Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
                       </th>
                       <th
-                        className="text-left py-3 px-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-left py-3 px-2 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                         onClick={() => handleSort("submittedOn")}
                       >
                         Submitted On {sortBy === "submittedOn" && (sortOrder === "asc" ? "↑" : "↓")}
                       </th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Keywords</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-[#6b7280]">Keywords</th>
                       <th
-                        className="text-left py-3 px-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                        className="text-left py-3 px-2 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                         onClick={() => handleSort("status")}
                       >
                         Status {sortBy === "status" && (sortOrder === "asc" ? "↑" : "↓")}
                       </th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Actions</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-[#6b7280]">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedPapers.map((paper) => (
-                      <tr key={paper.id} className="border-b border-border hover:bg-muted/30">
-                        <td className="py-3 px-2 text-sm font-medium text-card-foreground">{paper.id}</td>
+                      <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50">
+                        <td className="py-3 px-2 text-sm font-medium text-[#1f2937]">{paper.id}</td>
                         <td className="py-3 px-2">
                           <div>
-                            <p className="text-sm font-medium text-card-foreground">{paper.name}</p>
-                            <p className="text-xs text-muted-foreground">{paper.author}</p>
+                            <p className="text-sm font-medium text-[#1f2937]">{paper.name}</p>
+                            <p className="text-xs text-[#6b7280]">{paper.author}</p>
                           </div>
                         </td>
-                        <td className="py-3 px-2 text-sm text-card-foreground">{formatDate(paper.submittedOn)}</td>
+                        <td className="py-3 px-2 text-sm text-[#1f2937]">{formatDate(paper.submittedOn)}</td>
                         <td className="py-3 px-2">
                           <div className="flex flex-wrap gap-1">
                             {paper.keywords.slice(0, 2).map((keyword, index) => (
-                              <span key={index} className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
+                              <span key={index} className="px-2 py-1 text-xs bg-[#f3f4f6] text-[#6b7280] rounded">
                                 {keyword}
                               </span>
                             ))}
                             {paper.keywords.length > 2 && (
-                              <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
+                              <span className="px-2 py-1 text-xs bg-[#f3f4f6] text-[#6b7280] rounded">
                                 +{paper.keywords.length - 2}
                               </span>
                             )}
@@ -561,7 +571,7 @@ export default function ManageConferences({ onBack }) {
                         </td>
                         <td className="py-3 px-2">{getStatusBadge(paper.status)}</td>
                         <td className="py-3 px-2">
-                          <button className="px-3 py-1 text-xs border border-border rounded hover:bg-muted transition-colors">
+                          <button className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#f3f4f6] transition-colors">
                             View
                           </button>
                         </td>
@@ -572,8 +582,8 @@ export default function ManageConferences({ onBack }) {
               </div>
             ) : (
               <div className="text-center py-8">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-12 h-12 bg-[#f3f4f6] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -582,13 +592,13 @@ export default function ManageConferences({ onBack }) {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-card-foreground mb-2">No Submissions Yet</h3>
-                <p className="text-muted-foreground">No papers have been submitted to this conference yet.</p>
+                <h3 className="text-lg font-medium text-[#1f2937] mb-2">No Submissions Yet</h3>
+                <p className="text-[#6b7280]">No papers have been submitted to this conference yet.</p>
               </div>
             )}
           </div>
         </div>
       </main>
     </div>
-  )
+  );
 }
