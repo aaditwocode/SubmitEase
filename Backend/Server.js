@@ -289,6 +289,102 @@ app.get('/users/emails', async (req, res) => {
   }
 });
 
+app.post('/conference/registeration', async (req, res) => {
+  try {
+    const { name, location, startsAt, endAt, deadline, link, status, Partners, hostID } = req.body;
+    const newConference = await prisma.conference.create({
+      data: {
+        name,
+        location,
+        startsAt: new Date(startsAt),
+        endAt: new Date(endAt),
+        deadline: new Date(deadline),
+        link,
+        status,
+        Partners,
+        hostID
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    res.status(201).json({ conference: newConference });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Could not create conference', details: error.message });
+  }
+});
+
+app.post('/conference/registered', async (req, res) => {
+  try {
+    const { userID } = req.body;
+    const conferences = await prisma.conference.findMany({
+      where: {
+        hostID: userID
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    if (!conferences || conferences.length === 0) {
+      return res.status(404).json({ message: 'No Available Conferences.' });
+    }
+
+    res.status(200).json({ conference: conferences });
+
+  } catch (error) {
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+app.post('/conference/papers', async (req, res) => {
+  try {
+    const { conferenceId } = req.body;
+    const papers = await prisma.paper.findMany({
+      where: {
+        ConferenceId: conferenceId
+      },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        URL: true,
+        submittedAt: true,
+        Conference: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Authors:{
+          select:{
+            name:true,
+            email:true
+          }
+        }
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    if (!papers || papers.length === 0) {
+      return res.status(404).json({ message: 'No Available Papers.' });
+    }
+
+    res.status(200).json({ paper: papers });
+
+  } catch (error) {
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+
 // Route to start the authentication process
 app.get('/auth/google', (req, res) => {
   const authUrl = oAuth2Client.generateAuthUrl({

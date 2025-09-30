@@ -1,8 +1,136 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useUserData } from "./UserContext"; // Assuming you have a UserContext
+import { useUserData } from "./UserContext";
+
+// --- Helper Functions & Table Component for Paper List ---
+
+// Helper function to get status badge styling
+const getStatusBadge = (status) => {
+  let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
+  switch (status) {
+    case "Accepted":
+      badgeClasses += "bg-green-100 text-green-700";
+      break;
+    case "Under Review":
+      badgeClasses += "bg-yellow-100 text-yellow-700";
+      break;
+    default:
+      badgeClasses += "bg-red-100 text-red-700";
+      break;
+  }
+  return <span className={badgeClasses}>{status}</span>;
+};
+
+// Helper function to format date
+const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+};
+
+// Table component for displaying papers
+const PaperList = ({ papers }) => {
+  const [sortBy, setSortBy] = useState("submittedAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
+  };
+
+  const sortedPapers = useMemo(() => {
+    if (!papers) return [];
+    const sorted = [...papers].sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+
+      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [papers, sortBy, sortOrder]);
+
+
+  if (!papers || papers.length === 0) {
+    return <p className="text-center text-gray-500 py-4">No papers submitted yet.</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <table className="w-full">
+            <thead>
+                <tr className="border-b border-[#e5e7eb]">
+                    <th
+                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+                        onClick={() => handleSort("id")}
+                    >
+                        Paper ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th
+                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+                        onClick={() => handleSort("Title")}
+                    >
+                        Name {sortBy === "Title" && (sortOrder === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th
+                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+                        onClick={() => handleSort("submittedAt")}
+                    >
+                        Submitted On {sortBy === "submittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Keywords</th>
+                    <th
+                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+                        onClick={() => handleSort("Status")}
+                    >
+                        Status {sortBy === "Status" && (sortOrder === "asc" ? "↑" : "↓")}
+                    </th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {sortedPapers.map((paper) => (
+                    <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                        <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
+                        <td className="py-3 px-4">
+                            <div>
+                                <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
+                                <p className="text-xs text-[#6b7280]">{paper.Conference?.name}</p>
+                            </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(paper.submittedAt)}</td>
+                        <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1">
+                                {(paper.Keywords || []).map((keyword, index) => (
+                                    <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
+                                        {keyword}
+                                    </span>
+                                ))}
+                            </div>
+                        </td>
+                        <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
+                        <td className="py-3 px-4">
+                            <button className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+  );
+};
+
 
 export default function ConferencePage() {
   // --- State Declarations ---
@@ -247,57 +375,7 @@ export default function ConferencePage() {
             <h3 className="text-xl font-semibold text-[#1f2937] mb-4">
               My Submissions
             </h3>
-            <div className="space-y-4">
-              {papers.map((paper) => (
-                <div key={paper.id} className="border border-[#e5e7eb] rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1 pr-4">
-                      <h4 className="font-medium text-[#1f2937] mb-1">
-                        {paper.Title}
-                      </h4>
-                      <p className="text-sm text-[#6b7280]">
-                        Paper ID: {paper.id}
-                      </p>
-                      <p className="text-sm text-[#6b7280]">
-                        Conference: {paper.Conference?.name}
-                      </p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className={`inline-block px-2 py-1 text-xs rounded-full ${paper.Status === "Accepted" ? "bg-[#059669]/10 text-[#059669]" : paper.Status === "Under Review" ? "bg-[#f59e0b]/10 text-[#f59e0b]" : "bg-red-100 text-red-700"}`}>
-                        {paper.Status}
-                      </span>
-                      <p className="text-xs text-[#6b7280] mt-1">
-                        Submitted: {new Date(paper.submittedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <p className="text-sm text-[#1f2937] leading-relaxed">
-                      <strong>Abstract:</strong> {paper.Abstract}
-                    </p>
-                  </div>
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-[#1f2937] mb-2">
-                      <strong>Keywords:</strong>
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {paper.Keywords.map((keyword, index) => (
-                        <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
-                          {keyword}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 border-t border-[#e5e7eb] pt-3 mt-3">
-                    <button className="px-3 py-1 text-sm border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6] transition-colors">View Details</button>
-                    <button className="px-3 py-1 text-sm border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6] transition-colors">Download PDF</button>
-                    {paper.status === "Under Review" && (
-                      <button className="px-3 py-1 text-sm border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6] transition-colors">Withdraw</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <PaperList papers={papers} />
           </div>
 
           {showSubmissionForm && (
