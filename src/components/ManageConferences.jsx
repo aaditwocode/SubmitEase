@@ -26,6 +26,7 @@ const getStatusBadge = (status) => {
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   return new Date(dateString).toLocaleDateString('en-US', {
+    timeZone: "Asia/Kolkata",
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -33,9 +34,8 @@ const formatDate = (dateString) => {
 };
 const formatTime = (dateString) => {
   const date = new Date(dateString);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
 };
-
 const PaperList = ({ papers }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -250,6 +250,10 @@ export default function ManageConferences() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: user.id }),
           });
+          if (response.status === 404) {
+            setConferences([]);
+            return;
+          }
           if (!response.ok) {
             throw new Error("Conference data fetch failed.");
           }
@@ -267,7 +271,7 @@ export default function ManageConferences() {
     if (selectedConference?.id) {
       const getPapers = async () => {
         try {
-          const response = await fetch("http://localhost:3001/conference/papers",{
+          const response = await fetch("http://localhost:3001/conference/papers", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ conferenceId: selectedConference.id }),
@@ -428,7 +432,7 @@ export default function ManageConferences() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-[#1f2937] mb-2">Country *</label>
-                        <select value={editFormData.country} onChange={(e) => handleInputChange("country", e.target.value)} className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb]">
+                        <select value={editFormData.country} onChange={(e) => handleInputChange("country", e.target.value)} className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none appearance-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb]">
                           <option value="">Select a country</option>
                           {countries.map((c) => (<option key={c} value={c}>{c}</option>))}
                         </select>
@@ -503,7 +507,6 @@ export default function ManageConferences() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-[#ffffff]">
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -530,11 +533,15 @@ export default function ManageConferences() {
           </div>
         </div>
       </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           <h2 className="text-3xl font-bold text-[#1f2937]">Your Registered Conferences</h2>
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+            {(!conferences || conferences.length === 0) && (
+              <p className="text-center text-gray-500 py-4">
+                No Registered Conferences Yet.
+              </p>
+            )}
             <div className="space-y-4">
               {conferences.map((conf) => (
                 <div key={conf.id} className="block p-4 border border-[#e5e7eb] rounded-lg">

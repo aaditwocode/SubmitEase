@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import { useNavigate } from 'react-router-dom';
-import {useUserData} from "./UserContext"
+import { useUserData } from "./UserContext"
 export default function SignUpPage() {
   const navigate = useNavigate();
-  const {setUser} = useUserData();
+  const { setUser } = useUserData();
   setUser(null);
   const [feedback, setFeedback] = useState({ message: '', type: '' });
   const [formData, setFormData] = useState({
@@ -19,7 +19,11 @@ export default function SignUpPage() {
     organisation: "",
     country: "",
   });
-
+  const countries = [
+    "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
+    "Australia", "Netherlands", "Sweden", "Switzerland", "Singapore", "South Korea",
+    "China", "India", "Brazil", "Italy", "Spain", "Norway", "Denmark", "Finland",
+  ];
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -53,7 +57,7 @@ export default function SignUpPage() {
       password: formData.password,
       firstname: formData.firstName,
       lastname: formData.lastName,
-      role: formData.role,
+      role: ["Author"],
       expertise: expertiseArray,
       organisation: formData.organisation,
       country: formData.country,
@@ -123,8 +127,7 @@ export default function SignUpPage() {
               </div>
 
               {feedback.message && (
-                <div className={`text-center p-2 mb-4 rounded-md text-sm ${
-                    feedback.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                <div className={`text-center p-2 mb-4 rounded-md text-sm ${feedback.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                   }`}
                 >
                   {feedback.message}
@@ -132,7 +135,7 @@ export default function SignUpPage() {
               )}
 
               <form onSubmit={handleSignUp} className="space-y-4">
-                 <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="firstName" className="block text-sm font-medium text-[#1f2937] mb-2">First Name</label>
                     <input type="text" id="firstName" name="firstName" value={formData.firstName} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
@@ -146,26 +149,35 @@ export default function SignUpPage() {
                   <label htmlFor="email" className="block text-sm font-medium text-[#1f2937] mb-2">Email</label>
                   <input type="email" id="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
                 </div>
-                 <div>
-                    <label htmlFor="organisation" className="block text-sm font-medium text-[#1f2937] mb-2">Organisation</label>
-                    <input type="text" id="organisation" name="organisation" placeholder="e.g., Jaypee Institute Of Information Technology" value={formData.organisation} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
-                  </div>
-                   <div>
-                    <label htmlFor="country" className="block text-sm font-medium text-[#1f2937] mb-2">Country</label>
-                    <input type="text" id="country" name="country" placeholder="e.g., India" value={formData.country} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
-                  </div>
-                  <div>
-                    <label htmlFor="expertise" className="block text-sm font-medium text-[#1f2937] mb-2">Areas of Expertise</label>
-                    <input type="text" id="expertise" name="expertise" placeholder="AI, Machine Learning, Data Science" value={formData.expertise} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
-                    <p className="text-xs text-[#6b7280] mt-1">Please separate values with a comma.</p>
-                  </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[#1f2937]">Select Your Role(s)</label>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2">
-                    <label className="flex items-center space-x-2"><input type="checkbox" name="role" value="Author" onChange={handleRoleChange} className="focus:ring-[#059669]"/><span>Author</span></label>
-                    <label className="flex items-center space-x-2"><input type="checkbox" name="role" value="Reviewer" onChange={handleRoleChange} className="focus:ring-[#059669]"/><span>Reviewer</span></label>
-                    <label className="flex items-center space-x-2"><input type="checkbox" name="role" value="Editor" onChange={handleRoleChange} className="focus:ring-[#059669]"/><span>Editor</span></label>
-                  </div>
+                <div>
+                  <label htmlFor="organisation" className="block text-sm font-medium text-[#1f2937] mb-2">Organisation</label>
+                  <input type="text" id="organisation" name="organisation" placeholder="e.g., Jaypee Institute Of Information Technology" value={formData.organisation} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
+                </div>
+                <div>
+                  <label htmlFor="country" className="block text-sm font-medium text-[#1f2d37] mb-2">
+                    Country *
+                  </label>
+                  <select
+                    id="country"
+                    name="country"
+                    value={formData.country}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] appearance-none focus:outline-none focus:ring-2 focus:ring-[#059669] ${formData.country ? "text-[#1f2937]" : "text-gray-400"
+                      }`}
+                    required
+                  >
+                    <option value="" >Select a country</option>
+                    {countries.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="expertise" className="block text-sm font-medium text-[#1f2937] mb-2">Areas of Expertise</label>
+                  <input type="text" id="expertise" name="expertise" placeholder="AI, Machine Learning, Data Science" value={formData.expertise} onChange={handleInputChange} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-[#1f2937] focus:outline-none focus:ring-2 focus:ring-[#059669]" required />
+                  <p className="text-xs text-[#6b7280] mt-1">Please separate values with a comma.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

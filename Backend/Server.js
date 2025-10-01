@@ -315,10 +315,10 @@ app.post('/conference/registeration', async (req, res) => {
 
 app.post('/conference/registered', async (req, res) => {
   try {
-    const { userID } = req.body;
+    const { userId } = req.body;
     const conferences = await prisma.conference.findMany({
       where: {
-        hostID: userID
+        hostID: parseInt(userId)
       },
       select: {
         id: true,
@@ -346,9 +346,10 @@ app.post('/conference/registered', async (req, res) => {
 app.post('/conference/papers', async (req, res) => {
   try {
     const { conferenceId } = req.body;
-    const papers = await prisma.paper.findMany({
+
+    const conferencepapers = await prisma.paper.findMany({
       where: {
-        ConferenceId: conferenceId
+        ConferenceId: parseInt(conferenceId)
       },
       select: {
         id: true,
@@ -366,18 +367,18 @@ app.post('/conference/papers', async (req, res) => {
         },
         Authors:{
           select:{
-            name:true,
+            firstname:true,
+            lastname:true,
             email:true
           }
         }
       },
-      cacheStrategy: { ttl: 60 },
     });
-    if (!papers || papers.length === 0) {
+    if (!conferencepapers || conferencepapers.length === 0) {
       return res.status(404).json({ message: 'No Available Papers.' });
     }
 
-    res.status(200).json({ paper: papers });
+    res.status(200).json({ paper: conferencepapers});
 
   } catch (error) {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });

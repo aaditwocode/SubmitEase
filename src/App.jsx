@@ -6,7 +6,6 @@ import DashBoardPage from './components/DashBoardPage';
 import ConferencePortal from './components/ConferencePortal';
 import { UserProvider } from './components/UserContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import ConferenceHostRegistration from './components/ConferenceRegistration';
 import ManageConferences from './components/ManageConferences';
 import ConferenceRegistration from './components/ConferenceRegistration';
 function App() {
@@ -14,11 +13,9 @@ function App() {
     <UserProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<ConferenceHostRegistration />} />
-          {/* This route renders HomePage when the URL is "/home" */}
+          <Route path="/" element={<HomePage />} />
           <Route path="/home" element={<HomePage />} />
 
-          {/* This route renders AuthPage when the URL is "/auth" */}
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route

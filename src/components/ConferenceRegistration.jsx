@@ -236,7 +236,7 @@ export default function ConferenceRegistration({ onBack }) {
                     <select
                       value={formData.country}
                       onChange={(e) => handleInputChange("country", e.target.value)}
-                      className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
+                      className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 appearance-none focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
                         errors.country ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
                       }`}
                     >
