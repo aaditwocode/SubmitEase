@@ -7,25 +7,9 @@ import multer from "multer";
 import { google } from "googleapis";
 import path from "path";
 import fs from "fs";
-// Configure multer for temporary file storage
-const upload = multer({ dest: "uploads/" });
+import { createClient } from '@supabase/supabase-js';
+import 'dotenv/config'; // Load environment variables from .env file
 
-const KEYFILEPATH = path.join(process.cwd(), "client_secret.json");
-const SCOPES = ["https://www.googleapis.com/auth/drive"];
-
-// 1. Read the credentials file synchronously
-const credentials = JSON.parse(fs.readFileSync(KEYFILEPATH));
-const { client_secret, client_id, redirect_uris } = credentials.web;
-
-// 2. Create the OAuth2 client with the credentials
-const oAuth2Client = new google.auth.OAuth2(
-  client_id,
-  client_secret,
-  redirect_uris[0] // Use the first redirect URI
-);
-
-// This will store the user's tokens after they grant consent
-let userTokens = null;
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 
@@ -386,77 +370,85 @@ app.post('/conference/papers', async (req, res) => {
 });
 
 
-// Route to start the authentication process
-app.get('/auth/google', (req, res) => {
-  const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-  });
-  res.redirect(authUrl);
-});
 
-// The callback route that Google redirects to after consent
-app.get('/auth/google/callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) {
-    return res.status(400).send('Authorization code not found.');
-  }
-  try {
-    const { tokens } = await oAuth2Client.getToken(code);
-    oAuth2Client.setCredentials(tokens);
-    userTokens = tokens; // Store the tokens
-    console.log('Successfully authenticated and tokens received!');
-    res.send('Authentication successful! You can now close this tab and upload a file.');
-  } catch (error) {
-    console.error('Error retrieving access token', error);
-    res.status(500).send('Error during authentication.');
-  }
-});
 
-// UPDATED Upload route
-app.post("/upload", upload.single("pdfFile"), async (req, res) => {
-  if (!userTokens) {
-    return res.status(401).send('You must authorize the application first. Please visit /auth/google');
-  }
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
-  // Set the credentials on the client for this request
-  oAuth2Client.setCredentials(userTokens);
+// --- Initialize Supabase Client ---
+// It's safe to use process.env here because of the 'dotenv/config' import
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-  try {
-    if (!req.file) {
-      return res.status(400).send("No file uploaded.");
-    }
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Supabase URL and Anon Key must be provided in the .env file.");
+}
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const drive = google.drive({ version: 'v3', auth: oAuth2Client });
+/**
+ * Uploads a file to a Supabase Storage bucket and returns the public URL.
+ * @param {Buffer} fileBuffer - The file content as a buffer.
+ * @param {string} originalFilename - The original name of the file.
+ * @returns {Promise<string>} The public URL of the uploaded file.
+ */
+async function uploadPdfToSupabase(fileBuffer, originalFilename) {
+  const fileName = `${Date.now()}_${originalFilename}`;
+  const bucketName = 'pdfs'; // Make sure this bucket exists and is public in your Supabase project
 
-    const fileMetadata = {
-      name: req.file.originalname,
-    };
-
-    const media = {
-      mimeType: "application/pdf",
-      body: fs.createReadStream(req.file.path),
-    };
-
-    const driveResponse = await drive.files.create({
-      resource: fileMetadata,
-      media: media,
-      fields: "id, webViewLink",
+  // 1. Upload the file
+  const { error: uploadError } = await supabase.storage
+    .from(bucketName)
+    .upload(fileName, fileBuffer, {
+      contentType: 'application/pdf',
+      upsert: false,
     });
-    
-    fs.unlinkSync(req.file.path);
 
-    res.status(200).json({
-      message: "File uploaded successfully!",
-      fileId: driveResponse.data.id,
-      link: driveResponse.data.webViewLink,
-    });
+  if (uploadError) {
+    throw new Error(`Supabase upload failed: ${uploadError.message}`);
+  }
+
+  // 2. Get the public URL for the uploaded file
+  const { data } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(fileName);
+
+  if (!data || !data.publicUrl) {
+    throw new Error('Could not retrieve public URL after upload.');
+  }
+
+  return data.publicUrl;
+}
+
+// --- Define the Upload Route ---
+app.post('/upload', upload.single('pdfFile'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file was uploaded.' });
+  }
+
+  try {
+    console.log(`Received file: ${req.file.originalname}, size: ${req.file.size} bytes`);
     
+    // Call our upload function with the file's buffer and original name
+    const publicUrl = await uploadPdfToSupabase(req.file.buffer, req.file.originalname);
+    
+    console.log(`File successfully uploaded. URL: ${publicUrl}`);
+
+    // Here you would save the 'publicUrl' to your own database
+    // e.g., await prisma.document.create({ data: { url: publicUrl } });
+    
+    res.status(200).json({ 
+      message: 'File uploaded successfully!', 
+      url: publicUrl 
+    });
+
   } catch (error) {
-    console.error("Error during file upload process:", error.message);
-    res.status(500).send(`Error: ${error.message}`);
+    console.error('An error occurred during upload:', error);
+    res.status(500).json({ error: error.message });
   }
 });
+
+
+
 app.get('/', (req, res) => {
   res.send('🚀 API is running and connected to Prisma Postgres!');
 });

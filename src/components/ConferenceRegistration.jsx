@@ -222,7 +222,7 @@ export default function ConferenceRegistration({ onBack }) {
                       type="text"
                       value={formData.city}
                       onChange={(e) => handleInputChange("city", e.target.value)}
-                      placeholder="e.g., San Francisco"
+                      placeholder="e.g., Delhi"
                       className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
                         errors.city ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
                       }`}

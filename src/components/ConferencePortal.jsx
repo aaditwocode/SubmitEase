@@ -392,7 +392,7 @@ export default function ConferencePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#1f2937] mb-1">Conference</label>
-                    <select value={selectedConference} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f3f4f6]">
+                    <select value={selectedConference} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f3f4f6] appearance-none">
                       <option value={selectedConference}>{selectedConference}</option>
                     </select>
                   </div>
