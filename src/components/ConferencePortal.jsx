@@ -1,12 +1,11 @@
 "use client";
-
-import { useState, useEffect, useMemo } from "react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
-// --- Helper Functions & Table Component for Paper List ---
 
-// Helper function to get status badge styling
+// --- Helper Functions & Table Component for Paper List ---
 const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
   switch (status) {
@@ -23,16 +22,14 @@ const getStatusBadge = (status) => {
   return <span className={badgeClasses}>{status}</span>;
 };
 
-// Helper function to format date
 const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
+  return new Date(dateString).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 };
 
-// Table component for displaying papers
 const PaperList = ({ papers }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -59,102 +56,118 @@ const PaperList = ({ papers }) => {
     return sorted;
   }, [papers, sortBy, sortOrder]);
 
-
   if (!papers || papers.length === 0) {
     return <p className="text-center text-gray-500 py-4">No papers submitted yet.</p>;
   }
 
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
-        <table className="w-full">
-            <thead>
-                <tr className="border-b border-[#e5e7eb]">
-                    <th
-                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
-                        onClick={() => handleSort("id")}
-                    >
-                        Paper ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
-                    </th>
-                    <th
-                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
-                        onClick={() => handleSort("Title")}
-                    >
-                        Name {sortBy === "Title" && (sortOrder === "asc" ? "↑" : "↓")}
-                    </th>
-                    <th
-                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
-                        onClick={() => handleSort("submittedAt")}
-                    >
-                        Submitted On {sortBy === "submittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Keywords</th>
-                    <th
-                        className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
-                        onClick={() => handleSort("Status")}
-                    >
-                        Status {sortBy === "Status" && (sortOrder === "asc" ? "↑" : "↓")}
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {sortedPapers.map((paper) => (
-                    <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                        <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
-                        <td className="py-3 px-4">
-                            <div>
-                                <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
-                                <p className="text-xs text-[#6b7280]">{paper.Conference?.name}</p>
-                            </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(paper.submittedAt)}</td>
-                        <td className="py-3 px-4">
-                            <div className="flex flex-wrap gap-1">
-                                {(paper.Keywords || []).map((keyword, index) => (
-                                    <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
-                                        {keyword}
-                                    </span>
-                                ))}
-                            </div>
-                        </td>
-                        <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
-                        <td className="py-3 px-4">
-                            <button className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
-                                View
-                            </button>
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-[#e5e7eb]">
+            <th
+              className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+              onClick={() => handleSort("id")}
+            >
+              Paper ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th
+              className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+              onClick={() => handleSort("Title")}
+            >
+              Name {sortBy === "Title" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th
+              className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+              onClick={() => handleSort("submittedAt")}
+            >
+              Submitted On {sortBy === "submittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Keywords</th>
+            <th
+              className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap"
+              onClick={() => handleSort("Status")}
+            >
+              Status {sortBy === "Status" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedPapers.map((paper) => (
+            <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+              <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
+              <td className="py-3 px-4">
+                <div>
+                  <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
+                  <p className="text-xs text-[#6b7280]">{paper.Conference?.name}</p>
+                </div>
+              </td>
+              <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(paper.submittedAt)}</td>
+              <td className="py-3 px-4">
+                <div className="flex flex-wrap gap-1">
+                  {(paper.Keywords || []).map((keyword, index) => (
+                    <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </td>
+              <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
+              <td className="py-3 px-4">
+                <button className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">View</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
 
+// --- Small reusable author card (compact) ---
+const CompactAuthorCard = ({ author }) => {
+  if (!author) return null;
+  return (
+    <div className="p-3 border rounded-md bg-white">
+      <p className="text-sm font-semibold text-[#1f2937]">{author.firstname} {author.lastname} <span className="text-xs text-gray-500">({author.email})</span></p>
+      <p className="text-xs text-[#6b7280]">Expertise: {Array.isArray(author.expertise) ? author.expertise.join(', ') : (author.expertise || '—')}</p>
+      <p className="text-xs text-[#6b7280]">Organisation: {author.organisation || '—'}</p>
+    </div>
+  );
+};
+
+// --- Utility to reorder array on drag end ---
+const reorder = (list, startIndex, endIndex) => {
+  const result = Array.from(list);
+  const [removed] = result.splice(startIndex, 1);
+  result.splice(endIndex, 0, removed);
+  return result;
+};
 
 export default function ConferencePage() {
-  // --- State Declarations ---
   const { user, setUser, loginStatus, setloginStatus } = useUserData();
   const navigate = useNavigate();
 
   // Data state
   const [conferences, setConferences] = useState([]);
   const [papers, setPapers] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]); // should contain full user objects
 
   // UI State
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
 
   // Form State
-  const [selectedConference, setSelectedConference] = useState('');
+  const [selectedConference, setSelectedConference] = useState("");
   const [confId, setConfId] = useState(null);
   const [conf, setConf] = useState(null);
-  const [title, setTitle] = useState('');
-  const [abstract, setAbstract] = useState('');
-  const [keywords, setKeywords] = useState('');
+  const [title, setTitle] = useState("");
+  const [abstract, setAbstract] = useState("");
+  const [keywords, setKeywords] = useState("");
   const [pdfFile, setPdfFile] = useState(null);
-  const [authors, setAuthors] = useState([]);
 
+  // Authors now stores full user objects (compact info) in order
+  const [authors, setAuthors] = useState([]);
 
   // --- Event Handlers ---
   const handlePortalClick = (portal) => navigate(`/${portal}`);
@@ -169,47 +182,62 @@ export default function ConferencePage() {
     setSelectedConference(conf.name);
     setConf(conf);
     setConfId(conf.id);
-    setTitle('');
-    setAbstract('');
-    setKeywords('');
+    setTitle("");
+    setAbstract("");
+    setKeywords("");
     setPdfFile(null);
+    // pre-fill authors with current user object (so their details show)
     if (user && user.id) {
-      setAuthors([user.id]);
+      // make sure user object contains firstname/lastname/expertise/organisation — else fetch
+      setAuthors([user]);
     } else {
       setAuthors([]);
     }
     setShowSubmissionForm(true);
   };
 
-  const handleAddAuthor = () => setAuthors([...authors, '']);
-
-  const handleRemoveAuthor = (indexToRemove) => {
-    if (indexToRemove > 0) {
-      setAuthors(authors.filter((_, index) => index !== indexToRemove));
+  // Add another author by user id
+  const addAuthorById = (userId) => {
+    if (!userId) return;
+    const parsedId = parseInt(userId, 10);
+    const userObj = allUsers.find(u => u.id === parsedId);
+    if (!userObj) return;
+    if (authors.some(a => a && a.id === userObj.id)) {
+      alert('This author is already added.');
+      return;
     }
+    setAuthors(prev => [...prev, userObj]);
   };
 
-  const handleAuthorChange = (indexToUpdate, newUserId) => {
-    const updatedAuthors = authors.map((id, index) =>
-      index === indexToUpdate ? parseInt(newUserId, 10) : id
-    );
-    setAuthors(updatedAuthors);
+  // Remove author at index (ensure at least 1 author remains)
+  const handleRemoveAuthor = (indexToRemove) => {
+    if (authors.length <= 1) {
+      alert('At least one author is required.');
+      return;
+    }
+    setAuthors(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const onDragEnd = (result) => {
+    if (!result.destination) return;
+    const newList = reorder(authors, result.source.index, result.destination.index);
+    setAuthors(newList);
   };
 
   const handlePaperSubmit = async (event) => {
     event.preventDefault();
-    // This is a placeholder for your file upload logic.
-    // In a real app, you'd upload `pdfFile` to a service like S3 and get a URL back.
+
+    // placeholder for file upload — replace with real upload logic and URL
     const paperUrl = "http://example.com/path/to/placeholder.pdf";
 
-    const authorIds = [...new Set(authors.filter(id => id))];
+    const authorIds = authors.map(a => a.id);
 
     const payload = {
       title,
       confId,
       conf,
       abstract,
-      keywords: keywords.split(',').map(k => k.trim()),
+      keywords: keywords.split(',').map(k => k.trim()).filter(Boolean),
       authorIds,
       url: paperUrl,
     };
@@ -228,14 +256,13 @@ export default function ConferencePage() {
 
       alert('Paper submitted successfully!');
       setShowSubmissionForm(false);
-      // Refresh the papers list after submission
-      // getPapers(); // You would call the function that fetches papers here
+      // refresh papers
+      // call getPapers() manually if you expose it or refetch papers
     } catch (error) {
-      console.error("Submission failed:", error);
+      console.error('Submission failed:', error);
       alert(`Error: ${error.message}`);
     }
   };
-
 
   // --- Data Fetching Effects ---
   useEffect(() => {
@@ -268,6 +295,7 @@ export default function ConferencePage() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
+        // IMPORTANT: this endpoint should return full user objects: id, email, firstname, lastname, expertise[], organisation
         const response = await fetch('http://localhost:3001/users/emails');
         const data = await response.json();
         setAllUsers(data.users || []);
@@ -275,7 +303,6 @@ export default function ConferencePage() {
     };
     fetchUsers();
   }, []);
-
 
   return (
     <div className="min-h-screen bg-[#ffffff]">
@@ -361,9 +388,7 @@ export default function ConferencePage() {
                     </p>
                   </div>
                   <div className="flex justify-end">
-                    <button onClick={() => newSubmission(conf)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap">
-                      New Submission
-                    </button>
+                    <button onClick={() => newSubmission(conf)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap">New Submission</button>
                   </div>
                 </div>
               ))}
@@ -372,9 +397,7 @@ export default function ConferencePage() {
 
           {/* --- Submitted Papers --- */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-            <h3 className="text-xl font-semibold text-[#1f2937] mb-4">
-              My Submissions
-            </h3>
+            <h3 className="text-xl font-semibold text-[#1f2937] mb-4">My Submissions</h3>
             <PaperList papers={papers} />
           </div>
 
@@ -392,7 +415,7 @@ export default function ConferencePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#1f2937] mb-1">Conference</label>
-                    <select value={selectedConference} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f3f4f6] appearance-none">
+                    <select value={selectedConference} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f3f4f6]">
                       <option value={selectedConference}>{selectedConference}</option>
                     </select>
                   </div>
@@ -404,35 +427,56 @@ export default function ConferencePage() {
                     <label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords (comma-separated)</label>
                     <input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
                   </div>
+
+                  {/* --- Authors: draggable compact cards + add-author select --- */}
                   <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-2">Other Authors</label>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors (drag to reorder)</label>
+
                     <div className="space-y-2">
-                      {authors.slice(1).map((authorId, index) => {
-                        const authorIndex = index + 1;
-                        return (
-                          <div key={authorIndex} className="flex items-center gap-2">
-                            <select value={authorId} onChange={(e) => handleAuthorChange(authorIndex, e.target.value)} required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                              <option value="" disabled>-- Select another author --</option>
-                              {allUsers
-                                .filter(u => u.id !== user.id) 
-                                .map(u => (
-                                  <option key={u.id} value={u.id}>{u.email}</option>
-                                ))
-                              }
-                            </select>
-                            <button type="button" onClick={() => handleRemoveAuthor(authorIndex)} className="px-3 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
-                          </div>
-                        );
-                      })}
+                      <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable droppableId="authors-droppable">
+                          {(provided) => (
+                            <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                              {authors.map((author, index) => (
+                                <Draggable key={author?.id ?? `author-${index}`} draggableId={String(author?.id ?? `author-${index}`)} index={index}>
+                                  {(prov) => (
+                                    <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
+                                      <div {...prov.dragHandleProps} className="cursor-grab select-none text-[#6b7280]">☰</div>
+                                      <div className="flex-1">
+                                        <CompactAuthorCard author={author} />
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => handleRemoveAuthor(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </Draggable>
+                              ))}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </DragDropContext>
+
+                      <div className="flex gap-2 items-center mt-2">
+                        <select defaultValue="" onChange={(e) => { addAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
+                          <option value="" disabled>-- Add another author by email --</option>
+                          {allUsers
+                            .filter(u => !authors.some(a => a && a.id === u.id))
+                            .map(u => (
+                              <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>
+                            ))}
+                        </select>
+                        <button type="button" onClick={() => { /* optional: open a modal to invite new user */ }} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
+                      </div>
                     </div>
-                    <button type="button" onClick={handleAddAuthor} className="mt-2 px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">
-                      + Add Another Author
-                    </button>
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload Paper (PDF)</label>
                     <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" required className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
                   </div>
+
                   <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
                     <button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit Paper</button>
                     <button type="button" onClick={() => setShowSubmissionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>

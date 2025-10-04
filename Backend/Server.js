@@ -393,7 +393,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
  */
 async function uploadPdfToSupabase(fileBuffer, originalFilename) {
   const fileName = `${Date.now()}_${originalFilename}`;
-  const bucketName = 'pdfs'; // Make sure this bucket exists and is public in your Supabase project
+  const bucketName = 'SubmitEase'; // Make sure this bucket exists and is public in your Supabase project
 
   // 1. Upload the file
   const { error: uploadError } = await supabase.storage
