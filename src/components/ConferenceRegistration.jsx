@@ -126,7 +126,7 @@ export default function ConferenceRegistration({ onBack }) {
       };
 
       try {
-        const response = await fetch("http://localhost:3001/conference/register", {
+        const response = await fetch("http://localhost:3001/conference/registeration", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           // CORRECTED: The body was trying to stringify an undefined 'payload' variable.

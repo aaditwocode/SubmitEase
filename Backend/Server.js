@@ -4,9 +4,6 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt'; // --- ADD THIS ---
 import multer from "multer";
-import { google } from "googleapis";
-import path from "path";
-import fs from "fs";
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config'; // Load environment variables from .env file
 
@@ -20,6 +17,82 @@ app.use(cors({
   origin: "http://localhost:5173",
 }));
 app.use(express.json());
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// --- Initialize Supabase Client ---
+// It's safe to use process.env here because of the 'dotenv/config' import
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Supabase URL and Anon Key must be provided in the .env file.");
+}
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+/**
+ * Uploads a file to a Supabase Storage bucket and returns the public URL.
+ * @param {Buffer} fileBuffer - The file content as a buffer.
+ * @param {string} Filename - The name of the file.
+ * @returns {Promise<string>} The public URL of the uploaded file.
+ */
+async function uploadPdfToSupabase(fileBuffer, Filename) {
+  const fileName = `${Filename}`;
+  const bucketName = 'SubmitEase'; // Make sure this bucket exists and is public in your Supabase project
+
+  // 1. Upload the file
+  const { error: uploadError } = await supabase.storage
+    .from(bucketName)
+    .upload(fileName, fileBuffer, {
+      contentType: 'application/pdf',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(`Supabase upload failed: ${uploadError.message}`);
+  }
+
+  // 2. Get the public URL for the uploaded file
+  const { data } = supabase.storage
+    .from(bucketName)
+    .getPublicUrl(fileName);
+
+  if (!data || !data.publicUrl) {
+    throw new Error('Could not retrieve public URL after upload.');
+  }
+
+  return data.publicUrl;
+}
+
+// --- Define the Upload Route ---
+app.post('/upload', upload.single('pdfFile'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file was uploaded.' });
+  }
+
+  try {
+    console.log(`Received file: ${req.file.originalname}, size: ${req.file.size} bytes`);
+
+    // Call our upload function with the file's buffer and original name
+    const publicUrl = await uploadPdfToSupabase(req.file.buffer, req.file.originalname);
+
+    console.log(`File successfully uploaded. URL: ${publicUrl}`);
+
+    // Here you would save the 'publicUrl' to your own database
+    // e.g., await prisma.document.create({ data: { url: publicUrl } });
+
+    res.status(200).json({
+      message: 'File uploaded successfully!',
+      url: publicUrl
+    });
+
+  } catch (error) {
+    console.error('An error occurred during upload:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // --- MODIFY THIS ENDPOINT ---
 // POST /users: Create a new user (Sign-Up) with a hashed password
@@ -184,9 +257,23 @@ function createAbbreviation(fullName) {
   const acronym = fullName.split(' ').filter(word => !stopWords.includes(word.toLowerCase())).map(word => word.charAt(0)).join('');
   return acronym.toUpperCase().slice(0, 5);
 }
-app.post('/savepaper', async (req, res) => {
+app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
+  // 1. The file is now in req.file, not req.body
+  // The other fields are in req.body
+  const { title, confId:cid, abstract } = req.body;
+  const confId = parseInt(cid, 10);
+  // 2. Parse the stringified fields back into objects/arrays
+  const conf = JSON.parse(req.body.conf);
+  const keywords = JSON.parse(req.body.keywords);
+  const authorIds = JSON.parse(req.body.authorIds);
+
+  // 3. Check for the file from multer
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file was uploaded.' });
+  }
+
+  
   try {
-    const { title, confId,conf, abstract, keywords, authorIds, url } = req.body;
     const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
     const lastpaperID = await prisma.paper.findFirst({
       where: { ConferenceId: confId },
@@ -200,9 +287,17 @@ app.post('/savepaper', async (req, res) => {
       nextNumber = parseInt(lastNumberStr, 10) + 1;
     }
     const start = createAbbreviation(conf.name);
-    const year=new Date(conf.startsAt).getFullYear().toString().slice(-2);
+    const year = new Date(conf.startsAt).getFullYear().toString().slice(-2);
     const formattedNumber = String(nextNumber).padStart(4, '0');
     const newPaperID = `${start}_${year}_P${formattedNumber}`;
+    let url;
+    try {
+      url = await uploadPdfToSupabase(req.file.buffer, newPaperID + '.pdf');
+
+    } catch (error) {
+      console.error('An error occurred during upload:', error);
+      return res.status(500).json({ error: error.message });
+    }
     const newPaper = await prisma.paper.create({
       data: {
         id: newPaperID,
@@ -213,7 +308,7 @@ app.post('/savepaper', async (req, res) => {
         Status: 'Pending Submission',
         submittedAt: new Date(),
         Conference: {
-          connect: { id: confId},
+          connect: { id: confId },
         },
         Authors: {
           connect: authorConnects,
@@ -266,7 +361,7 @@ app.get('/users/emails', async (req, res) => {
     if (!emails || emails.length === 0) {
       return res.status(404).json({ message: 'No emails found.' });
     }
-    res.status(200).json({ users: emails});
+    res.status(200).json({ users: emails });
 
   } catch (error) {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
@@ -349,11 +444,11 @@ app.post('/conference/papers', async (req, res) => {
             name: true,
           },
         },
-        Authors:{
-          select:{
-            firstname:true,
-            lastname:true,
-            email:true
+        Authors: {
+          select: {
+            firstname: true,
+            lastname: true,
+            email: true
           }
         }
       },
@@ -362,7 +457,7 @@ app.post('/conference/papers', async (req, res) => {
       return res.status(404).json({ message: 'No Available Papers.' });
     }
 
-    res.status(200).json({ paper: conferencepapers});
+    res.status(200).json({ paper: conferencepapers });
 
   } catch (error) {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
@@ -372,80 +467,6 @@ app.post('/conference/papers', async (req, res) => {
 
 
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
-
-// --- Initialize Supabase Client ---
-// It's safe to use process.env here because of the 'dotenv/config' import
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Supabase URL and Anon Key must be provided in the .env file.");
-}
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-/**
- * Uploads a file to a Supabase Storage bucket and returns the public URL.
- * @param {Buffer} fileBuffer - The file content as a buffer.
- * @param {string} originalFilename - The original name of the file.
- * @returns {Promise<string>} The public URL of the uploaded file.
- */
-async function uploadPdfToSupabase(fileBuffer, originalFilename) {
-  const fileName = `${Date.now()}_${originalFilename}`;
-  const bucketName = 'SubmitEase'; // Make sure this bucket exists and is public in your Supabase project
-
-  // 1. Upload the file
-  const { error: uploadError } = await supabase.storage
-    .from(bucketName)
-    .upload(fileName, fileBuffer, {
-      contentType: 'application/pdf',
-      upsert: false,
-    });
-
-  if (uploadError) {
-    throw new Error(`Supabase upload failed: ${uploadError.message}`);
-  }
-
-  // 2. Get the public URL for the uploaded file
-  const { data } = supabase.storage
-    .from(bucketName)
-    .getPublicUrl(fileName);
-
-  if (!data || !data.publicUrl) {
-    throw new Error('Could not retrieve public URL after upload.');
-  }
-
-  return data.publicUrl;
-}
-
-// --- Define the Upload Route ---
-app.post('/upload', upload.single('pdfFile'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file was uploaded.' });
-  }
-
-  try {
-    console.log(`Received file: ${req.file.originalname}, size: ${req.file.size} bytes`);
-    
-    // Call our upload function with the file's buffer and original name
-    const publicUrl = await uploadPdfToSupabase(req.file.buffer, req.file.originalname);
-    
-    console.log(`File successfully uploaded. URL: ${publicUrl}`);
-
-    // Here you would save the 'publicUrl' to your own database
-    // e.g., await prisma.document.create({ data: { url: publicUrl } });
-    
-    res.status(200).json({ 
-      message: 'File uploaded successfully!', 
-      url: publicUrl 
-    });
-
-  } catch (error) {
-    console.error('An error occurred during upload:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 
 

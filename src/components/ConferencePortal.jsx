@@ -145,7 +145,7 @@ const reorder = (list, startIndex, endIndex) => {
   return result;
 };
 
-export default function ConferencePage() {
+export default function ConferencePortal() {
   const { user, setUser, loginStatus, setloginStatus } = useUserData();
   const navigate = useNavigate();
 
@@ -226,27 +226,19 @@ export default function ConferencePage() {
 
   const handlePaperSubmit = async (event) => {
     event.preventDefault();
-
-    // placeholder for file upload — replace with real upload logic and URL
-    const paperUrl = "http://example.com/path/to/placeholder.pdf";
-
-    const authorIds = authors.map(a => a.id);
-
-    const payload = {
-      title,
-      confId,
-      conf,
-      abstract,
-      keywords: keywords.split(',').map(k => k.trim()).filter(Boolean),
-      authorIds,
-      url: paperUrl,
-    };
+const formData = new FormData();
+    formData.append('title', title);
+    formData.append('confId', confId);
+    formData.append('conf', JSON.stringify(conf));
+    formData.append('abstract', abstract);
+    formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
+    formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
+    formData.append('pdfFile', pdfFile);
 
     try {
       const response = await fetch('http://localhost:3001/savepaper', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -254,7 +246,7 @@ export default function ConferencePage() {
         throw new Error(errorData.message || 'Failed to Save Paper.');
       }
 
-      alert('Paper submitted successfully!');
+      alert('Paper Submitted Successfully!');
       setShowSubmissionForm(false);
       // refresh papers
       // call getPapers() manually if you expose it or refetch papers
