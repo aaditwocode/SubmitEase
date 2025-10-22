@@ -263,7 +263,6 @@ export default function ConferencePortal() {
         return;
     }
     try {
-        console.log("Inviting user:", { inviteEmail, inviteFirstName, inviteLastName, inviteOrg, inviteCountry });
         const response = await fetch('http://localhost:3001/users', { // Use the create user endpoint
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -283,7 +282,7 @@ export default function ConferencePortal() {
             throw new Error(errData.message || "Failed to invite user.");
         }
         const newUser = await response.json();
-        console.log("Invite successful, new user:", newUser);
+
         
         // Add user to BOTH lists immediately
         setAuthors(prev => [...prev, newUser]);
@@ -324,7 +323,6 @@ export default function ConferencePortal() {
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('pdfFile', pdfFile);
 
-    console.log("Submitting new paper with data:", { title, confId, abstract, keywords, authorIds: authors.map(a => a.id), fileName: pdfFile.name });
 
     try {
       const response = await fetch('http://localhost:3001/savepaper', {
@@ -336,7 +334,6 @@ export default function ConferencePortal() {
          throw new Error(errorData.message || 'Failed to Save Paper.');
       }
       const savedPaper = await response.json();
-      console.log("Save successful:", savedPaper);
       alert('Paper Saved Successfully! You can view/edit it from "My Submissions".');
       setShowSubmissionForm(false);
       // Refresh the papers list after successful save
@@ -352,7 +349,6 @@ export default function ConferencePortal() {
   const getPapers = async () => {
       if (user && user.id) {
           try {
-              console.log("Fetching papers for user:", user.id);
               const response = await fetch(`http://localhost:3001/papers?authorId=${user.id}`);
               if (response.status === 404) {
                   console.log("No papers found for user, setting empty array.");
@@ -360,7 +356,6 @@ export default function ConferencePortal() {
               }
               if (!response.ok) throw new Error("Paper data fetch failed.");
               const data = await response.json();
-              console.log("Fetched papers:", data.papers);
               setPapers(data.papers || []);
           } catch (err) { console.error("Error fetching papers:", err); setPapers([]); } // Set empty on error
       } else {
@@ -372,11 +367,9 @@ export default function ConferencePortal() {
   useEffect(() => {
     const getConferences = async () => {
       try {
-        console.log("Fetching conferences...");
         const response = await fetch("http://localhost:3001/conferences");
         if (!response.ok) throw new Error("Conference data fetch failed.");
         const data = await response.json();
-        console.log("Fetched conferences:", data.conference);
         setConferences(data.conference || []);
       } catch (err) { console.error("Error fetching conferences:", err); }
     };
@@ -387,12 +380,10 @@ export default function ConferencePortal() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        console.log("Fetching all users...");
         // Ensure this route returns FULL user objects
         const response = await fetch('http://localhost:3001/users/emails');
         if (!response.ok) throw new Error("User data fetch failed.");
         const data = await response.json();
-        console.log("Fetched all users:", data.users);
         setAllUsers(data.users || []);
       } catch (error) { console.error("Error fetching users:", error); }
     };

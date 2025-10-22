@@ -68,7 +68,7 @@ const PaperList = ({ papers }) => {
       </p>
     );
   }
-
+  const navigate = useNavigate();
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       <table className="w-full">
@@ -129,7 +129,7 @@ const PaperList = ({ papers }) => {
               </td>
               <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
               <td className="py-3 px-4">
-                <button className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                <button onClick={() => navigate(`/paper/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
                   View
                 </button>
               </td>

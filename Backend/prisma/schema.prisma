@@ -47,4 +47,5 @@ model Paper {
   Keywords     String[]
   Status       String
   submittedAt  DateTime
+  AuthorOrder  Int[]
 }

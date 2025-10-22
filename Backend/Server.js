@@ -227,6 +227,7 @@ app.get('/papers', async (req, res) => {
         Keywords: true,
         Abstract: true,
         URL: true,
+        AuthorOrder: true,
         submittedAt: true,
         Conference: {
           select: {
@@ -265,6 +266,7 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
         Keywords: true,
         Abstract: true,
         URL: true,
+        AuthorOrder: true,
         submittedAt: true,
         Conference: {
           select: {
@@ -283,7 +285,6 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
           }
         }
       },
-      cacheStrategy: { ttl: 60 },
     });
 
     if (!papers) {
@@ -312,7 +313,7 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
   const conf = JSON.parse(req.body.conf);
   const keywords = JSON.parse(req.body.keywords);
   const authorIds = JSON.parse(req.body.authorIds);
-
+  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
   // 3. Check for the file from multer
   if (!req.file) {
     return res.status(400).json({ error: 'No file was uploaded.' });
@@ -350,6 +351,7 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
         Title: title,
         Abstract: abstract,
         Keywords: keywords,
+        AuthorOrder:authorIdsInt,
         URL: url,
         Status: 'Pending Submission',
         submittedAt: new Date(),
@@ -373,34 +375,14 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
   }
 });
 
-app.post('/submitpaper', async (req, res) => {
-  try {
-    const { paperId } = req.body;
-    const updatePaper = await prisma.paper.update({
-      where: { id: paperId },
-      data: {
-        Status: 'Under Review',
-        submittedAt: new Date(),
-      },
-      cacheStrategy: { ttl: 60 },
-    });
-    res.status(200).json({ paper: updatePaper });
-  } catch (error) {
-    console.error('Failed to submot paper:', error);
-    if (error.code === 'P2025') {
-      return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
-    }
-    res.status(500).json({ message: 'Could not submit paper', details: error.message });
-  }
-});
-
-app.post('/editpaper',upload.single('pdfFile'), async (req, res) => {
+app.post('/submitpaper', upload.single('pdfFile'), async (req, res) => {
   try {
     const { paperId, title, confId:cid, abstract } = req.body;
   const confId = parseInt(cid, 10);
   const keywords = JSON.parse(req.body.keywords);
   const authorIds = JSON.parse(req.body.authorIds);
   const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
+  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
   if (!req.file) {
     const updatePaper = await prisma.paper.update({
       where: { id: paperId },
@@ -408,8 +390,9 @@ app.post('/editpaper',upload.single('pdfFile'), async (req, res) => {
         Title: title,
         Abstract: abstract,
         Keywords: keywords,
-        Status: 'Pending Submission',
+        Status: 'Under Review',
         submittedAt: new Date(),
+        AuthorOrder:authorIdsInt,
         Authors: {
           set: authorConnects,
         },
@@ -432,7 +415,8 @@ app.post('/editpaper',upload.single('pdfFile'), async (req, res) => {
         Title: title,
         Abstract: abstract,
         Keywords: keywords,
-        Status: 'Pending Submission',
+        Status: 'Under Review',
+        AuthorOrder:authorIdsInt,
         URL: url,
         submittedAt: new Date(),
         Authors: {
@@ -440,6 +424,64 @@ app.post('/editpaper',upload.single('pdfFile'), async (req, res) => {
         },
       },
       cacheStrategy: { ttl: 60 },
+    });
+    res.status(200).json({ paper: updatePaper });
+  } }catch (error) {
+    console.error('Failed to Submit Paper:', error);
+    if (error.code === 'P2025') {
+      return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
+    }
+    res.status(500).json({ message: 'Could not Submit Paper', details: error.message });
+  }
+});
+
+app.post('/editpaper',upload.single('pdfFile'), async (req, res) => {
+  try {
+    const { paperId, title, confId:cid, abstract } = req.body;
+  const confId = parseInt(cid, 10);
+  const keywords = JSON.parse(req.body.keywords);
+  const authorIds = JSON.parse(req.body.authorIds);
+  const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
+  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
+  if (!req.file) {
+    const updatePaper = await prisma.paper.update({
+      where: { id: paperId },
+      data: {
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        Status: 'Pending Submission',
+        submittedAt: new Date(),
+        AuthorOrder:authorIdsInt,
+        Authors: {
+          set: authorConnects,
+        },
+      },
+    });
+    res.status(200).json({ paper: updatePaper });
+  }
+  else{
+    let url;
+    try {
+      url = await uploadPdfToSupabase(req.file.buffer, paperId + '.pdf',true);
+    } catch (error) {
+      console.error('An error occurred during upload:', error);
+      return res.status(500).json({ error: error.message });
+    }
+    const updatePaper = await prisma.paper.update({
+      where: { id: paperId },
+      data: {
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        Status: 'Pending Submission',
+        AuthorOrder:authorIdsInt,
+        URL: url,
+        submittedAt: new Date(),
+        Authors: {
+          set: authorConnects,
+        },
+      },
     });
     res.status(200).json({ paper: updatePaper });
   } }catch (error) {
@@ -457,6 +499,10 @@ app.get('/users/emails', async (req, res) => {
       where: {},
       select: {
         id: true,
+        firstname: true,
+        lastname: true,
+        organisation: true,
+        expertise: true,
         email: true,
       },
       cacheStrategy: { ttl: 60 },
@@ -539,6 +585,7 @@ app.post('/conference/papers', async (req, res) => {
         Status: true,
         Keywords: true,
         Abstract: true,
+        AuthorOrder: true,
         URL: true,
         submittedAt: true,
         Conference: {

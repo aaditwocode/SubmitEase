@@ -98,8 +98,27 @@ export default function ViewPaper() {
         setTitle(data.paper.Title);
         setAbstract(data.paper.Abstract);
         setKeywords(data.paper.Keywords.join(', '));
-        setAuthors(data.paper.Authors || []);
         setConfId(data.paper.Conference.id);
+        // --- Sort authors based on AuthorOrder ---
+const fetchedAuthors = data.paper.Authors || [];
+const authorOrder = data.paper.AuthorOrder;
+
+if (authorOrder && authorOrder.length > 0 && fetchedAuthors.length > 0) {
+const authorMap = new Map(fetchedAuthors.map(author => [author.id, author]));
+
+// Map the IDs from AuthorOrder to the actual author objects
+const sortedAuthors = authorOrder.map(id => authorMap.get(id)).filter(Boolean); // filter(Boolean) removes nulls/undefined
+
+// Defensively add any authors who are in the Authors list but not in the AuthorOrder list
+const authorsInOrderSet = new Set(authorOrder);
+const authorsNotInOrder = fetchedAuthors.filter(author => !authorsInOrderSet.has(author.id));
+
+setAuthors([...sortedAuthors, ...authorsNotInOrder]);
+} else {
+// Fallback if AuthorOrder is missing or empty
+setAuthors(fetchedAuthors);
+}
+ // --- End of author sorting ---
         
       } catch (err) {
         setError(err.message);
@@ -245,6 +264,7 @@ export default function ViewPaper() {
         console.error('Update failed:', error);
         alert(`Error: ${error.message}`);
     }
+    navigate('/conference');
   };
 
   const handleSubmitForReview = async (e) => {
@@ -252,13 +272,23 @@ export default function ViewPaper() {
     if (!window.confirm("Are you sure you want to submit this paper? You will no longer be able to edit it.")) {
         return;
     }
-
+    const formData = new FormData();
+    formData.append('paperId', paperId); // Send paperId
+    formData.append('title', title);
+    formData.append('abstract', abstract);
+    formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
+    formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
+    formData.append('confId', confId);
+    
+    if (pdfFile) {
+        formData.append('pdfFile', pdfFile);
+    }
     try {
+        
         // ASSUMPTION: You have a POST /submitpaper/:id endpoint
         const response = await fetch(`http://localhost:3001/submitpaper`, {
             method: 'POST',
-            body: JSON.stringify({ paperId}),
-            headers: { 'Content-Type': 'application/json' },
+            body: formData,
         });
 
         if (!response.ok) {
@@ -275,6 +305,7 @@ export default function ViewPaper() {
         console.error('Submit failed:', error);
         alert(`Error: ${error.message}`);
     }
+    navigate('/conference');
   };
 
   // --- Render Logic ---
@@ -453,6 +484,7 @@ export default function ViewPaper() {
                 <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
                   <button onClick={handleUpdatePaper} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Changes</button>
                   <button onClick={handleSubmitForReview} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit for Review</button>
+                  <button onClick={() => navigate('/conference')} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
                 </div>
               )}
             </form>
