@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
-
 // --- Helper Functions & Table Component for Paper List ---
 const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
@@ -16,13 +15,14 @@ const getStatusBadge = (status) => {
       badgeClasses += "bg-yellow-100 text-yellow-700";
       break;
     default:
-      badgeClasses += "bg-red-100 text-red-700";
+      badgeClasses += "bg-red-100 text-red-700"; // Includes 'Pending Submission'
       break;
   }
   return <span className={badgeClasses}>{status}</span>;
 };
 
 const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
   return new Date(dateString).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -30,9 +30,11 @@ const formatDate = (dateString) => {
   });
 };
 
+// --- Paper List Component ---
 const PaperList = ({ papers }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
+  const navigate = useNavigate(); // Moved hook to the top
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -49,6 +51,16 @@ const PaperList = ({ papers }) => {
       const aValue = a[sortBy];
       const bValue = b[sortBy];
 
+      // Handle date sorting (assuming submittedAt is a date string or object)
+      if (sortBy === 'submittedAt') {
+        const dateA = aValue ? new Date(aValue).getTime() : 0;
+        const dateB = bValue ? new Date(bValue).getTime() : 0;
+        if (dateA < dateB) return sortOrder === "asc" ? -1 : 1;
+        if (dateA > dateB) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      }
+
+      // Default string/number comparison
       if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
       if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
       return 0;
@@ -115,7 +127,7 @@ const PaperList = ({ papers }) => {
               </td>
               <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
               <td className="py-3 px-4">
-                <button className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">View</button>
+                <button onClick={() => navigate(`/paper/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">View</button>
               </td>
             </tr>
           ))}
@@ -145,63 +157,83 @@ const reorder = (list, startIndex, endIndex) => {
   return result;
 };
 
+// --- Main Component ---
 export default function ConferencePortal() {
   const { user, setUser, loginStatus, setloginStatus } = useUserData();
   const navigate = useNavigate();
 
-  // Data state
+  // --- Data state ---
   const [conferences, setConferences] = useState([]);
   const [papers, setPapers] = useState([]);
-  const [allUsers, setAllUsers] = useState([]); // should contain full user objects
+  const [allUsers, setAllUsers] = useState([]);
 
-  // UI State
-  const [showSubmissionForm, setShowSubmissionForm] = useState(false);
+  // --- UI State ---
+  const [showSubmissionForm, setShowSubmissionForm] = useState(false); // Controls modal visibility
 
-  // Form State
-  const [selectedConference, setSelectedConference] = useState("");
-  const [confId, setConfId] = useState(null);
-  const [conf, setConf] = useState(null);
+  // --- Form State ---
   const [title, setTitle] = useState("");
   const [abstract, setAbstract] = useState("");
   const [keywords, setKeywords] = useState("");
+  const [confId, setConfId] = useState(null);
+  const [conf, setConf] = useState(null); // Store the selected conference object
+  const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
 
-  // Authors now stores full user objects (compact info) in order
-  const [authors, setAuthors] = useState([]);
+  // --- Invite Form State ---
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteOrg, setInviteOrg] = useState("");
+  const [inviteCountry, setInviteCountry] = useState("");
+  const countries = [ // Example list, replace or fetch dynamically if needed
+    "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
+    "Australia", "Netherlands", "Sweden", "Switzerland", "Singapore", "South Korea",
+    "China", "India", "Brazil", "Italy", "Spain", "Norway", "Denmark", "Finland",
+  ];
 
   // --- Event Handlers ---
   const handlePortalClick = (portal) => navigate(`/${portal}`);
-
   const handleLogout = () => {
     setUser(null);
     setloginStatus(false);
     navigate("/home");
   };
 
-  const newSubmission = (conf) => {
-    setSelectedConference(conf.name);
-    setConf(conf);
-    setConfId(conf.id);
+  // --- NEW SUBMISSION FORM LOGIC ---
+  const newSubmission = (selectedConf) => {
     setTitle("");
     setAbstract("");
     setKeywords("");
     setPdfFile(null);
-    // pre-fill authors with current user object (so their details show)
+    setShowInviteForm(false);
+    setInviteFirstName("");
+    setInviteLastName("");
+    setInviteEmail("");
+    setInviteOrg("");
+    setInviteCountry("");
+
+    setConf(selectedConf);
+    setConfId(selectedConf.id);
+
     if (user && user.id) {
-      // make sure user object contains firstname/lastname/expertise/organisation — else fetch
-      setAuthors([user]);
+      setAuthors([user]); // Start with the logged-in user
     } else {
       setAuthors([]);
+      console.warn("Attempting to create submission without a logged-in user.");
     }
     setShowSubmissionForm(true);
   };
 
-  // Add another author by user id
+  // --- Author Management Handlers ---
   const addAuthorById = (userId) => {
     if (!userId) return;
     const parsedId = parseInt(userId, 10);
     const userObj = allUsers.find(u => u.id === parsedId);
-    if (!userObj) return;
+    if (!userObj) {
+      console.warn("Selected user not found in allUsers list.");
+      return;
+    }
     if (authors.some(a => a && a.id === userObj.id)) {
       alert('This author is already added.');
       return;
@@ -209,7 +241,6 @@ export default function ConferencePortal() {
     setAuthors(prev => [...prev, userObj]);
   };
 
-  // Remove author at index (ensure at least 1 author remains)
   const handleRemoveAuthor = (indexToRemove) => {
     if (authors.length <= 1) {
       alert('At least one author is required.');
@@ -220,82 +251,155 @@ export default function ConferencePortal() {
 
   const onDragEnd = (result) => {
     if (!result.destination) return;
-    const newList = reorder(authors, result.source.index, result.destination.index);
-    setAuthors(newList);
+    setAuthors(reorder(authors, result.source.index, result.destination.index));
   };
 
+  // --- Invite Author Handler ---
+  const handleInviteAuthor = async (e) => {
+    // Prevent default needed if button type="submit", not needed for type="button" + onClick
+    e?.preventDefault(); 
+    if (!inviteEmail || !inviteFirstName || !inviteLastName || !inviteCountry) {
+        alert("Please fill in first name, last name, email, and country.");
+        return;
+    }
+    try {
+        console.log("Inviting user:", { inviteEmail, inviteFirstName, inviteLastName, inviteOrg, inviteCountry });
+        const response = await fetch('http://localhost:3001/users', { // Use the create user endpoint
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: inviteEmail,
+                firstname: inviteFirstName,
+                lastname: inviteLastName,
+                organisation: inviteOrg,
+                country: inviteCountry,
+                password: "defaultPassword123", // Set a default/temporary password
+                role: "AUTHOR", // Or appropriate role
+                expertise: [] // Default empty expertise
+            }),
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message || "Failed to invite user.");
+        }
+        const newUser = await response.json();
+        console.log("Invite successful, new user:", newUser);
+        
+        // Add user to BOTH lists immediately
+        setAuthors(prev => [...prev, newUser]);
+        setAllUsers(prev => [...prev, newUser]); 
+
+        // Reset and hide invite form
+        setShowInviteForm(false);
+        setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteOrg(""); setInviteCountry("");
+    } catch (error) {
+        console.error("Invite failed:", error);
+        alert(`Error inviting user: ${error.message}`);
+    }
+  };
+
+  // --- Initial Paper Save Handler ---
   const handlePaperSubmit = async (event) => {
     event.preventDefault();
-const formData = new FormData();
+    if (!pdfFile) {
+        alert("Please select a PDF file to upload.");
+        return;
+    }
+    if (!confId || !conf) {
+        alert("Conference not selected properly.");
+        return;
+    }
+    if (authors.length === 0) {
+        alert("At least one author is required.");
+        return;
+    }
+
+    const formData = new FormData();
     formData.append('title', title);
     formData.append('confId', confId);
-    formData.append('conf', JSON.stringify(conf));
+    formData.append('conf', JSON.stringify(conf)); // Send the full conf object
     formData.append('abstract', abstract);
     formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
+    // Send ordered author IDs
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('pdfFile', pdfFile);
+
+    console.log("Submitting new paper with data:", { title, confId, abstract, keywords, authorIds: authors.map(a => a.id), fileName: pdfFile.name });
 
     try {
       const response = await fetch('http://localhost:3001/savepaper', {
         method: 'POST',
         body: formData,
       });
-
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to Save Paper.');
+         const errorData = await response.json();
+         throw new Error(errorData.message || 'Failed to Save Paper.');
       }
-
-      alert('Paper Submitted Successfully!');
+      const savedPaper = await response.json();
+      console.log("Save successful:", savedPaper);
+      alert('Paper Saved Successfully! You can view/edit it from "My Submissions".');
       setShowSubmissionForm(false);
-      // refresh papers
-      // call getPapers() manually if you expose it or refetch papers
+      // Refresh the papers list after successful save
+      await getPapers(); // Call the fetch function directly
     } catch (error) {
-      console.error('Submission failed:', error);
-      alert(`Error: ${error.message}`);
+        console.error('Submission failed:', error);
+        alert(`Error: ${error.message}`);
     }
   };
 
   // --- Data Fetching Effects ---
+  // Define getPapers outside useEffect so it can be called manually
+  const getPapers = async () => {
+      if (user && user.id) {
+          try {
+              console.log("Fetching papers for user:", user.id);
+              const response = await fetch(`http://localhost:3001/papers?authorId=${user.id}`);
+              if (response.status === 404) {
+                  console.log("No papers found for user, setting empty array.");
+                  setPapers([]); return;
+              }
+              if (!response.ok) throw new Error("Paper data fetch failed.");
+              const data = await response.json();
+              console.log("Fetched papers:", data.papers);
+              setPapers(data.papers || []);
+          } catch (err) { console.error("Error fetching papers:", err); setPapers([]); } // Set empty on error
+      } else {
+          console.log("No user logged in, clearing papers.");
+          setPapers([]); // Clear papers if no user
+      }
+  };
+
   useEffect(() => {
     const getConferences = async () => {
       try {
+        console.log("Fetching conferences...");
         const response = await fetch("http://localhost:3001/conferences");
         if (!response.ok) throw new Error("Conference data fetch failed.");
         const data = await response.json();
+        console.log("Fetched conferences:", data.conference);
         setConferences(data.conference || []);
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error("Error fetching conferences:", err); }
     };
     getConferences();
-  }, []);
-
-  useEffect(() => {
-    const getPapers = async () => {
-      if (user && user.id) {
-        try {
-          const response = await fetch(`http://localhost:3001/papers?authorId=${user.id}`);
-          if (response.status === 404) { setPapers([]); return; }
-          if (!response.ok) throw new Error("Paper data fetch failed.");
-          const data = await response.json();
-          setPapers(data.papers || []);
-        } catch (err) { console.error(err); }
-      }
-    };
-    getPapers();
-  }, [user]);
+    getPapers(); // Initial fetch for papers
+  }, [user]); // Re-fetch conferences and papers if user changes
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // IMPORTANT: this endpoint should return full user objects: id, email, firstname, lastname, expertise[], organisation
+        console.log("Fetching all users...");
+        // Ensure this route returns FULL user objects
         const response = await fetch('http://localhost:3001/users/emails');
+        if (!response.ok) throw new Error("User data fetch failed.");
         const data = await response.json();
+        console.log("Fetched all users:", data.users);
         setAllUsers(data.users || []);
-      } catch (error) { console.error("Failed to fetch users:", error); }
+      } catch (error) { console.error("Error fetching users:", error); }
     };
     fetchUsers();
-  }, []);
+  }, []); // Fetch users only once on component mount
 
+  // --- RENDER ---
   return (
     <div className="min-h-screen bg-[#ffffff]">
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -324,6 +428,7 @@ const formData = new FormData();
         <div className="space-y-8">
           <h2 className="text-3xl font-bold text-[#1f2937]">Conference Portal</h2>
 
+          {/* Statistics Section */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Total Submissions</h3>
@@ -347,138 +452,170 @@ const formData = new FormData();
             </div>
           </div>
 
+          {/* Available Conferences Section */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Available Conferences</h3>
             <div className="space-y-4">
-              {conferences.map((conf) => (
-                <div key={conf.id} className="block p-4 border border-[#e5e7eb] rounded-lg">
+              {conferences.map((c) => ( // Use 'c' to avoid conflict with 'conf' state
+                <div key={c.id} className="block p-4 border border-[#e5e7eb] rounded-lg">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h4 className="text-lg font-bold text-[#1f2937]">{conf.name}</h4>
-                      <p className="text-sm text-[#6b7280]">{conf.location}</p>
+                      <h4 className="text-lg font-bold text-[#1f2937]">{c.name}</h4>
+                      <p className="text-sm text-[#6b7280]">{c.location}</p>
                     </div>
-                    <span className={`inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${conf.status === "Open" ? "bg-[#059669]/10 text-[#059669]" : "bg-red-100 text-red-700"}`}>
-                      Status: {conf.status}
+                    <span className={`inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${c.status === "Open" ? "bg-[#059669]/10 text-[#059669]" : "bg-red-100 text-red-700"}`}>
+                      Status: {c.status}
                     </span>
                   </div>
                   <div className="flex flex-row flex-wrap justify-around items-center text-sm border-t border-b border-[#e5e7eb] py-3 my-3">
                     <p className="text-[#6b7280] text-center mx-2 my-1">
                       <span className="font-medium text-[#1f2937]">Starts On:</span>{' '}
-                      {new Date(conf.startsAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
+                      {new Date(c.startsAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
                     </p>
                     <p className="text-[#6b7280] text-center mx-2 my-1">
                       <span className="font-medium text-[#1f2937]">Ends On:</span>{' '}
-                      {new Date(conf.endAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
+                      {new Date(c.endAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
                     </p>
                     <p className="text-[#6b7280] text-center mx-2 my-1">
                       <span className="font-medium text-[#1f2937]">Submission Deadline:</span>{' '}
-                      {new Date(conf.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
+                      {new Date(c.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
                     </p>
                     <p className="text-[#6b7280] text-center mx-2 my-1">
                       <span className="font-medium text-[#1f2937]">Website:</span>{' '}
-                      <a href={conf.link} target="_blank" rel="noopener noreferrer" className="text-[#059669] hover:underline">{conf.link}</a>
+                      <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-[#059669] hover:underline">{c.link}</a>
                     </p>
                   </div>
                   <div className="flex justify-end">
-                    <button onClick={() => newSubmission(conf)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap">New Submission</button>
+                    <button onClick={() => newSubmission(c)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap">New Submission</button>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* --- Submitted Papers --- */}
+          {/* My Submissions Section */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <h3 className="text-xl font-semibold text-[#1f2937] mb-4">My Submissions</h3>
             <PaperList papers={papers} />
           </div>
-
-          {showSubmissionForm && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-[#1f2937]">New Paper Submission</h3>
-                  <button onClick={() => setShowSubmissionForm(false)} className="text-[#6b7280] hover:text-[#1f2937]">✕</button>
-                </div>
-                <form className="space-y-4" onSubmit={handlePaperSubmit}>
-                  <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label>
-                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Conference</label>
-                    <select value={selectedConference} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f3f4f6]">
-                      <option value={selectedConference}>{selectedConference}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label>
-                    <textarea value={abstract} onChange={(e) => setAbstract(e.target.value)} required rows={4} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords (comma-separated)</label>
-                    <input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                  </div>
-
-                  {/* --- Authors: draggable compact cards + add-author select --- */}
-                  <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors (drag to reorder)</label>
-
-                    <div className="space-y-2">
-                      <DragDropContext onDragEnd={onDragEnd}>
-                        <Droppable droppableId="authors-droppable">
-                          {(provided) => (
-                            <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
-                              {authors.map((author, index) => (
-                                <Draggable key={author?.id ?? `author-${index}`} draggableId={String(author?.id ?? `author-${index}`)} index={index}>
-                                  {(prov) => (
-                                    <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
-                                      <div {...prov.dragHandleProps} className="cursor-grab select-none text-[#6b7280]">☰</div>
-                                      <div className="flex-1">
-                                        <CompactAuthorCard author={author} />
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <button type="button" onClick={() => handleRemoveAuthor(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
-                      </DragDropContext>
-
-                      <div className="flex gap-2 items-center mt-2">
-                        <select defaultValue="" onChange={(e) => { addAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                          <option value="" disabled>-- Add another author by email --</option>
-                          {allUsers
-                            .filter(u => !authors.some(a => a && a.id === u.id))
-                            .map(u => (
-                              <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>
-                            ))}
-                        </select>
-                        <button type="button" onClick={() => { /* optional: open a modal to invite new user */ }} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload Paper (PDF)</label>
-                    <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" required className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
-                  </div>
-
-                  <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
-                    <button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit Paper</button>
-                    <button type="button" onClick={() => setShowSubmissionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </div>
       </main>
-    </div>
+
+      {/* --- MODAL with NEW Submission Form --- */}
+      {showSubmissionForm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          {/* Modal Container */}
+          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-[#1f2937]">New Paper Submission</h3>
+              <button onClick={() => setShowSubmissionForm(false)} className="text-[#6b7280] hover:text-[#1f2937]">✕</button>
+            </div>
+
+            {/* --- Form adapted from ViewPaper --- */}
+            <form className="space-y-4" onSubmit={handlePaperSubmit}>
+              <div>
+                <label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label>
+                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required
+                       className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#1f2937] mb-1">Conference</label>
+                <select value={confId || ""} disabled // Conference is selected initially, not changeable here
+                        className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-gray-100 cursor-not-allowed">
+                  {conf && <option value={conf.id}>{conf.name}</option>}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label>
+                <textarea value={abstract} onChange={(e) => setAbstract(e.target.value)} required rows={4}
+                          className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords (comma-separated)</label>
+                <input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} required
+                       className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+              </div>
+
+              {/* --- Authors Section --- */}
+              <div>
+                <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors (drag to reorder)</label>
+                <div className="space-y-2">
+                  <DragDropContext onDragEnd={onDragEnd}>
+                    <Droppable droppableId="authors-droppable-new">
+                      {(provided) => (
+                        <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                          {authors.map((author, index) => (
+                            <Draggable key={author?.id ?? `new-author-${index}`} draggableId={String(author?.id ?? `new-author-${index}`)} index={index}>
+                              {(prov) => (
+                                <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
+                                  <div {...prov.dragHandleProps} className="cursor-grab select-none text-[#6b7280]">☰</div>
+                                  <div className="flex-1"><CompactAuthorCard author={author} /></div>
+                                  <button type="button" onClick={() => handleRemoveAuthor(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </DragDropContext>
+
+                  {/* --- Add/Invite Author UI --- */}
+                  {!showInviteForm && (
+                    <div className="flex gap-2 items-center mt-2">
+                      <select defaultValue="" onChange={(e) => { addAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
+                        <option value="" disabled>-- Add another author by email --</option>
+                        {allUsers
+                          .filter(u => u && u.id && !authors.some(a => a && a.id === u.id)) // Added checks for u and u.id
+                          .map(u => ( <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option> ))}
+                      </select>
+                      <button type="button" onClick={() => setShowInviteForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
+                    </div>
+                  )}
+
+                  {/* --- Invite New Author Form (using div instead of form) --- */}
+                  {showInviteForm && (
+                    <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
+                       <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
+                       <div className="grid grid-cols-2 gap-3">
+                         <input type="text" value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                         <input type="text" value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                       </div>
+                       <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email Address*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                       <input type="text" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} placeholder="Organisation" className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                       <select id="country-invite" value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} required className={`w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] appearance-none focus:outline-none focus:ring-2 focus:ring-[#059669] ${inviteCountry ? "text-[#1f2937]" : "text-gray-400"}`}>
+                         <option value="">Select a country*</option>
+                         {countries.map((country) => ( <option key={country} value={country}>{country}</option> ))}
+                       </select>
+                       <div className="flex gap-3">
+                         <button type="button" onClick={handleInviteAuthor} className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90">Add User as Author</button>
+                         <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
+                       </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* --- File Upload --- */}
+              <div>
+                <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload Paper (PDF)</label>
+                <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" required className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
+              </div>
+
+              {/* --- Action Buttons --- */}
+              <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
+                <button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Save Paper</button>
+                <button type="button" onClick={() => setShowSubmissionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
+              </div>
+            </form>
+          </div> {/* End Modal Content */}
+        </div> // End Modal Backdrop
+      )}
+    </div> // End Main Div
   );
 }

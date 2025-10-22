@@ -37,7 +37,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
  * @param {string} Filename - The name of the file.
  * @returns {Promise<string>} The public URL of the uploaded file.
  */
-async function uploadPdfToSupabase(fileBuffer, Filename) {
+async function uploadPdfToSupabase(fileBuffer, Filename,editpdf=false) {
   const fileName = `${Filename}`;
   const bucketName = 'SubmitEase'; // Make sure this bucket exists and is public in your Supabase project
 
@@ -46,7 +46,7 @@ async function uploadPdfToSupabase(fileBuffer, Filename) {
     .from(bucketName)
     .upload(fileName, fileBuffer, {
       contentType: 'application/pdf',
-      upsert: false,
+      upsert: editpdf,
     });
 
   if (uploadError) {
@@ -99,7 +99,6 @@ app.post('/upload', upload.single('pdfFile'), async (req, res) => {
 app.post('/users', async (req, res) => {
   try {
     const { email, password, firstname, lastname, role, expertise, organisation, country } = req.body;
-
     // Hash the password before storing it
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -252,6 +251,53 @@ app.get('/papers', async (req, res) => {
   }
 });
 
+app.get('/getpaperbyid/:paperId', async (req, res) => {
+  const { paperId } = req.params;
+  try {
+    const papers = await prisma.paper.findUnique({
+      where: {
+        id: paperId,
+      },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        URL: true,
+        submittedAt: true,
+        Conference: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Authors:{
+          select:{
+            id:true,
+            firstname:true,
+            lastname:true,
+            email:true,
+            organisation:true,
+            expertise:true,
+          }
+        }
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+
+    if (!papers) {
+      return res.status(404).json({ message: 'No papers found for this author.' });
+    }
+
+    res.status(200).json({ paper: papers });
+
+  } catch (error) {
+    console.error(error); // It's good practice to log the error on the server
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
 function createAbbreviation(fullName) {
   const stopWords = ['on', 'of', 'the', 'in', 'and', 'for', 'a', 'an'];
   const acronym = fullName.split(' ').filter(word => !stopWords.includes(word.toLowerCase())).map(word => word.charAt(0)).join('');
@@ -329,9 +375,9 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
 
 app.post('/submitpaper', async (req, res) => {
   try {
-    const { paper } = req.body;
+    const { paperId } = req.body;
     const updatePaper = await prisma.paper.update({
-      where: { id: paper.id },
+      where: { id: paperId },
       data: {
         Status: 'Under Review',
         submittedAt: new Date(),
@@ -340,11 +386,68 @@ app.post('/submitpaper', async (req, res) => {
     });
     res.status(200).json({ paper: updatePaper });
   } catch (error) {
-    console.error('Failed to create paper:', error);
+    console.error('Failed to submot paper:', error);
     if (error.code === 'P2025') {
       return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
     }
-    res.status(500).json({ message: 'Could not create paper', details: error.message });
+    res.status(500).json({ message: 'Could not submit paper', details: error.message });
+  }
+});
+
+app.post('/editpaper',upload.single('pdfFile'), async (req, res) => {
+  try {
+    const { paperId, title, confId:cid, abstract } = req.body;
+  const confId = parseInt(cid, 10);
+  const keywords = JSON.parse(req.body.keywords);
+  const authorIds = JSON.parse(req.body.authorIds);
+  const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
+  if (!req.file) {
+    const updatePaper = await prisma.paper.update({
+      where: { id: paperId },
+      data: {
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        Status: 'Pending Submission',
+        submittedAt: new Date(),
+        Authors: {
+          set: authorConnects,
+        },
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    res.status(200).json({ paper: updatePaper });
+  }
+  else{
+    let url;
+    try {
+      url = await uploadPdfToSupabase(req.file.buffer, paperId + '.pdf',true);
+    } catch (error) {
+      console.error('An error occurred during upload:', error);
+      return res.status(500).json({ error: error.message });
+    }
+    const updatePaper = await prisma.paper.update({
+      where: { id: paperId },
+      data: {
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        Status: 'Pending Submission',
+        URL: url,
+        submittedAt: new Date(),
+        Authors: {
+          set: authorConnects,
+        },
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    res.status(200).json({ paper: updatePaper });
+  } }catch (error) {
+    console.error('Failed to update paper:', error);
+    if (error.code === 'P2025') {
+      return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
+    }
+    res.status(500).json({ message: 'Could not update paper', details: error.message });
   }
 });
 

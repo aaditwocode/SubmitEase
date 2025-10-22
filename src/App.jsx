@@ -8,6 +8,7 @@ import { UserProvider } from './components/UserContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ManageConferences from './components/ManageConferences';
 import ConferenceRegistration from './components/ConferenceRegistration';
+import PaperSubmit from './components/PaperSubmit';
 function App() {
   return (
     <UserProvider>
@@ -31,6 +32,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ConferencePortal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Paper/:paperId"
+            element={
+              <ProtectedRoute>
+                <PaperSubmit />
               </ProtectedRoute>
             }
           />
