@@ -19,6 +19,7 @@ model User {
   country      String
   Conference   Conference[]
   Paper        Paper[]
+  Reviews      Reviews[]
 }
 
 model Conference {
@@ -48,4 +49,15 @@ model Paper {
   Status       String
   submittedAt  DateTime
   AuthorOrder  Int[]
+  Reviews      Reviews[]
+}
+
+model Reviews {
+  id         Int    @id @default(autoincrement())
+  PaperId    String
+  Paper      Paper? @relation(fields: [PaperId], references: [id])
+  ReviewerId Int
+  User       User?  @relation(fields: [ReviewerId], references: [id])
+  Review     String
+  Status     String
 }

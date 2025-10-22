@@ -37,6 +37,7 @@ const formatTime = (dateString) => {
   return date.toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
 };
 const PaperList = ({ papers }) => {
+  const navigate = useNavigate();
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
 
@@ -68,7 +69,7 @@ const PaperList = ({ papers }) => {
       </p>
     );
   }
-  const navigate = useNavigate();
+  
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       <table className="w-full">
