@@ -12,6 +12,7 @@ import ViewPaper from './components/ViewPaper';
 import PaperDecision from './components/PaperDecision';
 import ReviewPaper from './components/ReviewPaper';
 import ManageReviews from './components/ManageReviews';
+import JournalPortal from './components/JournalPortal';
 function App() {
   return (
     <UserProvider>
@@ -35,6 +36,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <ConferencePortal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/journal"
+            element={
+              <ProtectedRoute>
+                <JournalPortal />
               </ProtectedRoute>
             }
           />
