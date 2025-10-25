@@ -5,6 +5,7 @@ import cors from 'cors';
 import bcrypt from 'bcrypt'; // --- ADD THIS ---
 import multer from "multer";
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
 import 'dotenv/config'; // Load environment variables from .env file
 
 
@@ -20,6 +21,32 @@ app.use(express.json());
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+//sendmail
+const transporter = nodemailer.createTransport({
+    secure: true,
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+function sendMail(to, sub, msg) {
+    transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: to,
+        subject: sub,
+        html: msg
+    }, function(error, info) {
+        if (error) {
+            console.log('Error sending email:', error);
+        } else {
+            console.log('Email sent successfully:', info.response);
+        }
+    });
+}
 
 // --- Initialize Supabase Client ---
 // It's safe to use process.env here because of the 'dotenv/config' import
@@ -98,7 +125,7 @@ app.post('/upload', upload.single('pdfFile'), async (req, res) => {
 // POST /users: Create a new user (Sign-Up) with a hashed password
 app.post('/users', async (req, res) => {
   try {
-    const { email, password, firstname, lastname, role, expertise, organisation, country } = req.body;
+    const { email, password, firstname, lastname, role, expertise, organisation, country , sub,msg } = req.body;
     // Hash the password before storing it
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -119,6 +146,7 @@ app.post('/users', async (req, res) => {
     // Don't send the password back, even the hash
     const { password: _, ...userWithoutPassword } = newUser;
     res.status(201).json(userWithoutPassword);
+    sendMail(email,sub,msg);
 
   } catch (error) {
     // Handle specific error for unique email constraint
@@ -738,7 +766,9 @@ app.post('/get-your-reviews', async (req, res) => {
 
 app.post('/paper-decision', upload.single('pdfFile'), async (req, res) => {
   try {
-    const { paperId, status } = req.body;
+    const { paperId, status, total } = req.body;
+
+    // `total` should be an array of emails from frontend (e.g., ["a@gmail.com", "b@gmail.com"])
     const updatePaper = await prisma.paper.update({
       where: { id: paperId },
       data: {
@@ -746,16 +776,33 @@ app.post('/paper-decision', upload.single('pdfFile'), async (req, res) => {
       },
       cacheStrategy: { ttl: 60 },
     });
+
+   
+
+    // Respond immediately to frontend (so they don't wait for all mails)
     res.status(200).json({ paper: updatePaper });
-  }
-  catch (error) {
-    console.error('Failed to Submit Paper:', error);
-    if (error.code === 'P2025') {
-      return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
+
+     for (const author of total) {
+      try {
+         sendMail(
+          author.email,
+          `Paper Decision for ${updatePaper.Title}`,
+          `Dear ${author.firstname} ${author.lastname},<br><br>Your paper titled "<strong>${updatePaper.Title}</strong>" has been <strong>${status}</strong>.<br><br>Thank you for your submission.<br><br>Best regards,<br>Conference Committee`
+        );
+        console.log(`✅ Decision mail sent to: ${author.email}`);
+      } catch (mailError) {
+        console.error(`❌ Failed to send mail to ${author.email}:`, mailError.message);
+      }
     }
-    res.status(500).json({ message: 'Could not Submit Paper', details: error.message });
+
+    
+
+  } catch (error) {
+    console.error("❌ Paper decision error:", error);
+    res.status(500).json({ message: 'Could not update paper status', details: error.message });
   }
 });
+
 
 app.post('/conference/registeration', async (req, res) => {
   try {

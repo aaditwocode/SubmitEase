@@ -268,13 +268,25 @@ export default function ConferencePortal() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email: inviteEmail,
+                password: "defaultPassword123", 
                 firstname: inviteFirstName,
                 lastname: inviteLastName,
+                role: ["Author"], // Or appropriate role
+                expertise:[], // Default empty expertise
                 organisation: inviteOrg,
                 country: inviteCountry,
-                password: "defaultPassword123", // Set a default/temporary password
-                role: "AUTHOR", // Or appropriate role
-                expertise: [] // Default empty expertise
+            
+                sub: "Invitation for collaboration on SubmitEase",
+                msg: `Hello ${inviteFirstName} ${inviteLastName},
+
+                You are invited to collaborate on SubmitEase. We've created a temporary account for you so you can be added as an author on submissions. Please sign in on Submitease using the email address (${inviteEmail}) and the temporary password provided below: defaultPassword123
+
+                If you have any questions, reply to this email.
+
+                Thanks,
+                ${user?.firstname || 'SubmitEase Team'}`,
+                sendEmail: true,
+                invitedBy: user?.id || null,
             }),
         });
         if (!response.ok) {

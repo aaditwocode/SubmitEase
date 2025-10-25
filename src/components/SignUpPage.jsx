@@ -61,6 +61,8 @@ export default function SignUpPage() {
       expertise: expertiseArray,
       organisation: formData.organisation,
       country: formData.country,
+      sub: "Welcome to SubmitEase!",
+      msg: `<h1>Hello ${formData.firstName},</h1><p>Thank you for signing up at SubmitEase. We're excited to have you on board!</p><p>Best regards,<br/>The SubmitEase Team</p>`,
     };
 
     try {

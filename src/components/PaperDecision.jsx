@@ -243,13 +243,24 @@ export default function PaperDecision() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: inviteReviewerEmail,
+                     password: "defaultPassword123", // Default password
                     firstname: inviteReviewerFirstName,
                     lastname: inviteReviewerLastName,
                     organisation: inviteReviewerOrg,
-                    password: "default123", // Default password
                     role: ["Reviewer"], // Set role to Reviewer
                     expertise: [],
-                    country: inviteReviewerCountry
+                    country: inviteReviewerCountry,
+                    sub: "Invitation for collaboration on SubmitEase",
+                    msg: `Hello ${inviteReviewerFirstName} ${inviteReviewerLastName},
+
+                You are invited to collaborate on SubmitEase. We've created a temporary account for you so you can be added as an author on submissions. Please sign in on Submitease using the email address (${inviteReviewerEmail}) and the temporary password provided below: defaultPassword123
+
+                If you have any questions, reply to this email.
+
+                Thanks,
+                ${user?.firstname || 'SubmitEase Team'}`,
+                sendEmail: true,
+                invitedBy: user?.id || null,
                 }),
             });
 
@@ -376,7 +387,8 @@ export default function PaperDecision() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     paperId: paperId,
-                    status: hostDecision, // e.g., "Accepted" or "Rejected"
+                    status: hostDecision,// e.g., "Accepted" or "Rejected"
+                    total : authors,
                 }),
             });
 
