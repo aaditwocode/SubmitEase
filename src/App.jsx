@@ -9,6 +9,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ManageConferences from './components/ManageConferences';
 import ConferenceRegistration from './components/ConferenceRegistration';
 import ViewPaper from './components/ViewPaper';
+import PaperDecision from './components/PaperDecision';
+import ReviewPaper from './components/ReviewPaper';
+import ManageReviews from './components/ManageReviews';
 function App() {
   return (
     <UserProvider>
@@ -40,6 +43,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <ViewPaper />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/PaperDecision/:paperId"
+            element={
+              <ProtectedRoute>
+                <PaperDecision />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ManageReviews"
+            element={
+              <ProtectedRoute>
+                <ManageReviews />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ReviewPaper/:paperId"
+            element={
+              <ProtectedRoute>
+                <ReviewPaper />
               </ProtectedRoute>
             }
           />

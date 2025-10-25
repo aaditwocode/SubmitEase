@@ -268,6 +268,7 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
+        ReviewerOrder:true,
         Conference: {
           select: {
             id: true,
@@ -283,6 +284,25 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
             organisation:true,
             expertise:true,
           }
+        },
+        Reviews:{
+          select:{
+            id:true,
+            ReviewerId:true,
+            Comment:true,
+            Recommendation:true,
+            submittedAt:true,
+            User:{
+              select:{
+                id:true,
+                firstname:true,
+                lastname:true,
+                email:true,
+                organisation:true,
+                expertise:true,
+              }
+            }
+          },
         }
       },
     });
@@ -514,6 +534,226 @@ app.get('/users/emails', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+app.post('/assign-reviewers', async (req, res) => {
+  try {
+    // 1. Get the data from the request body
+    const { paperId, reviewerIds, reviewerOrder } = req.body;
+
+    // 2. Validate input (basic)
+    if (!paperId || !reviewerIds || !reviewerOrder) {
+      return res.status(400).json({ message: 'Missing paperId, reviewerIds, or reviewerOrder' });
+    }
+
+    const updatedPaper = await prisma.paper.update({
+      where: {
+        id: paperId,
+      },
+      data: {
+        ReviewerOrder: reviewerOrder,
+      },
+    });
+    const reviewData = reviewerIds.map((id) => ({
+      PaperId: paperId,
+      ReviewerId: parseInt(id, 10), // Ensure IDs are integers
+      Comment: "",                   // Placeholder for "reasons"
+      Recommendation: "",
+      submittedAt:null,  
+    }));
+
+    // 5. Create all the new review records at once
+    await prisma.reviews.createMany({
+      data: reviewData,
+      skipDuplicates: true // Good to add, in case a reviewer was already assigned
+    });
+
+    const papers = await prisma.paper.findUnique({
+      where: {
+        id: paperId,
+      },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        URL: true,
+        AuthorOrder: true,
+        submittedAt: true,
+        ReviewerOrder:true,
+        Conference: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Authors:{
+          select:{
+            id:true,
+            firstname:true,
+            lastname:true,
+            email:true,
+            organisation:true,
+            expertise:true,
+          }
+        },
+        Reviews:{
+          select:{
+            id:true,
+            ReviewerId:true,
+            Comment:true,
+            Recommendation:true,
+            submittedAt:true,
+            User:{
+              select:{
+                id:true,
+                firstname:true,
+                lastname:true,
+                email:true,
+                expertise:true,
+                organisation:true,
+              }
+            }
+          }
+        }
+      },
+    });
+    // 5. Send the updated paper back as a success response
+    res.status(200).json({ paper: papers });
+
+  } catch (error) {
+    // 6. Send a relevant error message
+    console.error('Failed to assign reviewers:', error);
+    res.status(500).json({ message: 'Could not assign reviewers', details: error.message });
+  }
+});
+
+app.post('/submit-review', async (req, res) => {
+  const { paperId, reviewerId, Recommendation, Comment} = req.body;
+
+  try {
+    const newReview = await prisma.reviews.update({
+      where:{
+        PaperId_ReviewerId: {
+        PaperId: paperId,
+        ReviewerId: parseInt(reviewerId, 10),
+        }
+      },
+      data: {
+        Recommendation: Recommendation, // "Accepted" or "Rejected"
+        Comment: Comment,
+        submittedAt: new Date(),  
+      }
+    });
+    res.status(201).json(newReview);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to submit review." });
+  }
+});
+
+app.post('/save-review', async (req, res) => {
+  const { paperId, reviewerId, Recommendation, Comment} = req.body;
+
+  try {
+    const newReview = await prisma.reviews.update({
+       where:{
+        PaperId_ReviewerId: {
+        PaperId: paperId,
+        ReviewerId: parseInt(reviewerId, 10),
+        }
+      },
+      data: {
+        Recommendation: Recommendation, // "Accepted" or "Rejected"
+        Comment: Comment, 
+      }
+    });
+    res.status(201).json(newReview);
+  } catch (error) {
+    console.error('Failed to Save Review:', error);
+    res.status(500).json({ message: "Failed to save review." });
+  }
+});
+
+app.post('/get-review', async (req, res) => {
+  const { paperId, reviewerId} = req.body;
+  try {
+    const review = await prisma.reviews.findUnique({
+      where:{
+      PaperId_ReviewerId: {
+        PaperId: paperId,
+        ReviewerId: parseInt(reviewerId, 10), 
+      },
+    }
+    });
+    if (!review) {
+      return res.status(404).json({ message: 'No Available Review.' });
+    }
+    res.status(201).json(review);
+  } catch (error) {
+    console.error('Failed to Fetch Review:', error);
+    res.status(500).json({ message: "Failed to Fetch Review." });
+  }
+});
+
+app.post('/get-your-reviews', async (req, res) => {
+  const { reviewerId} = req.body;
+  console.log("Fetching reviews for reviewerId:", reviewerId);
+  try {
+    const review = await prisma.reviews.findMany({
+      where:{
+        ReviewerId: parseInt(reviewerId, 10), 
+      },
+      select:{
+        id:true,
+        Comment:true,
+        Recommendation:true,
+        submittedAt:true,
+        Paper:{
+          select:{
+            id:true,
+            Title:true,
+            Conference:{
+              select:{
+                id:true,
+                name:true,
+              }
+            },
+            submittedAt:true,
+          }
+        }
+      }
+    });
+    if (!review) {
+      return res.status(404).json({ message: 'No Available Review.' });
+    }
+    res.status(201).json({reviews:review});
+  } catch (error) {
+    console.error('Failed to Fetch Reviews:', error);
+    res.status(500).json({ message: "Failed to Fetch Review." });
+  }
+});
+
+
+app.post('/paper-decision', upload.single('pdfFile'), async (req, res) => {
+  try {
+    const { paperId, status } = req.body;
+    const updatePaper = await prisma.paper.update({
+      where: { id: paperId },
+      data: {
+        Status: status,
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    res.status(200).json({ paper: updatePaper });
+  }
+  catch (error) {
+    console.error('Failed to Submit Paper:', error);
+    if (error.code === 'P2025') {
+      return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
+    }
+    res.status(500).json({ message: 'Could not Submit Paper', details: error.message });
   }
 });
 

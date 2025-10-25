@@ -50,6 +50,7 @@ model Paper {
   submittedAt  DateTime
   AuthorOrder  Int[]
   Reviews      Reviews[]
+  ReviewerOrder Int[]
 }
 
 model Reviews {
@@ -58,6 +59,8 @@ model Reviews {
   Paper      Paper? @relation(fields: [PaperId], references: [id])
   ReviewerId Int
   User       User?  @relation(fields: [ReviewerId], references: [id])
-  Review     String
-  Status     String
+  Comment     String
+  Recommendation     String
+  submittedAt DateTime?
+  @@unique([PaperId, ReviewerId])
 }

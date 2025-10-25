@@ -130,7 +130,7 @@ const PaperList = ({ papers }) => {
               </td>
               <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
               <td className="py-3 px-4">
-                <button onClick={() => navigate(`/paper/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                <button onClick={() => navigate(`/PaperDecision/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
                   View
                 </button>
               </td>
@@ -298,29 +298,26 @@ export default function ManageConferences() {
     return (
       <div className="min-h-screen bg-[#ffffff]">
         <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                  <span className="text-lg font-bold text-white">S</span>
-                </div>
-                <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
               </div>
-              <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-                <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
-                <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
-              </nav>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
-                Return To Conference Portal
-              </button>
-              <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
-                Logout
-              </button>
-            </div>
+            <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+              <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+              <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+              <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
+            </nav>
           </div>
-        </header>
+          <div className="flex items-center gap-4">
+            <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
+            <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
+          </div>
+        </div>
+      </header>
 
         <main className="container mx-auto px-4 py-8">
           <button onClick={() => setSelectedConference(null)} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
@@ -522,15 +519,12 @@ export default function ManageConferences() {
             <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
               <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
               <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+              <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
-              Return To Conference Portal
-            </button>
-            <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
-              Logout
-            </button>
+            <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
+            <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
           </div>
         </div>
       </header>

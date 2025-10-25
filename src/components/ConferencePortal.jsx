@@ -405,6 +405,7 @@ export default function ConferencePortal() {
             <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
               <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
               <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+              <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
             </nav>
           </div>
           <div className="flex items-center gap-4">
