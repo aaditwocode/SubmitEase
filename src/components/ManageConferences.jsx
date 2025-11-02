@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
-// --- Helper Functions & Table Component for Paper List ---
-// NOTE: These components are assumed to be correct and are not changed.
+// --- Helper Functions ---
 
 const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
@@ -23,6 +22,20 @@ const getStatusBadge = (status) => {
   return <span className={badgeClasses}>{status}</span>;
 };
 
+// NEW: Helper for conference status
+const getConferenceStatusBadge = (status) => {
+  let badgeClasses = "inline-block px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ";
+  switch (status) {
+    case "Open":
+      badgeClasses += "bg-[#059669]/10 text-[#059669]";
+      break;
+    default: // Closed, etc.
+      badgeClasses += "bg-red-100 text-red-700";
+      break;
+  }
+  return <span className={badgeClasses}>{status}</span>;
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -32,14 +45,28 @@ const formatDate = (dateString) => {
     day: 'numeric'
   });
 };
+
 const formatTime = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
 };
+
+// NEW: Helper for combined date and time
+const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A';
+  return new Date(dateString).toLocaleString("en-IN", {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  });
+};
+
+// --- Paper List Component (UPDATED with Search/Filter) ---
 const PaperList = ({ papers }) => {
   const navigate = useNavigate();
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [searchTerm, setSearchTerm] = useState(""); // <-- NEW: Search state
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -50,16 +77,29 @@ const PaperList = ({ papers }) => {
     }
   };
 
-  const sortedPapers = useMemo(() => {
-    if (!papers) return [];
-    return [...papers].sort((a, b) => {
+  const sortedAndFilteredPapers = useMemo(() => {
+    // --- NEW: Filtering logic ---
+    const filtered = (papers || []).filter(paper => {
+        const lowerSearch = searchTerm.toLowerCase();
+        const keywordsString = Array.isArray(paper.Keywords) ? paper.Keywords.join(' ').toLowerCase() : '';
+        return (
+            paper.Title?.toLowerCase().includes(lowerSearch) ||
+            paper.id?.toString().includes(lowerSearch) ||
+            paper.Conference?.name?.toLowerCase().includes(lowerSearch) ||
+            paper.Status?.toLowerCase().includes(lowerSearch) ||
+            keywordsString.includes(lowerSearch)
+        );
+    });
+
+    // --- Existing sorting logic, applied to 'filtered' list ---
+    return [...filtered].sort((a, b) => {
       const aValue = a[sortBy] || '';
       const bValue = b[sortBy] || '';
       if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
       if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
       return 0;
     });
-  }, [papers, sortBy, sortOrder]);
+  }, [papers, sortBy, sortOrder, searchTerm]); // <-- NEW: Added searchTerm
 
 
   if (!papers || papers.length === 0) {
@@ -72,6 +112,17 @@ const PaperList = ({ papers }) => {
   
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
+      {/* --- NEW: Search Input --- */}
+      <div className="p-4">
+        <input
+          type="text"
+          placeholder="Search papers (Title, ID, Status, Keywords...)"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+        />
+      </div>
+
       <table className="w-full">
         <thead>
           <tr className="border-b border-[#e5e7eb]">
@@ -104,38 +155,169 @@ const PaperList = ({ papers }) => {
           </tr>
         </thead>
         <tbody>
-          {sortedPapers.map((paper) => (
-            <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-              <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
-              <td className="py-3 px-4">
-                <div>
-                  <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
-                  <p className="text-xs text-[#6b7280]">{paper.Conference?.name}</p>
-                </div>
-              </td>
-              <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(paper.submittedAt)}</td>
-              <td className="py-3 px-4">
-                <div className="flex flex-wrap gap-1">
-                  {(paper.Keywords || []).slice(0, 2).map((keyword, index) => (
-                    <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
-                      {keyword}
-                    </span>
-                  ))}
-                  {paper.Keywords && paper.Keywords.length > 2 && (
-                    <span className="px-2 py-1 text-xs bg-[#f3f4f6] text-[#6b7280] rounded">
-                      +{paper.Keywords.length - 2}
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
-              <td className="py-3 px-4">
-                <button onClick={() => navigate(`/PaperDecision/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
-                  View
-                </button>
+          {/* --- NEW: Updated to use sortedAndFilteredPapers and show empty state --- */}
+          {sortedAndFilteredPapers.length > 0 ? (
+            sortedAndFilteredPapers.map((paper) => (
+              <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
+                <td className="py-3 px-4">
+                  <div>
+                    <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
+                    <p className="text-xs text-[#6b7280]">{paper.Conference?.name}</p>
+                  </div>
+                </td>
+                <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(paper.submittedAt)}</td>
+                <td className="py-3 px-4">
+                  <div className="flex flex-wrap gap-1">
+                    {(paper.Keywords || []).slice(0, 2).map((keyword, index) => (
+                      <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
+                        {keyword}
+                      </span>
+                    ))}
+                    {paper.Keywords && paper.Keywords.length > 2 && (
+                      <span className="px-2 py-1 text-xs bg-[#f3f4f6] text-[#6b7280] rounded">
+                        +{paper.Keywords.length - 2}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
+                <td className="py-3 px-4">
+                  <button onClick={() => navigate(`/PaperDecision/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="6" className="text-center text-gray-500 py-4">
+                {searchTerm ? "No papers match your search." : "No papers submitted to this conference yet."}
               </td>
             </tr>
-          ))}
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// --- NEW: Registered Conference List Component ---
+const RegisteredConferenceList = ({ conferences, onConferenceSelect }) => {
+  const [sortBy, setSortBy] = useState("deadline");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
+  };
+
+  const filteredAndSortedConferences = useMemo(() => {
+    const filtered = (conferences || []).filter(c => {
+        const lowerSearch = searchTerm.toLowerCase();
+        return (
+            c.name?.toLowerCase().includes(lowerSearch) ||
+            c.location?.toLowerCase().includes(lowerSearch) ||
+            c.status?.toLowerCase().includes(lowerSearch)
+        );
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+
+      // Handle date sorting
+      if (['startsAt', 'endAt', 'deadline'].includes(sortBy)) {
+        const dateA = aValue ? new Date(aValue).getTime() : 0;
+        const dateB = bValue ? new Date(bValue).getTime() : 0;
+        if (dateA < dateB) return sortOrder === "asc" ? -1 : 1;
+        if (dateA > dateB) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      }
+
+      // Default string/number comparison
+      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [conferences, sortBy, sortOrder, searchTerm]);
+
+  if (!conferences || conferences.length === 0) {
+    return (
+      <p className="text-center text-gray-500 py-4">
+        No Registered Conferences Yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto bg-white rounded-lg shadow">
+      {/* Search Input */}
+      <div className="p-4">
+        <input
+          type="text"
+          placeholder="Search conferences (Name, Location, Status...)"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+        />
+      </div>
+
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-[#e5e7eb]">
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("name")}>
+              Conference Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("location")}>
+              Location {sortBy === "location" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("status")}>
+              Status {sortBy === "status" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("startsAt")}>
+              Starts On {sortBy === "startsAt" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("deadline")}>
+              Deadline {sortBy === "deadline" && (sortOrder === "asc" ? "↑" : "↓")}
+            </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Website</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredAndSortedConferences.length > 0 ? (
+            filteredAndSortedConferences.map((conf) => (
+              <tr key={conf.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{conf.name}</td>
+                <td className="py-3 px-4 text-sm text-[#1f2937]">{conf.location}</td>
+                <td className="py-3 px-4">{getConferenceStatusBadge(conf.status)}</td>
+                <td className="py-3 px-4 text-sm text-[#1f2937] whitespace-nowrap">{formatDateTime(conf.startsAt)}</td>
+                <td className="py-3 px-4 text-sm text-[#1f2937] whitespace-nowrap">{formatDateTime(conf.deadline)}</td>
+                <td className="py-3 px-4 text-sm">
+                  <a href={conf.link} target="_blank" rel="noopener noreferrer" className="text-[#059669] hover:underline">Visit Site</a>
+                </td>
+                <td className="py-3 px-4">
+                  <button 
+                    onClick={() => onConferenceSelect(conf)} 
+                    className="px-3 py-1 text-xs bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
+                  >
+                    Manage & View Papers
+                  </button>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="7" className="text-center text-gray-500 py-4">No conferences match your search.</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -143,6 +325,7 @@ const PaperList = ({ papers }) => {
 };
 
 
+// --- Main Component ---
 export default function ManageConferences() {
   const { user, setUser, setloginStatus } = useUserData();
   const navigate = useNavigate();
@@ -155,6 +338,7 @@ export default function ManageConferences() {
   const [partnerInput, setPartnerInput] = useState("");
 
   const countries = [
+    // ... (countries list unchanged)
     "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
     "Australia", "Netherlands", "Sweden", "Switzerland", "Singapore", "South Korea",
     "China", "India", "Brazil", "Italy", "Spain", "Norway", "Denmark", "Finland",
@@ -171,6 +355,7 @@ export default function ManageConferences() {
   };
 
   const handleConferenceSelect = (conference) => {
+    // ... (function logic unchanged)
     setSelectedConference(conference);
     const [city, country] = conference.location ? conference.location.split(', ') : ["", ""];
     const startsAt = new Date(conference.startsAt);
@@ -199,6 +384,7 @@ export default function ManageConferences() {
   };
 
   const handleSaveEdit = () => {
+    // ... (function logic unchanged)
     const updatedConferenceData = {
       ...selectedConference,
       name: editFormData.name,
@@ -219,6 +405,7 @@ export default function ManageConferences() {
   };
 
   const addPartner = () => {
+    // ... (function logic unchanged)
     if (partnerInput.trim() && !editFormData.Partners.includes(partnerInput.trim())) {
       setEditFormData((prev) => ({
         ...prev,
@@ -229,6 +416,7 @@ export default function ManageConferences() {
   };
 
   const removePartner = (partner) => {
+    // ... (function logic unchanged)
     setEditFormData((prev) => ({
       ...prev,
       Partners: prev.Partners.filter((p) => p !== partner),
@@ -236,6 +424,7 @@ export default function ManageConferences() {
   };
 
   const handleKeyPress = (e) => {
+    // ... (function logic unchanged)
     if (e.key === "Enter") {
       e.preventDefault();
       addPartner();
@@ -243,6 +432,7 @@ export default function ManageConferences() {
   };
 
   useEffect(() => {
+    // ... (effect logic unchanged)
     if (user?.id) {
       const getConferences = async () => {
         try {
@@ -269,6 +459,7 @@ export default function ManageConferences() {
   }, [user]);
 
   useEffect(() => {
+    // ... (effect logic unchanged)
     if (selectedConference?.id) {
       const getPapers = async () => {
         try {
@@ -294,10 +485,12 @@ export default function ManageConferences() {
     }
   }, [selectedConference]);
 
+  // --- RENDER LOGIC (View: Selected Conference) ---
   if (selectedConference) {
     return (
       <div className="min-h-screen bg-[#ffffff]">
         <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        {/* ... (header unchanged) ... */}
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2">
@@ -326,6 +519,7 @@ export default function ManageConferences() {
           <div className="space-y-8">
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-xl shadow-lg overflow-hidden">
               <div className="p-8">
+                {/* ... (Conference Details / Edit Form - all unchanged) ... */}
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-[#1f2937]">Conference Details</h2>
                   <div>
@@ -419,6 +613,7 @@ export default function ManageConferences() {
                 ) : (
                   // EDIT MODE FORM
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* ... (Edit form fields unchanged) ... */}
                     <div className="space-y-6">
                       <div>
                         <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Name *</label>
@@ -498,6 +693,7 @@ export default function ManageConferences() {
 
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
               <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Submitted Papers</h3>
+              {/* --- UPDATED PaperList component (with search) is rendered here --- */}
               <PaperList papers={papers} />
             </div>
           </div>
@@ -505,9 +701,12 @@ export default function ManageConferences() {
       </div>
     );
   }
+
+  // --- RENDER LOGIC (View: Main Conference List) ---
   return (
     <div className="min-h-screen bg-[#ffffff]">
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        {/* ... (header unchanged) ... */}
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2">
@@ -532,49 +731,13 @@ export default function ManageConferences() {
         <div className="space-y-8">
           <h2 className="text-3xl font-bold text-[#1f2937]">Your Registered Conferences</h2>
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-            {(!conferences || conferences.length === 0) && (
-              <p className="text-center text-gray-500 py-4">
-                No Registered Conferences Yet.
-              </p>
-            )}
-            <div className="space-y-4">
-              {conferences.map((conf) => (
-                <div key={conf.id} className="block p-4 border border-[#e5e7eb] rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="text-lg font-bold text-[#1f2937]">{conf.name}</h4>
-                      <p className="text-sm text-[#6b7280]">{conf.location}</p>
-                    </div>
-                    <span className={`inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${conf.status === "Open" ? "bg-[#059669]/10 text-[#059669]" : "bg-red-100 text-red-700"}`}>
-                      Status: {conf.status}
-                    </span>
-                  </div>
-                  <div className="flex flex-row flex-wrap justify-around items-center text-sm border-t border-b border-[#e5e7eb] py-3 my-3">
-                    <p className="text-[#6b7280] text-center mx-2 my-1">
-                      <span className="font-medium text-[#1f2937]">Starts On:</span>
-                      {' '}{new Date(conf.startsAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
-                    </p>
-                    <p className="text-[#6b7280] text-center mx-2 my-1">
-                      <span className="font-medium text-[#1f2937]">Ends On:</span>
-                      {' '}{new Date(conf.endAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
-                    </p>
-                    <p className="text-[#6b7280] text-center mx-2 my-1">
-                      <span className="font-medium text-[#1f2937]">Submission Deadline:</span>
-                      {' '}{new Date(conf.deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}
-                    </p>
-                    <p className="text-[#6b7280] text-center mx-2 my-1">
-                      <span className="font-medium text-[#1f2937]">Website:</span>
-                      {' '}<a href={conf.link} target="_blank" rel="noopener noreferrer" className="text-[#059669] hover:underline">{conf.link}</a>
-                    </p>
-                  </div>
-                  <div className="flex justify-end">
-                    <button onClick={() => handleConferenceSelect(conf)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap">
-                      Manage & View Papers
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            
+            {/* --- REPLACED: Old card list is replaced with new table component --- */}
+            <RegisteredConferenceList 
+              conferences={conferences} 
+              onConferenceSelect={handleConferenceSelect} 
+            />
+
           </div>
         </div>
       </main>

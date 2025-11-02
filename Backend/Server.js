@@ -320,6 +320,12 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
             Comment:true,
             Recommendation:true,
             submittedAt:true,
+            Status:true,
+            scoreOriginality:true,
+            scoreClarity:true,
+            scoreSoundness:true,
+            scoreSignificance:true,
+            scoreRelevance:true,
             User:{
               select:{
                 id:true,
@@ -568,7 +574,7 @@ app.get('/users/emails', async (req, res) => {
 app.post('/assign-reviewers', async (req, res) => {
   try {
     // 1. Get the data from the request body
-    const { paperId, reviewerIds, reviewerOrder } = req.body;
+    const { paperId, reviewerIds, reviewerOrder,isBlind } = req.body;
 
     // 2. Validate input (basic)
     if (!paperId || !reviewerIds || !reviewerOrder) {
@@ -589,6 +595,8 @@ app.post('/assign-reviewers', async (req, res) => {
       Comment: "",                   // Placeholder for "reasons"
       Recommendation: "",
       submittedAt:null,  
+      Status: "Pending Invitation",
+      isBlind: isBlind,
     }));
 
     // 5. Create all the new review records at once
@@ -634,6 +642,8 @@ app.post('/assign-reviewers', async (req, res) => {
             Comment:true,
             Recommendation:true,
             submittedAt:true,
+            Status:true,
+            isBlind:true,
             User:{
               select:{
                 id:true,
@@ -659,7 +669,7 @@ app.post('/assign-reviewers', async (req, res) => {
 });
 
 app.post('/submit-review', async (req, res) => {
-  const { paperId, reviewerId, Recommendation, Comment} = req.body;
+  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality,scoreClarity,scoreSoundness,scoreSignificance,scoreRelevance} = req.body;
 
   try {
     const newReview = await prisma.reviews.update({
@@ -672,7 +682,13 @@ app.post('/submit-review', async (req, res) => {
       data: {
         Recommendation: Recommendation, // "Accepted" or "Rejected"
         Comment: Comment,
-        submittedAt: new Date(),  
+        submittedAt: new Date(),
+        Status:"Submitted",
+        scoreOriginality: scoreOriginality,
+        scoreClarity: scoreClarity,
+        scoreSoundness: scoreSoundness,
+        scoreSignificance: scoreSignificance,
+        scoreRelevance: scoreRelevance,
       }
     });
     res.status(201).json(newReview);
@@ -682,7 +698,7 @@ app.post('/submit-review', async (req, res) => {
 });
 
 app.post('/save-review', async (req, res) => {
-  const { paperId, reviewerId, Recommendation, Comment} = req.body;
+  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality,scoreClarity,scoreSoundness,scoreSignificance,scoreRelevance} = req.body;
 
   try {
     const newReview = await prisma.reviews.update({
@@ -695,6 +711,11 @@ app.post('/save-review', async (req, res) => {
       data: {
         Recommendation: Recommendation, // "Accepted" or "Rejected"
         Comment: Comment, 
+        scoreOriginality: scoreOriginality,
+        scoreClarity: scoreClarity,
+        scoreSoundness: scoreSoundness,
+        scoreSignificance: scoreSignificance,
+        scoreRelevance: scoreRelevance,
       }
     });
     res.status(201).json(newReview);
@@ -727,7 +748,6 @@ app.post('/get-review', async (req, res) => {
 
 app.post('/get-your-reviews', async (req, res) => {
   const { reviewerId} = req.body;
-  console.log("Fetching reviews for reviewerId:", reviewerId);
   try {
     const review = await prisma.reviews.findMany({
       where:{
@@ -738,6 +758,13 @@ app.post('/get-your-reviews', async (req, res) => {
         Comment:true,
         Recommendation:true,
         submittedAt:true,
+        Status:true,
+        isBlind:true,
+        scoreOriginality:true,
+        scoreClarity:true,
+        scoreSoundness:true,
+        scoreSignificance:true,
+        scoreRelevance:true,
         Paper:{
           select:{
             id:true,
@@ -746,6 +773,16 @@ app.post('/get-your-reviews', async (req, res) => {
               select:{
                 id:true,
                 name:true,
+              }
+            },
+            Abstract:true,
+            Authors:{
+              select:{
+                id:true,
+                firstname:true,
+                lastname:true,
+                organisation:true,
+                expertise:true,
               }
             },
             submittedAt:true,
@@ -763,6 +800,25 @@ app.post('/get-your-reviews', async (req, res) => {
   }
 });
 
+
+app.post('/reviewInvitationResponse', async (req, res) => {
+  const { reviewId, response} = req.body;
+  
+  try {
+    const updatedReview = await prisma.reviews.update({
+      where:{
+        id:reviewId
+      },
+      data: {
+        Status: response, // "Accepted" or "Declined"
+      }
+    });
+    res.status(201).json(updatedReview);
+  } catch (error) {
+    console.error('Failed to update review invitation response:', error);
+    res.status(500).json({ message: "Failed to update review invitation response." });
+  }
+});
 
 app.post('/paper-decision', upload.single('pdfFile'), async (req, res) => {
   try {
@@ -864,7 +920,10 @@ app.post('/conference/papers', async (req, res) => {
 
     const conferencepapers = await prisma.paper.findMany({
       where: {
-        ConferenceId: parseInt(conferenceId)
+        ConferenceId: parseInt(conferenceId),
+        Status:{
+          not:"Pending Submission"
+        }
       },
       select: {
         id: true,

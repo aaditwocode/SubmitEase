@@ -1,11 +1,9 @@
 "use client";
-// import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"; // Removed dnd
-import React, { useState, useEffect } from "react"; // Removed useMemo
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 // --- Small reusable author card (compact) ---
-// This is still used for the Author list in Paper Details
 const CompactAuthorCard = ({ author }) => {
     if (!author) return null;
     return (
@@ -16,9 +14,6 @@ const CompactAuthorCard = ({ author }) => {
         </div>
     );
 };
-
-// --- Utility to reorder array on drag end ---
-// const reorder = (list, startIndex, endIndex) => { ... }; // Removed
 
 // --- Helper for status badge ---
 const getStatusBadge = (status) => {
@@ -40,24 +35,54 @@ const getStatusBadge = (status) => {
     return <span className={badgeClasses}>{status}</span>;
 };
 
-// --- Helper for review recommendation badge ---
-// const getRecommendationBadge = (recommendation) => { ... }; // Removed
-
-// --- Helper for date formatting ---
-// const formatDate = (dateString) => { ... }; // Removed
+// --- NEW: Helper Component for Questionnaire ---
+const ReviewScoreQuestion = ({ label, value, onChange, disabled }) => {
+    return (
+        <div className="py-3 sm:flex sm:items-center sm:justify-between">
+            <label className="block text-sm font-medium text-[#1f2937] mb-2 sm:mb-0">
+                {label}
+            </label>
+            <div className="flex items-center justify-start gap-2 sm:justify-end">
+                <span className="text-xs text-gray-500">Low</span>
+                {[1, 2, 3, 4, 5].map((score) => (
+                    <label key={score} className="flex items-center justify-center w-8 h-8 cursor-pointer">
+                        <input
+                            type="radio"
+                            name={label} // Group radio buttons by label
+                            value={score}
+                            checked={value === score}
+                            onChange={(e) => onChange(Number(e.target.value))}
+                            disabled={disabled}
+                            className="peer hidden" // Hide the actual radio button
+                        />
+                        {/* Custom styled radio button */}
+                        <span className={`flex items-center justify-center w-full h-full border rounded-full text-sm font-medium 
+                            ${value === score
+                                ? 'bg-emerald-600 text-white border-emerald-600' // Selected
+                                : 'text-gray-600 bg-white border-gray-300 peer-hover:bg-gray-100' // Not selected
+                            }
+                            ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-200' : ''}
+                    `}>
+                            {score}
+                        </span>
+                    </label>
+                ))}
+                <span className="text-xs text-gray-500">High</span>
+            </div>
+        </div>
+    );
+};
 
 
 export default function ReviewPaper() {
     const { user, setUser, loginStatus, setloginStatus } = useUserData();
     const navigate = useNavigate();
     const { paperId } = useParams(); // Get paperId from URL
-    // const countries = [ ... ]; // Removed (was for inviting)
 
     // --- Page & Data State ---
     const [paper, setPaper] = useState(null); // Stores the fetched paper object
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    // const [allUsers, setAllUsers] = useState([]); // Removed
 
     // --- Form State (initialized from fetched paper) ---
     const [title, setTitle] = useState("");
@@ -66,18 +91,20 @@ export default function ReviewPaper() {
     const [confId, setConfId] = useState(null);
     const [authors, setAuthors] = useState([]);
 
-    // --- Reviewer Management State ---
-    // ... All reviewer management state removed ...
-
-    // --- Reviews List State ---
-    // ... All reviews list state removed ...
-
-    // const [hostDecision, setHostDecision] = useState(""); // Removed
-
-    // --- NEW: Reviewer's Form State ---
+    // --- Reviewer's Form State ---
     const [comment, setComment] = useState("");
-    const [recommendation, setRecommendation] = useState(""); // "Accepted", "Rejected", or ""
+    const [recommendation, setRecommendation] = useState(""); // "Strong Accept", "Weak Accept", "Reject"
     const [submissionStatus, setSubmissionStatus] = useState(false); // true = submitted, false = draft
+    const [isBlind, setIsBlind] = useState(false); // true = blind review, false = open review
+
+    // --- NEW: Questionnaire State ---
+    const [scoreOriginality, setScoreOriginality] = useState(null);
+    const [scoreClarity, setScoreClarity] = useState(null);
+    const [scoreSoundness, setScoreSoundness] = useState(null);
+    const [scoreSignificance, setScoreSignificance] = useState(null);
+    const [scoreRelevance, setScoreRelevance] = useState(null);
+
+
     // --- 1. Main Data Fetching Effect (Get Paper Details) ---
     useEffect(() => {
         if (!paperId) {
@@ -87,8 +114,9 @@ export default function ReviewPaper() {
         }
         const fetchPaper = async () => {
             setLoading(true);
+            setError(null); // Clear previous errors
             try {
-                const response = await fetch('http://localhost:3001/getpaperbyid/${paperId}');
+                const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
                 if (!response.ok) {
                     throw new Error("Failed to fetch paper details.");
                 }
@@ -100,8 +128,6 @@ export default function ReviewPaper() {
                 setAbstract(data.paper.Abstract);
                 setKeywords(data.paper.Keywords.join(', '));
                 setConfId(data.paper.Conference.id);
-
-                // --- Removed all Review and Reviewer list population ---
 
                 // Sort authors based on AuthorOrder
                 const fetchedAuthors = data.paper.Authors || [];
@@ -116,35 +142,6 @@ export default function ReviewPaper() {
                 } else {
                     setAuthors(fetchedAuthors);
                 }
-                try {
-                    console.log("Fetching existing review for paper:", paperId, "by reviewer:", user.id);
-            const response = await fetch('http://localhost:3001/get-review', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    paperId: paperId,
-                    reviewerId: user.id,
-                }),
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.message || 'Failed to Fetch Review.');
-            }
-
-            const updatedReview = await response.json();
-            if(updatedReview.submittedAt){
-                setSubmissionStatus(true);
-            }else{
-                setSubmissionStatus(false);
-            }
-            setComment(updatedReview.Comment);
-            setRecommendation(updatedReview.Recommendation);
-            } catch (error) {
-                setLoading(false);
-            setError("You Are Not Elidgible To Review This Paper.");
-            return;
-        }
 
             } catch (err) {
                 setError(err.message);
@@ -153,68 +150,148 @@ export default function ReviewPaper() {
             }
         };
         fetchPaper();
-    }, [paperId]);
+    }, [paperId]); // CORRECT: This effect only depends on paperId
 
-    // --- 2. Secondary Data Fetching (Users) ---
-    // useEffect(() => { ... }); // Removed
+    // --- 2. Secondary Data Fetching (Get Existing Review) ---
+    useEffect(() => {
+        // Wait for both paperId and user.id to be available
+        if (!paperId || !user?.id) {
+            return;
+        }
+
+        const fetchReview = async () => {
+            try {
+                console.log("Fetching existing review for paper:", paperId, "by reviewer:", user.id);
+                const response = await fetch(`http://localhost:3001/get-review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        paperId: paperId,
+                        reviewerId: user.id,
+                    }),
+                });
+
+                // 404 is NOT an error, it just means the review is new
+                if (response.status === 404) {
+                    console.log("No existing review found. Starting new.");
+                    setSubmissionStatus(false);
+                    setComment("");
+                    setRecommendation("");
+                    setIsBlind(true);
+                    // --- NEW: Reset scores for new review ---
+                    setScoreOriginality(null);
+                    setScoreClarity(null);
+                    setScoreSoundness(null);
+                    setScoreSignificance(null);
+                    setScoreRelevance(null);
+                    return;
+                }
+
+                // 403 or 401 IS an error
+                if (response.status === 403 || response.status === 401) {
+                    throw new Error("You are not eligible to review this paper.");
+                }
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.message || 'Failed to Fetch Review.');
+                }
+
+                const updatedReview = await response.json();
+                if (updatedReview.submittedAt) {
+                    setSubmissionStatus(true);
+                } else {
+                    setSubmissionStatus(false);
+                }
+                setComment(updatedReview.Comment || ""); // Default to empty string
+                setRecommendation(updatedReview.Recommendation || ""); // Default to empty string
+                setIsBlind(updatedReview.isBlind || false); // Default to false
+
+                // --- NEW: Populate scores from existing review ---
+                setScoreOriginality(updatedReview.scoreOriginality || null);
+                setScoreClarity(updatedReview.scoreClarity || null);
+                setScoreSoundness(updatedReview.scoreSoundness || null);
+                setScoreSignificance(updatedReview.scoreSignificance || null);
+                setScoreRelevance(updatedReview.scoreRelevance || null);
+
+            } catch (error) {
+                // Only set page error if one isn't already set from the paper fetch
+                setError((prevError) => prevError || error.message);
+            }
+        };
+
+        fetchReview();
+
+    }, [paperId, user?.id]); // CORRECT: This effect depends on both paperId and user.id
 
     // --- Event Handlers ---
-    const handlePortalClick = (portal) => navigate('/${portal}');
+    const handlePortalClick = (portal) => navigate(`/${portal}`);
     const handleLogout = () => {
         setUser(null);
         setloginStatus(false);
         navigate("/home");
     };
 
-    // --- Reviewer Management Handlers ---
-    // ... All reviewer handlers removed ...
-
-    // --- Reviews Table Sort Logic ---
-    // ... All sorting logic removed ...
-
-    // --- Final Decision Handler ---
-    // const handleFinalSubmit = async () => { ... }; // Removed
-
-    // --- NEW: Review Form Handlers ---
-    const handleSaveReview = async(e) => {
+    // --- Review Form Handlers ---
+    const handleSaveReview = async (e) => {
         e.preventDefault();
         try {
-                const response = await fetch('http://localhost:3001/save-review', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        paperId: paperId,
-                        Comment: comment,
-                        Recommendation: recommendation,
-                        reviewerId: user.id,
-                    }),
-                });
+            const response = await fetch(`http://localhost:3001/save-review`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    paperId: paperId,
+                    Comment: comment,
+                    Recommendation: recommendation,
+                    reviewerId: user.id,
+                    // --- NEW: Add scores ---
+                    scoreOriginality: scoreOriginality,
+                    scoreClarity: scoreClarity,
+                    scoreSoundness: scoreSoundness,
+                    scoreSignificance: scoreSignificance,
+                    scoreRelevance: scoreRelevance,
+                }),
+            });
 
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.message || 'Failed to Save Review.');
-                }
-
-                const updatedReview = await response.json();
-                setComment(updatedReview.Comment);
-                setRecommendation(updatedReview.Recommendation);
-                alert('Review Saved Successfully!');
-            } catch (error) {
-                console.error('Failed to Save Reviews:', error);
-                alert('Error: ${error.message}');
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to Save Review.');
+                _
             }
+
+            const updatedReview = await response.json();
+            setComment(updatedReview.Comment);
+            setRecommendation(updatedReview.Recommendation);
+            // --- NEW: Re-set scores from response ---
+            setScoreOriginality(updatedReview.scoreOriginality || null);
+            setScoreClarity(updatedReview.scoreClarity || null);
+            setScoreSoundness(updatedReview.scoreSoundness || null);
+            setScoreSignificance(updatedReview.scoreSignificance || null);
+            setScoreRelevance(updatedReview.scoreRelevance || null);
+
+            alert('Review Saved Successfully!');
+        } catch (error) {
+            console.error('Failed to Save Reviews:', error);
+            alert(`Error: ${error.message}`);
+        }
 
     };
 
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         if (!recommendation) {
-            alert("Please select a recommendation (Accepted or Rejected) before submitting.");
+            alert("Please select a final recommendation before submitting.");
             return;
         }
-        if (window.confirm('Are you sure you want to submit this review as "${recommendation}"? This action cannot be undone.')) {
+        // --- NEW: Check if all scores are filled ---
+        if (!scoreOriginality || !scoreClarity || !scoreSoundness || !scoreSignificance || !scoreRelevance) {
+            alert("Please provide a score (1-5) for all 5 questionnaire items.");
+            return;
+        }
+
+        if (window.confirm(`Are you sure you want to submit this review as "${recommendation}"? This action cannot be undone.`)) {
             try {
-                const response = await fetch('http://localhost:3001/submit-review', {
+                const response = await fetch(`http://localhost:3001/submit-review`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -222,6 +299,12 @@ export default function ReviewPaper() {
                         Comment: comment,
                         Recommendation: recommendation,
                         reviewerId: user.id,
+                        // --- NEW: Add scores ---
+                        scoreOriginality: scoreOriginality,
+                        scoreClarity: scoreClarity,
+                        scoreSoundness: scoreSoundness,
+                        scoreSignificance: scoreSignificance,
+                        scoreRelevance: scoreRelevance,
                     }),
                 });
 
@@ -231,14 +314,27 @@ export default function ReviewPaper() {
                 }
 
                 const updatedReview = await response.json();
+
+                // --- FIX: Optimistic UI update and correct navigation ---
+                setSubmissionStatus(true); // Immediately disable form
                 setComment(updatedReview.Comment);
                 setRecommendation(updatedReview.Recommendation);
+                // --- NEW: Set scores from final submission ---
+                setScoreOriginality(updatedReview.scoreOriginality || null);
+                setScoreClarity(updatedReview.scoreClarity || null);
+                setScoreSoundness(updatedReview.scoreSoundness || null);
+                setScoreSignificance(updatedReview.scoreSignificance || null);
+                setScoreRelevance(updatedReview.scoreRelevance || null);
+
                 alert('Review Submitted Successfully!');
+
+                navigate("/ManageReviews"); // Navigate only on success
+                // --- END FIX ---
+
             } catch (error) {
                 console.error('Failed to Submit Reviews:', error);
-                alert('Error: ${error.message}');
+                alert(`Error: ${error.message}`);
             }
-            navigate("/ManageReviews");
         }
     };
 
@@ -252,30 +348,30 @@ export default function ReviewPaper() {
         <div className="min-h-screen bg-[#ffffff]">
             {/* Header */}
             <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                  <span className="text-lg font-bold text-white">S</span>
+                <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center gap-8">
+                        <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                                <span className="text-lg font-bold text-white">S</span>
+                            </div>
+                            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+                        </div>
+                        <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+                            <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+                            <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+                            <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
+                        </nav>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
+                            Return To Conference Portal
+                        </button>
+                        <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
+                            Logout
+                        </button>
+                    </div>
                 </div>
-                <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
-              </div>
-              <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-                <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
-                <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
-                <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
-              </nav>
-            </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
-                Return To Conference Portal
-              </button>
-              <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
-                Logout
-              </button>
-            </div>
-          </div>
-        </header>
+            </header>
 
             {/* --- Main Content --- */}
             <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -334,14 +430,18 @@ export default function ReviewPaper() {
                             </div>
 
                             {/* --- Authors Section --- */}
-                            <div>
-                                <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors</label>
-                                <div className="space-y-2">
+                            {/* CHANGED: Only show this section if the paper review is NOT blind */}
+                            {!isBlind && (
+                                <div>
+                                    <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors</label>
                                     <div className="space-y-2">
-                                        {authors.map((author) => <CompactAuthorCard key={author.id} author={author} />)}
+                                        <div className="space-y-2">
+                                            {authors.map((author) => <CompactAuthorCard key={author.id} author={author} />)}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
+                            {/* --- End of Authors Section --- */}
 
                         </form>
                         {/* --- End of Paper Details Form --- */}
@@ -353,7 +453,7 @@ export default function ReviewPaper() {
                         <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Document Viewer</h3>
                         <iframe
                             // Add a cache-busting query param based on submission time
-                            src={'${paper.URL}?v=${new Date(paper.submittedAt).getTime()}'}
+                            src={`${paper.URL}?v=${new Date(paper.submittedAt).getTime()}`}
                             title="Paper PDF Viewer"
                             width="100%"
                             height="95%"
@@ -364,14 +464,12 @@ export default function ReviewPaper() {
                 {/* --- End of Top Section --- */}
 
 
-                {/* --- REMOVED Bottom Section: Reviewers + Reviews --- */}
-
-                {/* --- NEW: Reviewer Comment Section --- */}
+                {/* --- Reviewer Comment Section --- */}
                 <div className="mt-8 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full space-y-6">
                     <form onSubmit={handleSubmitReview} className="space-y-4">
                         <h3 className="text-lg font-semibold text-[#1f2937]">Your Review</h3>
 
-                        /* --- Comment Text Area --- */
+                        {/* --- Comment Text Area --- */}
                         <div>
                             <label htmlFor="review-comment" className="block text-sm font-medium text-[#1f2937] mb-1">
                                 Comments for Author & Conference Host
@@ -382,18 +480,56 @@ export default function ReviewPaper() {
                                 onChange={(e) => setComment(e.target.value)}
                                 rows={8}
                                 disabled={submissionStatus}
-                                className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                                className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] disabled:bg-gray-200 disabled:cursor-not-allowed"
                                 placeholder="Provide your detailed feedback on the paper..."
                                 required
                             />
                         </div>
 
+                        {/* --- NEW: Questionnaire Section --- */}
+                        <div className="space-y-2 border-t border-b border-[#e5e7eb] divide-y divide-[#e5e7eb]">
+                            <h4 className="pt-4 text-base font-semibold text-[#1f2937]">Detailed Scoring</h4>
+
+                            <ReviewScoreQuestion
+                                label="Originality / Novelty"
+                                value={scoreOriginality}
+                                onChange={setScoreOriginality}
+                                disabled={submissionStatus}
+                            />
+                            <ReviewScoreQuestion
+                                label="Clarity / Presentation"
+                                value={scoreClarity}
+                                onChange={setScoreClarity}
+                                disabled={submissionStatus}
+                            />
+                            <ReviewScoreQuestion
+                                label="Technical Soundness / Methodology"
+                                value={scoreSoundness}
+                                onChange={setScoreSoundness}
+                                disabled={submissionStatus}
+                            />
+                            <ReviewScoreQuestion
+                                label="Significance / Impact"
+                                value={scoreSignificance}
+                                onChange={setScoreSignificance}
+                                disabled={submissionStatus}
+                            />
+                            <ReviewScoreQuestion
+                                label="Relevance to Conference"
+                                value={scoreRelevance}
+                                onChange={setScoreRelevance}
+                                disabled={submissionStatus}
+                            />
+                        </div>
+                        {/* --- End of Questionnaire Section --- */}
+
+
                         {/* --- Recommendation Radio Buttons --- */}
                         <div>
-                            <label className="block text-sm font-medium text-[#1f2937] mb-2">
-                                Your Recommendation
+                            <label className="block text-sm font-medium text-[#1f2937] mb-2 pt-4">
+                                Your Final Recommendation
                             </label>
-                            <div className="flex gap-6">
+                            <div className="flex flex-wrap gap-6">
                                 {/* Strong Accept */}
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
@@ -403,10 +539,10 @@ export default function ReviewPaper() {
                                         checked={recommendation === "Strong Accept"}
                                         onChange={(e) => setRecommendation(e.target.value)}
                                         disabled={submissionStatus}
-                                        className="form-radio h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                                        className="form-radio h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 disabled:cursor-not-allowed"
                                     />
                                     <span className="px-2 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-700">
-                                        Accept Paper
+                                        Strong Accept
                                     </span>
                                 </label>
 
@@ -419,7 +555,7 @@ export default function ReviewPaper() {
                                         checked={recommendation === "Weak Accept"}
                                         onChange={(e) => setRecommendation(e.target.value)}
                                         disabled={submissionStatus}
-                                        className="form-radio h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300"
+                                        className="form-radio h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 disabled:cursor-not-allowed"
                                     />
                                     <span className="px-2 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-700">
                                         Weak Accept
@@ -434,11 +570,11 @@ export default function ReviewPaper() {
                                         value="Reject"
                                         checked={recommendation === "Reject"}
                                         onChange={(e) => setRecommendation(e.target.value)}
-                                        disabled={submissionStatus}
-                                        className="form-radio h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
+                                        s disabled={submissionStatus}
+                                        className="form-radio h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 disabled:cursor-not-allowed"
                                     />
                                     <span className="px-2 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-700">
-                                        Reject Paper
+                                        Reject
                                     </span>
                                 </label>
                             </div>
@@ -447,17 +583,27 @@ export default function ReviewPaper() {
                             <button
                                 type="button"
                                 onClick={handleSaveReview}
-                                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:bg-gray-400"
+                                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                                 disabled={submissionStatus}
                             >
-                                Save Review
+                                {submissionStatus ? "Submitted" : "Save Review"}
                             </button>
                             <button
                                 type="submit"
-                                className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:bg-gray-400"
-                                disabled={!recommendation || !comment || submissionStatus} // Disable submit if no comment or recommendation
+                                className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                // NEW: Updated disabled logic
+                                disabled={
+                                    !recommendation ||
+                                    !comment ||
+                                    !scoreOriginality ||
+                                    !scoreClarity ||
+                                    !scoreSoundness ||
+                                    !scoreSignificance ||
+                                    !scoreRelevance ||
+                                    submissionStatus
+                                }
                             >
-                                Submit Review
+                                {submissionStatus ? "Submitted" : "Submit Review"}
                             </button>
                         </div>
                     </form>

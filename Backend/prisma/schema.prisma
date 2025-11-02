@@ -62,6 +62,12 @@ model Reviews {
   Comment     String
   Recommendation     String
   Status String?
+  isBlind Boolean?
   submittedAt DateTime?
+  scoreOriginality Int?
+  scoreClarity Int?
+  scoreSoundness Int?
+  scoreSignificance Int?
+  scoreRelevance Int?
   @@unique([PaperId, ReviewerId])
 }

@@ -7,6 +7,7 @@ import { useUserData } from "./UserContext";
 // --- Small reusable author card (compact) ---
 // This can be reused for Reviewers as well
 const CompactAuthorCard = ({ author }) => {
+    // ... (component unchanged)
     if (!author) return null;
     return (
         <div className="p-3 border rounded-md bg-white">
@@ -19,6 +20,7 @@ const CompactAuthorCard = ({ author }) => {
 
 // --- Utility to reorder array on drag end ---
 const reorder = (list, startIndex, endIndex) => {
+    // ... (function unchanged)
     const result = Array.from(list);
     const [removed] = result.splice(startIndex, 1);
     result.splice(endIndex, 0, removed);
@@ -27,6 +29,7 @@ const reorder = (list, startIndex, endIndex) => {
 
 // --- Helper for status badge ---
 const getStatusBadge = (status) => {
+    // ... (function unchanged)
     let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
     switch (status) {
         case "Accepted":
@@ -47,6 +50,7 @@ const getStatusBadge = (status) => {
 
 // --- Helper for review recommendation badge ---
 const getRecommendationBadge = (recommendation) => {
+    // ... (function unchanged)
     let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
     switch (recommendation) {
         case "Strong Accept":
@@ -68,6 +72,7 @@ const getRecommendationBadge = (recommendation) => {
 
 // --- Helper for date formatting ---
 const formatDate = (dateString) => {
+    // ... (function unchanged)
     if (!dateString) return '—';
     try {
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -86,6 +91,7 @@ export default function PaperDecision() {
     const navigate = useNavigate();
     const { paperId } = useParams(); // Get paperId from URL
     const countries = [
+        // ... (countries list unchanged)
         "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
         "Australia", "Netherlands", "Sweden", "Switzerland", "Singapore", "South Korea",
         "China", "India", "Brazil", "Italy", "Spain", "Norway", "Denmark", "Finland",
@@ -97,6 +103,7 @@ export default function PaperDecision() {
     const [allUsers, setAllUsers] = useState([]);
 
     // --- Form State (initialized from fetched paper) ---
+    // ... (form state unchanged)
     const [title, setTitle] = useState("");
     const [abstract, setAbstract] = useState("");
     const [keywords, setKeywords] = useState("");
@@ -104,6 +111,7 @@ export default function PaperDecision() {
     const [authors, setAuthors] = useState([]);
 
     // --- Reviewer Management State ---
+    // ... (reviewer state unchanged)
     const [reviewers, setReviewers] = useState([]); // This will hold the LIST OF USER objects for the reviewers
     const [showInviteReviewerForm, setShowInviteReviewerForm] = useState(false);
     const [inviteReviewerFirstName, setInviteReviewerFirstName] = useState("");
@@ -116,11 +124,13 @@ export default function PaperDecision() {
     const [reviews, setReviews] = useState([]); // This will hold the LIST OF REVIEW objects
     const [reviewSortBy, setReviewSortBy] = useState("submittedAt");
     const [reviewSortOrder, setReviewSortOrder] = useState("desc");
+    const [reviewSearchTerm, setReviewSearchTerm] = useState(""); // <-- NEW: Search state
 
     const [hostDecision, setHostDecision] = useState("");
 
     // --- 1. Main Data Fetching Effect (Get Paper Details) ---
     useEffect(() => {
+        // ... (effect unchanged)
         if (!paperId) {
             setLoading(false);
             setError("No paper ID found in the URL.");
@@ -194,6 +204,7 @@ export default function PaperDecision() {
 
     // --- 2. Secondary Data Fetching (Users) ---
     useEffect(() => {
+        // ... (effect unchanged)
         const fetchUsers = async () => {
             try {
                 const response = await fetch('http://localhost:3001/users/emails');
@@ -208,6 +219,7 @@ export default function PaperDecision() {
 
 
     // --- Event Handlers ---
+    // ... (handlers unchanged)
     const handlePortalClick = (portal) => navigate(`/${portal}`);
     const handleLogout = () => {
         setUser(null);
@@ -216,6 +228,7 @@ export default function PaperDecision() {
     };
 
     // --- Reviewer Management Handlers ---
+    // ... (handlers unchanged)
     const addReviewerById = (userId) => {
         if (!userId) return;
         const parsedId = parseInt(userId, 10);
@@ -235,6 +248,7 @@ export default function PaperDecision() {
 
     // --- Invite Reviewer Handlers ---
     const handleInviteReviewer = async (e) => {
+        // ... (function unchanged)
         e.preventDefault();
         if (!inviteReviewerEmail || !inviteReviewerFirstName || !inviteReviewerLastName) {
             alert("Please fill in at least first name, last name, and email.");
@@ -285,6 +299,7 @@ export default function PaperDecision() {
 
     // --- Save Reviewer Assignment Handler ---
     const handleSaveReviewers = async () => {
+        // ... (function unchanged)
         const reviewerIds = reviewers.map(r => r.id);
         const reviewerOrder = reviewers.map(r => r.id); // Save the order
 
@@ -336,6 +351,7 @@ export default function PaperDecision() {
 
     // --- Reviews Table Sort Logic ---
     const handleReviewSort = (column) => {
+        // ... (function unchanged)
         if (reviewSortBy === column) {
             setReviewSortOrder(reviewSortOrder === "asc" ? "desc" : "asc");
         } else {
@@ -344,31 +360,72 @@ export default function PaperDecision() {
         }
     };
 
-    const sortedReviews = useMemo(() => {
+    // --- UPDATED: Combined filtering and sorting logic ---
+    const filteredAndSortedReviews = useMemo(() => {
         if (!reviews) return [];
-        const sorted = [...reviews].sort((a, b) => {
-            
-            if (reviewSortBy === 'submittedAt') {
-                // This logic is fine, but let's make it cleaner
-                const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-                const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-                if (dateA < dateB) return reviewSortOrder === "asc" ? -1 : 1;
-                if (dateA > dateB) return reviewSortOrder === "asc" ? 1 : -1;
-                return 0;
-            }
 
-            // --- THIS IS THE FIX ---
-            // Default string comparison (for 'recommendation')
-            // Treat null/undefined as an empty string "" to sort consistently
+        // --- 1. NEW: Filtering ---
+        const filtered = reviews.filter(review => {
+            const lowerSearch = reviewSearchTerm.toLowerCase();
+            if (!lowerSearch) return true; // Pass all if search is empty
+
+            // Find the reviewer for this review
+            // Note: Depends on 'reviewers' state
+            const reviewer = reviewers.find(r => r.id == review.ReviewerId);
+            const reviewerName = reviewer ? `${reviewer.firstname} ${reviewer.lastname}`.toLowerCase() : '';
+            const reviewerEmail = reviewer ? reviewer.email.toLowerCase() : '';
+
+            const comment = (review.Comment || '').toLowerCase();
+            const recommendation = (review.Recommendation || '').toLowerCase();
+
+            return (
+                reviewerName.includes(lowerSearch) ||
+                reviewerEmail.includes(lowerSearch) ||
+                comment.includes(lowerSearch) ||
+                recommendation.includes(lowerSearch)
+            );
+        });
+
+        // --- 2. Sorting (on the 'filtered' list) ---
+        const sorted = [...filtered].sort((a, b) => {
+            
             let aValue, bValue;
-            if (reviewSortBy === 'recommendation') {
-                // Access the property with the correct case: 'Recommendation'
-                aValue = a.Recommendation || ""; 
-                bValue = b.Recommendation || "";
-            } else {
-                // Fallback for any other columns
-                aValue = a[reviewSortBy] || "";
-                bValue = b[reviewSortBy] || "";
+
+            switch (reviewSortBy) {
+                // ... (sorting switch case unchanged)
+                case 'submittedAt':
+                    aValue = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+                    bValue = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+                    break;
+                case 'recommendation':
+                    aValue = a.Recommendation || "";
+                    bValue = b.Recommendation || "";
+                    break;
+                case 'scoreOriginality':
+                    aValue = a.scoreOriginality || 0;
+                    bValue = b.scoreOriginality || 0;
+                    break;
+                case 'scoreClarity':
+                    aValue = a.scoreClarity || 0;
+                    bValue = b.scoreClarity || 0;
+                    break;
+                case 'scoreSoundness':
+                    aValue = a.scoreSoundness || 0;
+                    bValue = b.scoreSoundness || 0;
+                    break;
+                case 'scoreSignificance':
+                    aValue = a.scoreSignificance || 0;
+                    bValue = b.scoreSignificance || 0;
+                    break;
+                case 'scoreRelevance':
+                    aValue = a.scoreRelevance || 0;
+                    bValue = b.scoreRelevance || 0;
+                    break;
+                default:
+                    // Default to submittedAt
+                    aValue = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+                    bValue = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+                    break;
             }
 
             if (aValue < bValue) return reviewSortOrder === "asc" ? -1 : 1;
@@ -376,9 +433,10 @@ export default function PaperDecision() {
             return 0;
         });
         return sorted;
-    }, [reviews, reviewSortBy, reviewSortOrder]);
+    }, [reviews, reviewSortBy, reviewSortOrder, reviewSearchTerm, reviewers]); // <-- NEW: Added reviewSearchTerm and reviewers
 
     const handleFinalSubmit = async () => {
+        // ... (function unchanged)
         if (!window.confirm(`Are you sure you want to ${hostDecision} this paper? This action is final.`)) {
             return;
         }
@@ -425,30 +483,31 @@ export default function PaperDecision() {
         <div className="min-h-screen bg-[#ffffff]">
             {/* Header */}
             <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-          <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                  <span className="text-lg font-bold text-white">S</span>
+              {/* ... (header unchanged) ... */}
+              <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center gap-8">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                      <span className="text-lg font-bold text-white">S</span>
+                    </div>
+                    <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+                  </div>
+                  <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+                    <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+                    <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+                    <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
+                  </nav>
                 </div>
-                <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+                <div className="flex items-center gap-4">
+                  <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
+                    Return To Conference Portal
+                  </button>
+                  <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
+                    Logout
+                  </button>
+                </div>
               </div>
-              <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-                <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
-                <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
-                <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
-              </nav>
-            </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
-                Return To Conference Portal
-              </button>
-              <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
-                Logout
-              </button>
-            </div>
-          </div>
-        </header>
+            </header>
 
             {/* --- Main Content --- */}
             <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -461,6 +520,7 @@ export default function PaperDecision() {
 
                         {/* --- Paper Details Form --- */}
                         <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                            {/* ... (form unchanged) ... */}
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-semibold text-[#1f2937]">Paper Details</h3>
                                 {getStatusBadge(paper.Status)}
@@ -523,6 +583,7 @@ export default function PaperDecision() {
 
                     {/* --- Right Column (PDF Viewer) --- */}
                     <div className="lg:col-span-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full h-[90vh]">
+                        {/* ... (iframe unchanged) ... */}
                         <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Document Viewer</h3>
                         <iframe
                             // Add a cache-busting query param based on submission time
@@ -542,6 +603,7 @@ export default function PaperDecision() {
 
                     {/* --- Assign Reviewers Section --- */}
                     <div className="space-y-4">
+                        {/* ... (reviewer assignment section unchanged) ... */}
                         <h3 className="text-lg font-semibold text-[#1f2937]">Assign Reviewers</h3>
 
                         {/* --- Reviewer Drag-and-Drop List --- */}
@@ -626,65 +688,97 @@ export default function PaperDecision() {
                     {/* --- END: Assign Reviewers Section --- */}
 
 
-                    {/* --- Reviews List Section --- */}
+                    {/* --- MODIFIED: Combined Reviews List Section --- */}
                     <div className="space-y-4 pt-6 border-t border-[#e5e7eb]">
-                        <h3 className="text-lg font-semibold text-[#1f2937]">Paper Reviews</h3>
+                        <h3 className="text-lg font-semibold text-[#1f2937]">Paper Reviews & Scores</h3>
 
-                        {sortedReviews.length === 0 ? (
-                            <p className="text-center text-gray-500 py-4">No reviews submitted yet.</p>
+                        {/* --- NEW: Search Input --- */}
+                        <div className="p-1">
+                            <input
+                              type="text"
+                              placeholder="Search reviews (Reviewer, Comment, Decision...)"
+                              value={reviewSearchTerm}
+                              onChange={(e) => setReviewSearchTerm(e.target.value)}
+                              className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                            />
+                        </div>
+
+                        {/* --- UPDATED: Empty state and table data source --- */}
+                        {filteredAndSortedReviews.length === 0 ? (
+                            <p className="text-center text-gray-500 py-4">
+                                {reviewSearchTerm ? "No reviews match your search." : "No reviews submitted yet."}
+                            </p>
                         ) : (
                             
-<div className="overflow-y-auto max-h-[60vh] bg-white rounded-lg shadow border border-[#e5e7eb]">
-    {/* MODIFICATION: 
-      - Added 'table-fixed' to force the table to obey 'w-full'
-    */}
-    <table className="w-full table-fixed">
+<div className="overflow-x-auto max-h-[80vh] bg-white rounded-lg shadow border border-[#e5e7eb]">
+    {/* MODIFIED: Table-fixed and new width classes */}
+    <table className="w-full table-fixed min-w-[1000px]">
         <thead>
+            {/* ... (table header unchanged) ... */}
             <tr className="border-b border-[#e5e7eb]">
-                {/* MODIFICATION: 
-                  - Removed 'whitespace-nowrap'
-                  - Added explicit width 'w-[25%]'
-                */}
-                <th className="w-[25%] text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Reviewer</th>
+                <th className="w-2/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Reviewer</th>
                 
-                {/* MODIFICATION: 
-                  - Removed 'whitespace-nowrap'
-                  - Added explicit width 'w-[20%]'
-                */}
                 <th
-                    className="w-[20%] text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    className="w-1/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                     onClick={() => handleReviewSort("submittedAt")}
                 >
-                    Submitted On {reviewSortBy === "submittedAt" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                    Submitted {reviewSortBy === "submittedAt" && (reviewSortOrder === "asc" ? "↑" : "↓")}
                 </th>
                 
-                {/* MODIFICATION: 
-                  - Added explicit width 'w-[40%]'
-                */}
-                <th className="w-[40%] text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Comment</th>
+                <th className="w-3/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Comment</th>
                 
-                {/* MODIFICATION: 
-                  - Removed 'whitespace-nowrap'
-                  - Added explicit width 'w-[15%]'
-                */}
                 <th
-                    className="w-[15%] text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    className="w-2/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                     onClick={() => handleReviewSort("recommendation")}
                 >
-                    Recommendation {reviewSortBy === "recommendation" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                    Decision {reviewSortBy === "recommendation" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                </th>
+
+                {/* --- NEW: Score Headers --- */}
+                <th
+                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    onClick={() => handleReviewSort("scoreOriginality")}
+                >
+                    Originality {reviewSortBy === "scoreOriginality" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th
+                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    onClick={() => handleReviewSort("scoreClarity")}
+                >
+                    Clarity {reviewSortBy === "scoreClarity" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th
+                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    onClick={() => handleReviewSort("scoreSoundness")}
+                >
+                    Soundness {reviewSortBy === "scoreSoundness" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th
+                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    onClick={() => handleReviewSort("scoreSignificance")}
+                >
+                    Significance {reviewSortBy === "scoreSignificance" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                </th>
+                <th
+                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                    onClick={() => handleReviewSort("scoreRelevance")}
+                >
+                    Relevance {reviewSortBy === "scoreRelevance" && (reviewSortOrder === "asc" ? "↑" : "↓")}
                 </th>
                 
             </tr>
         </thead>
         <tbody>
-            {sortedReviews.map((review, index) => {
+            {/* --- UPDATED: Map over filteredAndSortedReviews --- */}
+            {filteredAndSortedReviews.map((review, index) => {
                 const reviewer = reviewers.find(r => r.id == review.ReviewerId);
+                const isPending = !review.submittedAt;
 
                 return (
+                    // ... (table row unchanged) ...
                     <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
                         
                         {/* Column 1: Reviewer Name */}
-                        {/* MODIFICATION: Added 'break-words' to handle long emails */}
                         <td className="py-3 px-4 text-sm font-medium text-[#1f2937] align-top break-words">
                             {reviewer ? (
                                 <>
@@ -692,7 +786,7 @@ export default function PaperDecision() {
                                     <span className="text-xs text-gray-500 block">({reviewer.email})</span>
                                 </>
                             ) : (
-                                'Reviewer ${index + 1}' // Fallback
+                                `Reviewer ${index + 1}` // Fallback
                             )}
                         </td>
                         
@@ -701,17 +795,31 @@ export default function PaperDecision() {
                             {formatDate(review.submittedAt)}
                         </td>
 
-                        {/* Column 4: Reasons (Comment) */}
-                        {/* MODIFICATION: 
-                          - Added 'break-words' to force long strings to wrap
-                        */}
+                        {/* Column 3: Comment */}
                         <td className="py-3 px-4 text-sm text-[#1f2937] align-top whitespace-pre-wrap break-words">
                             {review.Comment || 'N/A'}
                         </td>
 
-                        {/* Column 3: Decision (Recommendation) */}
+                        {/* Column 4: Recommendation */}
                         <td className="py-3 px-4 align-top">
                             {getRecommendationBadge(review.Recommendation)}
+                        </td>
+
+                        {/* --- NEW: Score Cells --- */}
+                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
+                            {isPending ? '—' : (review.scoreOriginality || '—')}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
+                            {isPending ? '—' : (review.scoreClarity || '—')}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
+                            {isPending ? '—' : (review.scoreSoundness || '—')}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
+                            {isPending ? '—' : (review.scoreSignificance || '—')}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
+                            {isPending ? '—' : (review.scoreRelevance || '—')}
                         </td>
                     </tr>
                 );
@@ -721,8 +829,13 @@ export default function PaperDecision() {
 </div>
                         )}
                     </div>
-                    {/* --- END: Reviews List Section --- */}
+                    {/* --- END: Combined Reviews List Section --- */}
+
+                    {/* --- REMOVED: Second score table is gone --- */}
+                    
+                    {/* --- Final Decision Section --- */}
                     {paper.Status === 'Under Review' && (
+                        // ... (section unchanged) ...
                             <div className="pt-6 mt-6 border-t border-[#e5e7eb]">
                                 <h4 className="text-lg font-semibold text-[#1f2937] mb-3">Final Decision</h4>
                                 <div className="flex gap-4 items-center">
@@ -758,6 +871,8 @@ export default function PaperDecision() {
                                 </button>
                             </div>
                         )}
+                    {/* --- END: Final Decision Section --- */}
+
                 </div>
                 {/* --- End of Bottom Section --- */}
 
