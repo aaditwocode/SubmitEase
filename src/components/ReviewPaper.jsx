@@ -88,7 +88,7 @@ export default function ReviewPaper() {
         const fetchPaper = async () => {
             setLoading(true);
             try {
-                const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
+                const response = await fetch('http://localhost:3001/getpaperbyid/${paperId}');
                 if (!response.ok) {
                     throw new Error("Failed to fetch paper details.");
                 }
@@ -118,7 +118,7 @@ export default function ReviewPaper() {
                 }
                 try {
                     console.log("Fetching existing review for paper:", paperId, "by reviewer:", user.id);
-            const response = await fetch(`http://localhost:3001/get-review`, {
+            const response = await fetch('http://localhost:3001/get-review', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -159,7 +159,7 @@ export default function ReviewPaper() {
     // useEffect(() => { ... }); // Removed
 
     // --- Event Handlers ---
-    const handlePortalClick = (portal) => navigate(`/${portal}`);
+    const handlePortalClick = (portal) => navigate('/${portal}');
     const handleLogout = () => {
         setUser(null);
         setloginStatus(false);
@@ -179,7 +179,7 @@ export default function ReviewPaper() {
     const handleSaveReview = async(e) => {
         e.preventDefault();
         try {
-                const response = await fetch(`http://localhost:3001/save-review`, {
+                const response = await fetch('http://localhost:3001/save-review', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -201,7 +201,7 @@ export default function ReviewPaper() {
                 alert('Review Saved Successfully!');
             } catch (error) {
                 console.error('Failed to Save Reviews:', error);
-                alert(`Error: ${error.message}`);
+                alert('Error: ${error.message}');
             }
 
     };
@@ -212,9 +212,9 @@ export default function ReviewPaper() {
             alert("Please select a recommendation (Accepted or Rejected) before submitting.");
             return;
         }
-        if (window.confirm(`Are you sure you want to submit this review as "${recommendation}"? This action cannot be undone.`)) {
+        if (window.confirm('Are you sure you want to submit this review as "${recommendation}"? This action cannot be undone.')) {
             try {
-                const response = await fetch(`http://localhost:3001/submit-review`, {
+                const response = await fetch('http://localhost:3001/submit-review', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -236,7 +236,7 @@ export default function ReviewPaper() {
                 alert('Review Submitted Successfully!');
             } catch (error) {
                 console.error('Failed to Submit Reviews:', error);
-                alert(`Error: ${error.message}`);
+                alert('Error: ${error.message}');
             }
             navigate("/ManageReviews");
         }
@@ -353,7 +353,7 @@ export default function ReviewPaper() {
                         <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Document Viewer</h3>
                         <iframe
                             // Add a cache-busting query param based on submission time
-                            src={`${paper.URL}?v=${new Date(paper.submittedAt).getTime()}`}
+                            src={'${paper.URL}?v=${new Date(paper.submittedAt).getTime()}'}
                             title="Paper PDF Viewer"
                             width="100%"
                             height="95%"
@@ -371,7 +371,7 @@ export default function ReviewPaper() {
                     <form onSubmit={handleSubmitReview} className="space-y-4">
                         <h3 className="text-lg font-semibold text-[#1f2937]">Your Review</h3>
 
-                        {/* --- Comment Text Area --- */}
+                        /* --- Comment Text Area --- */
                         <div>
                             <label htmlFor="review-comment" className="block text-sm font-medium text-[#1f2937] mb-1">
                                 Comments for Author & Conference Host
@@ -390,36 +390,59 @@ export default function ReviewPaper() {
 
                         {/* --- Recommendation Radio Buttons --- */}
                         <div>
-                            <label className="block text-sm font-medium text-[#1f2937] mb-2">Your Recommendation</label>
+                            <label className="block text-sm font-medium text-[#1f2937] mb-2">
+                                Your Recommendation
+                            </label>
                             <div className="flex gap-6">
+                                {/* Strong Accept */}
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
                                         type="radio"
                                         name="recommendation"
-                                        value="Accepted"
-                                        checked={recommendation === 'Accepted'}
+                                        value="Strong Accept"
+                                        checked={recommendation === "Strong Accept"}
                                         onChange={(e) => setRecommendation(e.target.value)}
                                         disabled={submissionStatus}
                                         className="form-radio h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
                                     />
-                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-700">Accept Paper</span>
+                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-700">
+                                        Accept Paper
+                                    </span>
                                 </label>
+
+                                {/* Weak Accept */}
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
                                         type="radio"
                                         name="recommendation"
-                                        value="Rejected"
-                                        checked={recommendation === 'Rejected'}
+                                        value="Weak Accept"
+                                        checked={recommendation === "Weak Accept"}
+                                        onChange={(e) => setRecommendation(e.target.value)}
+                                        disabled={submissionStatus}
+                                        className="form-radio h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300"
+                                    />
+                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-700">
+                                        Weak Accept
+                                    </span>
+                                </label>
+
+                                {/* Reject */}
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="recommendation"
+                                        value="Reject"
+                                        checked={recommendation === "Reject"}
                                         onChange={(e) => setRecommendation(e.target.value)}
                                         disabled={submissionStatus}
                                         className="form-radio h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
                                     />
-                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-700">Reject Paper</span>
+                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-700">
+                                        Reject Paper
+                                    </span>
                                 </label>
                             </div>
                         </div>
-
-                        {/* --- Action Buttons --- */}
                         <div className="flex gap-4 pt-4 border-t border-[#e5e7eb]">
                             <button
                                 type="button"

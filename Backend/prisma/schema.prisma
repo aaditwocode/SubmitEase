@@ -61,6 +61,7 @@ model Reviews {
   User       User?  @relation(fields: [ReviewerId], references: [id])
   Comment     String
   Recommendation     String
+  Status String?
   submittedAt DateTime?
   @@unique([PaperId, ReviewerId])
 }

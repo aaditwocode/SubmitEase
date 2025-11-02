@@ -49,11 +49,14 @@ const getStatusBadge = (status) => {
 const getRecommendationBadge = (recommendation) => {
     let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
     switch (recommendation) {
-        case "Accepted":
+        case "Strong Accept":
             badgeClasses += "bg-green-100 text-green-700";
             break;
-        case "Rejected":
+        case "Reject":
             badgeClasses += "bg-red-100 text-red-700";
+            break;
+        case  "Weak Accept":
+            badgeClasses += "bg-yellow-100 text-yellow-700";
             break;
         default:
             badgeClasses += "bg-gray-100 text-gray-700";
@@ -126,10 +129,10 @@ export default function PaperDecision() {
         const fetchPaper = async () => {
             setLoading(true);
             try {
-                const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
-                if (!response.ok) {
-                    throw new Error("Failed to fetch paper details.");
-                }
+                    const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
+                    if (!response.ok) {
+                        throw new Error("Failed to fetch paper details.");
+                    }
                 const data = await response.json();
                 setPaper(data.paper);
 
@@ -139,7 +142,7 @@ export default function PaperDecision() {
                 setKeywords(data.paper.Keywords.join(', '));
                 setConfId(data.paper.Conference.id);
 
-                // --- **FIXED**: Populate Reviews and Reviewers correctly ---
+                // --- *FIXED*: Populate Reviews and Reviewers correctly ---
                 const fetchedReviews = data.paper.Reviews || [];
                 for (let rev of fetchedReviews) {
                     if (!rev.submittedAt) {
@@ -167,7 +170,7 @@ export default function PaperDecision() {
                 }
                 // --- End of author sorting ---
 
-                // --- **FIXED**: Sort reviewers based on ReviewerOrder ---
+                // --- *FIXED*: Sort reviewers based on ReviewerOrder ---
                 const reviewerOrder = data.paper.ReviewerOrder;
                 if (reviewerOrder && reviewerOrder.length > 0 && fetchedReviewers.length > 0) {
                     const reviewerMap = new Map(fetchedReviewers.map(r => [r.id, r]));
@@ -286,7 +289,7 @@ export default function PaperDecision() {
         const reviewerOrder = reviewers.map(r => r.id); // Save the order
 
         try {
-            const response = await fetch(`http://localhost:3001/assign-reviewers`, {
+            const response = await fetch('http://localhost:3001/assign-reviewers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -303,7 +306,7 @@ export default function PaperDecision() {
 
             const updatedPaper = await response.json();
             
-            // --- **FIXED**: Update both reviews and reviewers from the response ---
+            // --- *FIXED*: Update both reviews and reviewers from the response ---
             const freshReviews = updatedPaper.paper.Reviews || [];
             setReviews(freshReviews); // Update the reviews (stubs)
 
@@ -342,23 +345,23 @@ export default function PaperDecision() {
     };
 
     const sortedReviews = useMemo(() => {
-        if (!reviews) return [];
-        const sorted = [...reviews].sort((a, b) => {
-            
-            if (reviewSortBy === 'submittedAt') {
+        if (!reviews) return [];
+        const sorted = [...reviews].sort((a, b) => {
+            
+            if (reviewSortBy === 'submittedAt') {
                 // This logic is fine, but let's make it cleaner
-                const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-                const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-                if (dateA < dateB) return reviewSortOrder === "asc" ? -1 : 1;
-                if (dateA > dateB) return reviewSortOrder === "asc" ? 1 : -1;
-                return 0;
-            }
+                const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+                const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+                if (dateA < dateB) return reviewSortOrder === "asc" ? -1 : 1;
+                if (dateA > dateB) return reviewSortOrder === "asc" ? 1 : -1;
+                return 0;
+            }
 
             // --- THIS IS THE FIX ---
-            // Default string comparison (for 'recommendation')
+            // Default string comparison (for 'recommendation')
             // Treat null/undefined as an empty string "" to sort consistently
             let aValue, bValue;
-            if (reviewSortBy === 'recommendation') {
+            if (reviewSortBy === 'recommendation') {
                 // Access the property with the correct case: 'Recommendation'
                 aValue = a.Recommendation || ""; 
                 bValue = b.Recommendation || "";
@@ -368,12 +371,12 @@ export default function PaperDecision() {
                 bValue = b[reviewSortBy] || "";
             }
 
-            if (aValue < bValue) return reviewSortOrder === "asc" ? -1 : 1;
-            if (aValue > bValue) return reviewSortOrder === "asc" ? 1 : -1;
-            return 0;
-        });
-        return sorted;
-    }, [reviews, reviewSortBy, reviewSortOrder]);
+            if (aValue < bValue) return reviewSortOrder === "asc" ? -1 : 1;
+            if (aValue > bValue) return reviewSortOrder === "asc" ? 1 : -1;
+            return 0;
+        });
+        return sorted;
+    }, [reviews, reviewSortBy, reviewSortOrder]);
 
     const handleFinalSubmit = async () => {
         if (!window.confirm(`Are you sure you want to ${hostDecision} this paper? This action is final.`)) {
@@ -382,7 +385,7 @@ export default function PaperDecision() {
 
         try {
             // ASSUMPTION: This endpoint exists
-            const response = await fetch(`http://localhost:3001/paper-decision`, {
+            const response = await fetch('http://localhost:3001/paper-decision', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -689,7 +692,7 @@ export default function PaperDecision() {
                                     <span className="text-xs text-gray-500 block">({reviewer.email})</span>
                                 </>
                             ) : (
-                                `Reviewer ${index + 1}` // Fallback
+                                'Reviewer ${index + 1}' // Fallback
                             )}
                         </td>
                         
