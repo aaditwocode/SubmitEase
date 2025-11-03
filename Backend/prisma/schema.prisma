@@ -8,66 +8,71 @@ datasource db {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
-  email        String       @unique
-  password     String
-  firstname    String
-  lastname     String
-  role         String[]
-  expertise    String[]
-  organisation String
-  country      String
-  Conference   Conference[]
-  Paper        Paper[]
-  Reviews      Reviews[]
+  id                   Int          @id @default(autoincrement())
+  email                String       @unique
+  password             String
+  firstname            String
+  lastname             String
+  role                 String[]
+  expertise            String[]
+  organisation         String
+  country              String
+  Paper                Paper[]
+  hostedConferences    Conference[] @relation("HostToConference")
+  reviewedConferences  Conference[] @relation("ReviewerToConference")
+  Reviews              Reviews[]
+  ConfReviewInvitation Conference[] @relation("InvitedReviewerToConference")
 }
 
 model Conference {
-  id       Int      @id @default(autoincrement())
-  name     String
-  location String
-  startsAt DateTime
-  endAt    DateTime
-  deadline DateTime
-  link     String
-  status   String
-  Partners String[]
-  hostID   Int
-  host     User?    @relation(fields: [hostID], references: [id])
-  Paper    Paper[]
+  id               Int      @id @default(autoincrement())
+  name             String
+  location         String
+  startsAt         DateTime
+  endAt            DateTime
+  deadline         DateTime
+  link             String
+  status           String
+  Partners         String[]
+  hostID           Int
+  host             User?    @relation("HostToConference", fields: [hostID], references: [id])
+  Paper            Paper[]
+  Reviewers        User[]   @relation("ReviewerToConference")
+  InvitedReviewers User[]   @relation("InvitedReviewerToConference")
 }
 
 model Paper {
-  id           String      @id
-  Title        String
-  ConferenceId Int
-  Conference   Conference? @relation(fields: [ConferenceId], references: [id])
-  Authors      User[]
-  URL          String
-  Abstract     String
-  Keywords     String[]
-  Status       String
-  submittedAt  DateTime
-  AuthorOrder  Int[]
-  Reviews      Reviews[]
+  id            String      @id
+  Title         String
+  ConferenceId  Int
+  Conference    Conference? @relation(fields: [ConferenceId], references: [id])
+  Authors       User[]
+  URL           String
+  Abstract      String
+  Keywords      String[]
+  Status        String
+  submittedAt   DateTime
+  AuthorOrder   Int[]
+  Reviews       Reviews[]
   ReviewerOrder Int[]
 }
 
 model Reviews {
-  id         Int    @id @default(autoincrement())
-  PaperId    String
-  Paper      Paper? @relation(fields: [PaperId], references: [id])
-  ReviewerId Int
-  User       User?  @relation(fields: [ReviewerId], references: [id])
-  Comment     String
-  Recommendation     String
-  Status String?
-  isBlind Boolean?
-  submittedAt DateTime?
-  scoreOriginality Int?
-  scoreClarity Int?
-  scoreSoundness Int?
+  id                Int       @id @default(autoincrement())
+  PaperId           String
+  Paper             Paper?    @relation(fields: [PaperId], references: [id])
+  ReviewerId        Int
+  User              User?     @relation(fields: [ReviewerId], references: [id])
+  Comment           String
+  Recommendation    String
+  Status            String?
+  isBlind           Boolean?
+  submittedAt       DateTime?
+  scoreOriginality  Int?
+  scoreClarity      Int?
+  scoreSoundness    Int?
   scoreSignificance Int?
-  scoreRelevance Int?
+  scoreRelevance    Int?
+
   @@unique([PaperId, ReviewerId])
 }

@@ -571,6 +571,39 @@ app.get('/users/emails', async (req, res) => {
   }
 });
 
+app.post('/conference/reviewers', async (req, res) => {
+  try {
+    const {confId} = req.body;
+    console.log("Fetching reviewers for conference ID:", confId);
+    const reviewers = await prisma.conference.findUnique({
+      where: {id:confId},
+      select: {
+        Reviewers:{
+          select:{
+            id:true,
+            firstname:true,
+            lastname:true,
+            organisation:true,
+            expertise:true,
+            email:true,
+            country:true,
+          }
+        }
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    console.log("Reviewers fetched:", reviewers);
+    if (!reviewers || reviewers.length === 0) {
+      return res.status(404).json({ message: 'No reviewers found.' });
+    }
+    res.status(200).json({ reviewers: reviewers.Reviewers});
+
+  } catch (error) {
+    console.error('Error fetching reviewers:', error);
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
 app.post('/assign-reviewers', async (req, res) => {
   try {
     // 1. Get the data from the request body
