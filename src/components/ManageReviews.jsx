@@ -471,7 +471,7 @@ export default function ManageReviews() {
             originalReviews = prevReviews; 
             return prevReviews.map(review =>
                 review.id === reviewId
-                    ? { ...review, Status: 'Accepted' } 
+                    ? { ...review, Status: 'Under Review' } 
                     : review
             );
         });
@@ -480,7 +480,7 @@ export default function ManageReviews() {
             const response = await fetch('http://localhost:3001/reviewInvitationResponse', {
                 method:"POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reviewId, response: 'Accepted' }), 
+                body: JSON.stringify({ reviewId, response: 'Under Review' }), 
             });
             if (!response.ok) {
                 throw new Error(`Server failed with status: ${response.status}`);
@@ -549,12 +549,252 @@ export default function ManageReviews() {
     [allReviews]);
 
     const pendingReviews = useMemo(() =>
-        allReviews.filter(r => r.Status === 'Accepted' && !r.submittedAt),
+        allReviews.filter(r => r.Status === 'Under Review' && !r.submittedAt),
     [allReviews]);
 
     const submittedReviews = useMemo(() =>
         allReviews.filter(r => r.submittedAt),
     [allReviews]);
+
+    // Conference invites state
+    const [conferenceInvites, setConferenceInvites] = useState([]);
+    
+    const handleAcceptConference = async (confId) => {
+        try {
+            // Remove from invites list optimistically
+            setConferenceInvites(prev => prev.filter(conf => conf.id !== confId));
+
+            const response = await fetch('http://localhost:3001/accept-conference-invite', {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    conferenceId: confId,
+                    userId: user.id 
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to accept conference invite: ${response.statusText}`);
+            }
+
+        } catch (err) {
+            console.error("Failed to accept conference invite:", err);
+            // Restore the invite on error
+            const getConferenceInvites = async () => {
+                const response = await fetch("http://localhost:3001/get-conference-invites", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId: user.id }),
+                });
+                const data = await response.json();
+                setConferenceInvites(data.conferences || []);
+            };
+            getConferenceInvites();
+            alert("Error: Could not accept the conference invite. Please try again.");
+        }
+    };
+
+    const handleDeclineConference = async (confId) => {
+        try {
+            // Remove from invites list optimistically
+            setConferenceInvites(prev => prev.filter(conf => conf.id !== confId));
+
+            const response = await fetch('http://localhost:3001/decline-conference-invite', {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    conferenceId: confId,
+                    userId: user.id 
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to decline conference invite: ${response.statusText}`);
+            }
+
+        } catch (err) {
+            console.error("Failed to decline conference invite:", err);
+            // Restore the invite on error
+            const getConferenceInvites = async () => {
+                const response = await fetch("http://localhost:3001/get-conference-invites", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId: user.id }),
+                });
+                const data = await response.json();
+                setConferenceInvites(data.conferences || []);
+            };
+            getConferenceInvites();
+            alert("Error: Could not decline the conference invite. Please try again.");
+        }
+    };
+
+    // Fetch conference invites
+    useEffect(() => {
+        if (user?.id) {
+            const getConferenceInvites = async () => {
+                try {
+                    const response = await fetch("http://localhost:3001/get-conference-invites", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: user.id }),
+                    });
+                    if (response.status === 404) {
+                        setConferenceInvites([]); 
+                        return;
+                    }
+                    if (!response.ok) throw new Error("Failed to fetch conference invites.");
+                    const data = await response.json();
+                    setConferenceInvites(data.conferences || []); 
+                } catch (err) {
+                    console.error("Failed to fetch conference invites:", err);
+                }
+            };
+            getConferenceInvites();
+        }
+    }, [user]);
+
+    // --- Table Component for Conference Invites ---
+    const ConferenceInviteList = ({ conferences, navigate }) => {
+        const [sortBy, setSortBy] = useState("name");
+        const [sortOrder, setSortOrder] = useState("asc");
+        const [searchTerm, setSearchTerm] = useState("");
+
+        const handleSort = (column) => {
+            if (sortBy === column) {
+                setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+            } else {
+                setSortBy(column);
+                setSortOrder("asc");
+            }
+        };
+
+        const filteredAndSortedConferences = useMemo(() => {
+            if (!conferences) return [];
+
+            const filtered = conferences.filter(conf => {
+                const lowerSearch = searchTerm.toLowerCase();
+                const startDate = new Date(conf.startsAt).toLocaleDateString();
+                const deadline = new Date(conf.deadline).toLocaleDateString();
+                return (
+                    conf.name.toLowerCase().includes(lowerSearch) ||
+                    conf.location.toLowerCase().includes(lowerSearch) ||
+                    startDate.toLowerCase().includes(lowerSearch) ||
+                    deadline.toLowerCase().includes(lowerSearch) ||
+                    conf.status.toLowerCase().includes(lowerSearch)
+                );
+            });
+
+            return [...filtered].sort((a, b) => {
+                let aValue, bValue;
+                
+                if (sortBy === "startsAt" || sortBy === "deadline") {
+                    aValue = new Date(a[sortBy]).getTime();
+                    bValue = new Date(b[sortBy]).getTime();
+                    return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
+                } else {
+                    aValue = (a[sortBy] || '').toString().toLowerCase();
+                    bValue = (b[sortBy] || '').toString().toLowerCase();
+                    return sortOrder === "asc" 
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
+                }
+            });
+        }, [conferences, sortBy, sortOrder, searchTerm]);
+
+        if (!conferences || conferences.length === 0) {
+            return <p className="text-center text-gray-500 py-4">You have no pending conference invitations.</p>;
+        }
+
+        return (
+            <div className="overflow-x-auto">
+                {/* Search Input */}
+                <div className="p-4 border-b border-[#e5e7eb]">
+                    <input
+                        type="text"
+                        placeholder="Search conferences by name, location, dates, or status..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                    />
+                </div>
+                <table className="w-full table-fixed">
+                    <thead>
+                        <tr className="border-b border-[#e5e7eb]">
+                            <th onClick={() => handleSort("name")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap w-[30%]">
+                                Conference Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                            <th onClick={() => handleSort("location")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap w-[20%]">
+                                Location {sortBy === "location" && (sortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                            <th onClick={() => handleSort("startsAt")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap w-[15%]">
+                                Start Date {sortBy === "startsAt" && (sortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                            <th onClick={() => handleSort("deadline")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap w-[15%]">
+                                Submission Deadline {sortBy === "deadline" && (sortOrder === "asc" ? "↑" : "↓")}
+                            </th>
+                            <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap w-[20%]">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredAndSortedConferences.length > 0 ? (
+                            filteredAndSortedConferences.map((conf) => (
+                                <tr key={conf.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                                    <td className="py-3 px-4">
+                                        <p className="text-center text-sm font-medium text-[#1f2937] truncate">{conf.name}</p>
+                                        <p className="text-center text-xs text-[#6b7280] truncate">Status: {conf.status}</p>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <p className="text-center text-sm text-[#1f2937] truncate">{conf.location}</p>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <p className="text-center text-sm text-[#1f2937]">
+                                            {new Date(conf.startsAt).toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric'
+                                            })}
+                                        </p>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <p className="text-center text-sm text-[#1f2937]">
+                                            {new Date(conf.deadline).toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric'
+                                            })}
+                                        </p>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <div className="flex gap-2 justify-center">
+                                            <button
+                                                onClick={() => handleAcceptConference(conf.id)}
+                                                className="flex justify-center w-24 px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap text-sm">
+                                                Accept
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeclineConference(conf.id)}
+                                                className="flex justify-center w-24 px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-md hover:bg-red-100 transition-colors whitespace-nowrap text-sm">
+                                                Decline
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan="2" className="text-center text-gray-500 py-4">
+                                    {searchTerm ? "No conferences match your search." : "You have no pending conference invitations."}
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
 
 
     return (
@@ -591,9 +831,18 @@ export default function ManageReviews() {
 
                     {!loading && !error && (
                         <>
+                            {/* --- Conference Invites Section --- */}
+                            <div className="bg-white rounded-lg shadow">
+                                <h3 className="text-xl font-semibold text-[#1f2937] mb-4 p-6 pb-0">Pending Conference Invites</h3>
+                                <ConferenceInviteList 
+                                    conferences={conferenceInvites} 
+                                    navigate={navigate} 
+                                />
+                            </div>
+
                            {/* --- UPDATED: Removed p-6 from this div --- */}
                            <div className="bg-white rounded-lg shadow">
-                                <h3 className="text-xl font-semibold text-[#1f2937] mb-4 p-6 pb-0">Pending Invitations</h3> {/* Added padding here */}
+                                <h3 className="text-xl font-semibold text-[#1f2937] mb-4 p-6 pb-0">Pending Paper Invitations</h3> {/* Added padding here */}
                                 <PendingInvitationList 
                                     reviews={pendingInvitations} 
                                     onAccept={handleAccept} 

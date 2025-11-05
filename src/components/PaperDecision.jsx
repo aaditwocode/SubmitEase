@@ -1,5 +1,4 @@
 "use client";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import React, { useState, useEffect, useMemo } from "react"; // Added useMemo
 import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
@@ -18,14 +17,7 @@ const CompactAuthorCard = ({ author }) => {
     );
 };
 
-// --- Utility to reorder array on drag end ---
-const reorder = (list, startIndex, endIndex) => {
-    // ... (function unchanged)
-    const result = Array.from(list);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
-    return result;
-};
+// (drag-and-drop removed) 
 
 // --- Helper for status badge ---
 const getStatusBadge = (status) => {
@@ -59,7 +51,7 @@ const getRecommendationBadge = (recommendation) => {
         case "Reject":
             badgeClasses += "bg-red-100 text-red-700";
             break;
-        case  "Weak Accept":
+        case "Weak Accept":
             badgeClasses += "bg-yellow-100 text-yellow-700";
             break;
         default:
@@ -101,6 +93,7 @@ export default function PaperDecision() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [allUsers, setAllUsers] = useState([]);
+    const [confReviewers, setConfReviewers] = useState([]);
 
     // --- Form State (initialized from fetched paper) ---
     // ... (form state unchanged)
@@ -112,6 +105,8 @@ export default function PaperDecision() {
 
     // --- Reviewer Management State ---
     // ... (reviewer state unchanged)
+    const [newReviewers, setNewReviewers] = useState([]);
+    const [newInvitedReviewers, setNewInvitedReviewers] = useState([]);
     const [reviewers, setReviewers] = useState([]); // This will hold the LIST OF USER objects for the reviewers
     const [showInviteReviewerForm, setShowInviteReviewerForm] = useState(false);
     const [inviteReviewerFirstName, setInviteReviewerFirstName] = useState("");
@@ -125,6 +120,7 @@ export default function PaperDecision() {
     const [reviewSortBy, setReviewSortBy] = useState("submittedAt");
     const [reviewSortOrder, setReviewSortOrder] = useState("desc");
     const [reviewSearchTerm, setReviewSearchTerm] = useState(""); // <-- NEW: Search state
+    const [checkedReviewIds, setCheckedReviewIds] = useState(new Set()); // holds selected ReviewerIds (user ids)
 
     const [hostDecision, setHostDecision] = useState("");
 
@@ -139,10 +135,10 @@ export default function PaperDecision() {
         const fetchPaper = async () => {
             setLoading(true);
             try {
-                    const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
-                    if (!response.ok) {
-                        throw new Error("Failed to fetch paper details.");
-                    }
+                const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
+                if (!response.ok) {
+                    throw new Error("Failed to fetch paper details.");
+                }
                 const data = await response.json();
                 setPaper(data.paper);
 
@@ -156,15 +152,15 @@ export default function PaperDecision() {
                 const fetchedReviews = data.paper.Reviews || [];
                 for (let rev of fetchedReviews) {
                     if (!rev.submittedAt) {
-                        rev.Comment="N/A";
-                        rev.Recommendation="Pending Review";
+                        rev.Comment = "N/A";
+                        rev.Recommendation = "N/A";
                     }
                 }
                 setReviews(fetchedReviews);
 
                 // Extract the User object from each Review to build the reviewers list
                 const fetchedReviewers = fetchedReviews.map(review => review.User).filter(Boolean);
-                
+
                 // Sort authors based on AuthorOrder
                 const fetchedAuthors = data.paper.Authors || [];
                 const authorOrder = data.paper.AuthorOrder;
@@ -180,17 +176,7 @@ export default function PaperDecision() {
                 }
                 // --- End of author sorting ---
 
-                // --- *FIXED*: Sort reviewers based on ReviewerOrder ---
-                const reviewerOrder = data.paper.ReviewerOrder;
-                if (reviewerOrder && reviewerOrder.length > 0 && fetchedReviewers.length > 0) {
-                    const reviewerMap = new Map(fetchedReviewers.map(r => [r.id, r]));
-                    const sortedReviewers = reviewerOrder.map(id => reviewerMap.get(id)).filter(Boolean);
-                    const reviewersInOrderSet = new Set(reviewerOrder);
-                    const reviewersNotInOrder = fetchedReviewers.filter(r => !reviewersInOrderSet.has(r.id));
-                    setReviewers([...sortedReviewers, ...reviewersNotInOrder]);
-                } else {
-                    setReviewers(fetchedReviewers);
-                }
+                setReviewers(fetchedReviewers);
                 // --- End of reviewer sorting ---
 
             } catch (err) {
@@ -216,6 +202,24 @@ export default function PaperDecision() {
         };
         fetchUsers();
     }, []);
+    useEffect(() => {
+        // ... (effect unchanged)
+        const fetchUsers = async () => {
+            try {
+                if (!confId) return;
+                const response = await fetch('http://localhost:3001/conference/reviewers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confId: confId }),
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setConfReviewers(data.reviewers || []);
+                }
+            } catch (error) { console.error("Failed to fetch Reviewers:", error); }
+        };
+        fetchUsers();
+    }, [confId]);
 
 
     // --- Event Handlers ---
@@ -234,17 +238,26 @@ export default function PaperDecision() {
         const parsedId = parseInt(userId, 10);
         const userObj = allUsers.find(u => u.id === parsedId);
         if (!userObj || reviewers.some(r => r.id === userObj.id)) return;
-        setReviewers(prev => [...prev, userObj]);
+        setNewReviewers(prev => [...prev, userObj]);
+    };
+
+    const addInvitedReviewerById = (userId) => {
+        if (!userId) return;
+        const parsedId = parseInt(userId, 10);
+        const userObj = allUsers.find(u => u.id === parsedId);
+        if (!userObj || reviewers.some(r => r.id === userObj.id)) return;
+        setNewInvitedReviewers(prev => [...prev, userObj]);
     };
 
     const handleRemoveReviewer = (indexToRemove) => {
-        setReviewers(prev => prev.filter((_, idx) => idx !== indexToRemove));
+        setNewReviewers(prev => prev.filter((_, idx) => idx !== indexToRemove));
     };
 
-    const onReviewerDragEnd = (result) => {
-        if (!result.destination) return;
-        setReviewers(reorder(reviewers, result.source.index, result.destination.index));
+    const handleRemoveInvitedReviewer = (indexToRemove) => {
+        setNewInvitedReviewers(prev => prev.filter((_, idx) => idx !== indexToRemove));
     };
+
+    // drag-and-drop removed: lists are now static (no reorder)
 
     // --- Invite Reviewer Handlers ---
     const handleInviteReviewer = async (e) => {
@@ -260,7 +273,7 @@ export default function PaperDecision() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     email: inviteReviewerEmail,
-                     password: "defaultPassword123", // Default password
+                    password: "defaultPassword123", // Default password
                     firstname: inviteReviewerFirstName,
                     lastname: inviteReviewerLastName,
                     organisation: inviteReviewerOrg,
@@ -276,8 +289,8 @@ export default function PaperDecision() {
 
                 Thanks,
                 ${user?.firstname || 'SubmitEase Team'}`,
-                sendEmail: true,
-                invitedBy: user?.id || null,
+                    sendEmail: true,
+                    invitedBy: user?.id || null,
                 }),
             });
 
@@ -286,7 +299,7 @@ export default function PaperDecision() {
                 throw new Error(errData.message || "Failed to invite user.");
             }
             const newUser = await response.json();
-            setReviewers(prev => [...prev, newUser]); // Add to reviewers list in UI
+            setNewInvitedReviewers(prev => [...prev, newUser]); // Add to reviewers list in UI
             setAllUsers(prev => [...prev, newUser]); // Add to master user list
             setShowInviteReviewerForm(false);
             setInviteReviewerEmail(""); setInviteReviewerFirstName(""); setInviteReviewerLastName(""); setInviteReviewerOrg(""); setInviteReviewerCountry("");
@@ -300,8 +313,7 @@ export default function PaperDecision() {
     // --- Save Reviewer Assignment Handler ---
     const handleSaveReviewers = async () => {
         // ... (function unchanged)
-        const reviewerIds = reviewers.map(r => r.id);
-        const reviewerOrder = reviewers.map(r => r.id); // Save the order
+        const reviewerIds = newReviewers.map(r => r.id);
 
         try {
             const response = await fetch('http://localhost:3001/assign-reviewers', {
@@ -310,7 +322,6 @@ export default function PaperDecision() {
                 body: JSON.stringify({
                     paperId: paperId,
                     reviewerIds: reviewerIds,
-                    reviewerOrder: reviewerOrder, // Send the order to the backend
                 }),
             });
 
@@ -320,28 +331,48 @@ export default function PaperDecision() {
             }
 
             const updatedPaper = await response.json();
-            
+
             // --- *FIXED*: Update both reviews and reviewers from the response ---
             const freshReviews = updatedPaper.paper.Reviews || [];
             setReviews(freshReviews); // Update the reviews (stubs)
 
             // Re-build the reviewers list from the fresh review data
             const freshReviewers = freshReviews.map(review => review.User).filter(Boolean);
-            
+
             // Sort the new reviewers list based on the order
-            const newReviewerOrder = updatedPaper.paper.ReviewerOrder;
-            if (newReviewerOrder && newReviewerOrder.length > 0 && freshReviewers.length > 0) {
-                const reviewerMap = new Map(freshReviewers.map(r => [r.id, r]));
-                const sortedReviewers = newReviewerOrder.map(id => reviewerMap.get(id)).filter(Boolean);
-                const reviewersInOrderSet = new Set(newReviewerOrder);
-                const reviewersNotInOrder = freshReviewers.filter(r => !reviewersInOrderSet.has(r.id));
-                setReviewers([...sortedReviewers, ...reviewersNotInOrder]);
-            } else {
-                setReviewers(freshReviewers);
+            setNewReviewers(freshReviewers);
+            // --- End of fix ---
+
+            alert('Reviewer Invited For Paper Successfully!');
+            setNewReviewers([]);
+
+        } catch (error) {
+            console.error('Failed to save reviewers:', error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
+    const handleSaveInvitedReviewers = async () => {
+        // ... (function unchanged)
+        const reviewerIds = newInvitedReviewers.map(r => r.id);
+
+        try {
+            const response = await fetch('http://localhost:3001/conference/invite-reviewer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    confId: confId,
+                    reviewerIds: reviewerIds,
+                }),
+            });
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to invite reviewers.');
             }
             // --- End of fix ---
 
-            alert('Reviewer assignments saved successfully!');
+            alert('Reviewer Invited To Conference Successfully!');
+            setNewInvitedReviewers([]);
 
         } catch (error) {
             console.error('Failed to save reviewers:', error);
@@ -377,18 +408,20 @@ export default function PaperDecision() {
 
             const comment = (review.Comment || '').toLowerCase();
             const recommendation = (review.Recommendation || '').toLowerCase();
+            const status = (review.Status || '').toLowerCase();
 
             return (
                 reviewerName.includes(lowerSearch) ||
                 reviewerEmail.includes(lowerSearch) ||
                 comment.includes(lowerSearch) ||
-                recommendation.includes(lowerSearch)
+                recommendation.includes(lowerSearch) ||
+                status.includes(lowerSearch)
             );
         });
 
         // --- 2. Sorting (on the 'filtered' list) ---
         const sorted = [...filtered].sort((a, b) => {
-            
+
             let aValue, bValue;
 
             switch (reviewSortBy) {
@@ -401,25 +434,13 @@ export default function PaperDecision() {
                     aValue = a.Recommendation || "";
                     bValue = b.Recommendation || "";
                     break;
-                case 'scoreOriginality':
-                    aValue = a.scoreOriginality || 0;
-                    bValue = b.scoreOriginality || 0;
+                case 'status':
+                    aValue = a.Status || "";
+                    bValue = b.Status || "";
                     break;
-                case 'scoreClarity':
-                    aValue = a.scoreClarity || 0;
-                    bValue = b.scoreClarity || 0;
-                    break;
-                case 'scoreSoundness':
-                    aValue = a.scoreSoundness || 0;
-                    bValue = b.scoreSoundness || 0;
-                    break;
-                case 'scoreSignificance':
-                    aValue = a.scoreSignificance || 0;
-                    bValue = b.scoreSignificance || 0;
-                    break;
-                case 'scoreRelevance':
-                    aValue = a.scoreRelevance || 0;
-                    bValue = b.scoreRelevance || 0;
+                case 'score':
+                    aValue = (a.scoreOriginality + a.scoreClarity + a.scoreRelevance + a.scoreSignificance + a.scoreSoundness) / 5 || 0;
+                    bValue = (b.scoreOriginality + b.scoreClarity + b.scoreRelevance + b.scoreSignificance + b.scoreSoundness) / 5 || 0;
                     break;
                 default:
                     // Default to submittedAt
@@ -449,7 +470,7 @@ export default function PaperDecision() {
                 body: JSON.stringify({
                     paperId: paperId,
                     status: hostDecision,// e.g., "Accepted" or "Rejected"
-                    total : authors,
+                    total: authors,
                 }),
             });
 
@@ -459,7 +480,7 @@ export default function PaperDecision() {
             }
 
             const updatedPaper = await response.json();
-            
+
             // Update the paper state in the UI
             setPaper(updatedPaper.paper);
             // Also update the hostDecision state to match
@@ -473,45 +494,175 @@ export default function PaperDecision() {
         }
     };
 
+    // --- New: Checkbox handlers for selecting reviewers in the table ---
+    const toggleCheckedReviewId = (reviewerId) => {
+        // Prevent toggling if the review for this reviewer is already Submitted
+        const reviewObj = (reviews || []).find(r => r.ReviewerId === reviewerId);
+        if (reviewObj && (reviewObj.Status || '').toLowerCase() === 'submitted') return;
+
+        setCheckedReviewIds(prev => {
+            const next = new Set(prev);
+            if (next.has(reviewerId)) next.delete(reviewerId);
+            else next.add(reviewerId);
+            return next;
+        });
+    };
+
+    const handleSelectAllVisible = () => {
+        const visibleReviewerIds = Array.from(new Set(filteredAndSortedReviews
+            .filter(r => r.Status !== 'Submitted')
+            .map(r => r.ReviewerId)
+            .filter(Boolean)));
+        const allSelected = visibleReviewerIds.every(id => checkedReviewIds.has(id));
+        if (allSelected) {
+            // clear only those visible
+            setCheckedReviewIds(prev => {
+                const next = new Set(prev);
+                visibleReviewerIds.forEach(id => next.delete(id));
+                return next;
+            });
+        } else {
+            setCheckedReviewIds(prev => {
+                const next = new Set(prev);
+                visibleReviewerIds.forEach(id => next.add(id));
+                return next;
+            });
+        }
+    };
+
+    // --- New: Remind selected reviewers via backend ---
+    const handleRemindReviewers = async () => {
+        const selectedIds = Array.from(checkedReviewIds);
+        if (selectedIds.length === 0) return alert('Please select at least one reviewer to remind.');
+
+        // Exclude any reviewers whose review status is 'Submitted'
+        const selectableIds = selectedIds.filter(id => {
+            const r = (reviews || []).find(rr => rr.ReviewerId === id);
+            return !(r && (r.Status || '').toLowerCase() === 'submitted');
+        });
+
+        if (selectableIds.length === 0) return alert('No selectable reviewers (selected ones are already submitted).');
+
+        // Partition into under-review and pending-invitation groups
+        const underReviewIds = selectableIds.filter(id => {
+            const r = (reviews || []).find(rr => rr.ReviewerId === id);
+            return r && (r.Status || '').toLowerCase() === 'under review';
+        });
+
+        const pendingIds = selectableIds.filter(id => {
+            const r = (reviews || []).find(rr => rr.ReviewerId === id);
+            const isPendingReview = r && (r.Status || '').toLowerCase() === 'pending submission';
+            const isInInvited = (newInvitedReviewers || []).some(u => u.id === id);
+            return isPendingReview || isInInvited;
+        });
+
+        try {
+            let sentUnder = 0, sentPending = 0;
+
+            if (underReviewIds.length > 0) {
+                const resp = await fetch('http://localhost:3001/remind-reviewers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paperId: paperId, reviewerIds: underReviewIds }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.message || 'Failed to send reminders to under-review reviewers.');
+                }
+                sentUnder = underReviewIds.length;
+            }
+
+            if (pendingIds.length > 0) {
+                const resp2 = await fetch('http://localhost:3001/remind-invited-reviewers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paperId: paperId, reviewerIds: pendingIds }),
+                });
+                if (!resp2.ok) {
+                    const err = await resp2.json();
+                    throw new Error(err.message || 'Failed to send reminders to pending-invitation reviewers.');
+                }
+                sentPending = pendingIds.length;
+            }
+
+            alert(`Reminders Sent`);
+        } catch (error) {
+            console.error('Remind failed:', error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
+    // --- New: Remove selected reviewers from paper ---
+    const handleDeleteReviewers = async () => {
+        const reviewerIds = Array.from(checkedReviewIds);
+        console.log('Removing reviewers with IDs:', reviewerIds);
+        if (reviewerIds.length === 0) return alert('Please select at least one reviewer to remove.');
+        if (!window.confirm('Are you sure you want to remove the selected reviewer(s) from this paper? This cannot be undone.')) return;
+        try {
+            const response = await fetch('http://localhost:3001/remove-reviewers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paperId: paperId, reviewerIds }),
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Failed to remove reviewers.');
+            }
+            const data = await response.json();
+            const freshReviews = data.paper.Reviews || [];
+            setReviews(freshReviews);
+            const freshReviewers = freshReviews.map(review => review.User).filter(Boolean);
+            setReviewers(freshReviewers);
+            setCheckedReviewIds(new Set());
+            alert('Selected reviewers removed from paper.');
+        } catch (error) {
+            console.error('Remove failed:', error);
+            alert(`Error: ${error.message}`);
+        }
+    };
+
 
     // --- Render Logic ---
     if (loading) return <div className="p-8 text-center">Loading paper...</div>;
     if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
     if (!paper) return <div className="p-8 text-center">Paper not found.</div>;
 
+    // Derived values used in render
+    const visibleReviewerIds = Array.from(new Set(filteredAndSortedReviews.map(r => r.ReviewerId).filter(Boolean)));
+    const allVisibleSelected = visibleReviewerIds.length > 0 && visibleReviewerIds.every(id => checkedReviewIds.has(id));
+
     return (
         <div className="min-h-screen bg-[#ffffff]">
             {/* Header */}
             <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-              {/* ... (header unchanged) ... */}
-              <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center gap-8">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                      <span className="text-lg font-bold text-white">S</span>
+                {/* ... (header unchanged) ... */}
+                <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center gap-8">
+                        <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                                <span className="text-lg font-bold text-white">S</span>
+                            </div>
+                            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+                        </div>
+                        <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+                            <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+                            <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+                            <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
+                        </nav>
                     </div>
-                    <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
-                  </div>
-                  <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-                    <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
-                    <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
-                    <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
-                  </nav>
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
+                            Return To Conference Portal
+                        </button>
+                        <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
+                            Logout
+                        </button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
-                    Return To Conference Portal
-                  </button>
-                  <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
-                    Logout
-                  </button>
-                </div>
-              </div>
             </header>
 
             {/* --- Main Content --- */}
             <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
                 {/* --- Top Section: Details (Scrollable) + PDF (Fixed) --- */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
@@ -604,54 +755,42 @@ export default function PaperDecision() {
                     {/* --- Assign Reviewers Section --- */}
                     <div className="space-y-4">
                         {/* ... (reviewer assignment section unchanged) ... */}
-                        <h3 className="text-lg font-semibold text-[#1f2937]">Assign Reviewers</h3>
+                        <h3 className="text-lg font-semibold text-[#1f2937]">Invite Reviewers To Conference</h3>
 
-                        {/* --- Reviewer Drag-and-Drop List --- */}
+                        {/* --- Reviewer List --- */}
                         <div className="space-y-2">
-                            <DragDropContext onDragEnd={onReviewerDragEnd}>
-                                <Droppable droppableId="reviewers-droppable">
-                                    {(provided) => (
-                                        <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
-                                            {reviewers.map((reviewer, index) => (
-                                                <Draggable key={reviewer?.id} draggableId={String(reviewer?.id)} index={index}>
-                                                    {(prov) => (
-                                                        <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
-                                                            <div {...prov.dragHandleProps} className="cursor-grab select-none text-[#6b7280]">☰</div>
-                                                            <div className="flex-1"><CompactAuthorCard author={reviewer} /></div>
-                                                            <button type="button" onClick={() => handleRemoveReviewer(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
-                                                        </div>
-                                                    )}
-                                                </Draggable>
-                                            ))}
-                                            {provided.placeholder}
-                                        </div>
-                                    )}
-                                </Droppable>
-                            </DragDropContext>
+                            {newInvitedReviewers.map((reviewer, index) => (
+                                <div key={reviewer?.id} className="flex items-center gap-3 p-3 border rounded bg-white">
+                                    <div className="flex-1"><CompactAuthorCard author={reviewer} /></div>
+                                    <button type="button" onClick={() => handleRemoveInvitedReviewer(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
+                                </div>
+                            ))}
                         </div>
 
                         {/* --- Add/Invite Reviewer UI --- */}
                         {!showInviteReviewerForm && (
                             <div className="flex gap-2 items-center mt-2">
-                                <select defaultValue="" onChange={(e) => { addReviewerById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
+                                <select defaultValue="" onChange={(e) => { addInvitedReviewerById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
                                     <option value="" disabled>-- Add reviewer by email --</option>
                                     {allUsers
                                         .filter(u =>
                                             !reviewers.some(r => r && r.id === u.id) && // Filter out existing reviewers
-                                            !authors.some(a => a && a.id === u.id)      // Filter out authors
+                                            !authors.some(a => a && a.id === u.id) &&
+                                            !confReviewers.some(cr => cr && cr.id === u.id) &&
+                                            !newInvitedReviewers.some(nr => nr && nr.id === u.id)
                                         )
                                         .map(u => (
                                             <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>
                                         ))}
                                 </select>
-                                <button type="button" onClick={() => setShowInviteReviewerForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
+                                <button type="button" onClick={() => setShowInviteReviewerForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Add New User</button>
                             </div>
                         )}
 
                         {/* --- Invite New Reviewer Form --- */}
                         {showInviteReviewerForm && (
                             <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
-                                <h4 className="font-medium text-[#1f2937]">Invite New Reviewer</h4>
+                                <h4 className="font-medium text-[#1f2937]">Invite New Reviewer To Conference</h4>
                                 <div className="grid grid-cols-2 gap-3">
                                     <input type="text" value={inviteReviewerFirstName} onChange={e => setInviteReviewerFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
                                     <input type="text" value={inviteReviewerLastName} onChange={e => setInviteReviewerLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
@@ -680,27 +819,68 @@ export default function PaperDecision() {
                         )}
 
                         {/* --- Save Reviewers Button --- */}
-                        <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-4">
-                            <button onClick={handleSaveReviewers} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Save Reviewer Assignments</button>
+                        <div className="flex gap-3 pt-4">
+                            <button onClick={handleSaveInvitedReviewers} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Invite Reviewers To Conference</button>
                         </div>
 
                     </div>
                     {/* --- END: Assign Reviewers Section --- */}
 
+                    {/* --- Assign Reviewers Section --- */}
+                    <div className="space-y-4 border-t border-[#e5e7eb] mt-4 mb-4 pt-4">
+                        {/* ... (reviewer assignment section unchanged) ... */}
+                        <h3 className="text-lg font-semibold text-[#1f2937] ">Assign Reviewers</h3>
 
+                        {/* --- Reviewer Drag-and-Drop List --- */}
+                        <div className="space-y-2">
+                            {newReviewers.map((reviewer, index) => (
+                                <div key={reviewer?.id} className="flex items-center gap-3 p-3 border rounded bg-white">
+                                    <div className="flex-1"><CompactAuthorCard author={reviewer} /></div>
+                                    <button type="button" onClick={() => handleRemoveReviewer(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* --- Add/Invite Reviewer UI --- */}
+                        {!showInviteReviewerForm && (
+                            <div className="flex gap-2 items-center mt-2">
+                                <select defaultValue="" onChange={(e) => { addReviewerById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
+                                    <option value="" disabled>-- Add reviewer by email --</option>
+                                    {confReviewers
+                                        .filter(u =>
+                                            !reviewers.some(r => r && r.id === u.id) && // Filter out existing reviewers
+                                            !authors.some(a => a && a.id === u.id) &&
+                                            !newReviewers.some(nr => nr && nr.id === u.id)
+                                        )
+                                        .map(u => (
+                                            <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>
+                                        ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-3 pt-4 border-t border-[#e5e7eb]">
+                        <button onClick={handleSaveReviewers} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Invite Reviewers For Paper</button>
+                    </div>
                     {/* --- MODIFIED: Combined Reviews List Section --- */}
                     <div className="space-y-4 pt-6 border-t border-[#e5e7eb]">
                         <h3 className="text-lg font-semibold text-[#1f2937]">Paper Reviews & Scores</h3>
 
-                        {/* --- NEW: Search Input --- */}
-                        <div className="p-1">
-                            <input
-                              type="text"
-                              placeholder="Search reviews (Reviewer, Comment, Decision...)"
-                              value={reviewSearchTerm}
-                              onChange={(e) => setReviewSearchTerm(e.target.value)}
-                              className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
-                            />
+                        {/* --- NEW: Search Input + Controls (Remind / Delete) --- */}
+                        <div className="p-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex-1">
+                                <input
+                                    type="text"
+                                    placeholder="Search reviews (Reviewer, Comment, Decision...)"
+                                    value={reviewSearchTerm}
+                                    onChange={(e) => setReviewSearchTerm(e.target.value)}
+                                    className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={handleRemindReviewers} className={`px-3 py-2 text-sm font-medium rounded-md ${checkedReviewIds.size ? 'bg-[#059669] text-white hover:bg-[#059669]/90' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`} disabled={!checkedReviewIds.size}>Remind Reviewers</button>
+                                <button onClick={handleDeleteReviewers} className={`px-3 py-2 text-sm font-medium rounded-md ${checkedReviewIds.size ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-200 text-gray-600 cursor-not-allowed'}`} disabled={!checkedReviewIds.size}>Delete Reviewer(s)</button>
+                            </div>
                         </div>
 
                         {/* --- UPDATED: Empty state and table data source --- */}
@@ -709,168 +889,149 @@ export default function PaperDecision() {
                                 {reviewSearchTerm ? "No reviews match your search." : "No reviews submitted yet."}
                             </p>
                         ) : (
-                            
-<div className="overflow-x-auto max-h-[80vh] bg-white rounded-lg shadow border border-[#e5e7eb]">
-    {/* MODIFIED: Table-fixed and new width classes */}
-    <table className="w-full table-fixed min-w-[1000px]">
-        <thead>
-            {/* ... (table header unchanged) ... */}
-            <tr className="border-b border-[#e5e7eb]">
-                <th className="w-2/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Reviewer</th>
-                
-                <th
-                    className="w-1/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("submittedAt")}
-                >
-                    Submitted {reviewSortBy === "submittedAt" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                
-                <th className="w-3/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Comment</th>
-                
-                <th
-                    className="w-2/13 text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("recommendation")}
-                >
-                    Decision {reviewSortBy === "recommendation" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
 
-                {/* --- NEW: Score Headers --- */}
-                <th
-                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("scoreOriginality")}
-                >
-                    Originality {reviewSortBy === "scoreOriginality" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th
-                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("scoreClarity")}
-                >
-                    Clarity {reviewSortBy === "scoreClarity" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th
-                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("scoreSoundness")}
-                >
-                    Soundness {reviewSortBy === "scoreSoundness" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th
-                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("scoreSignificance")}
-                >
-                    Significance {reviewSortBy === "scoreSignificance" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                <th
-                    className="w-1/13 text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
-                    onClick={() => handleReviewSort("scoreRelevance")}
-                >
-                    Relevance {reviewSortBy === "scoreRelevance" && (reviewSortOrder === "asc" ? "↑" : "↓")}
-                </th>
-                
-            </tr>
-        </thead>
-        <tbody>
-            {/* --- UPDATED: Map over filteredAndSortedReviews --- */}
-            {filteredAndSortedReviews.map((review, index) => {
-                const reviewer = reviewers.find(r => r.id == review.ReviewerId);
-                const isPending = !review.submittedAt;
+                            <div className="overflow-x-auto max-h-[80vh] bg-white rounded-lg shadow border border-[#e5e7eb]">
+                                {/* MODIFIED: Table-fixed and new width classes */}
+                                <table className="w-full table-fixed min-w-[1000px]">
+                                    <thead>
+                                        {/* ... (table header modified for checkboxes) ... */}
+                                        <tr className="border-b border-[#e5e7eb]">
+                                            <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]"><input type="checkbox" onChange={handleSelectAllVisible} checked={allVisibleSelected} /></th>
+                                            <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Reviewer</th>
 
-                return (
-                    // ... (table row unchanged) ...
-                    <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                        
-                        {/* Column 1: Reviewer Name */}
-                        <td className="py-3 px-4 text-sm font-medium text-[#1f2937] align-top break-words">
-                            {reviewer ? (
-                                <>
-                                    {reviewer.firstname} {reviewer.lastname}
-                                    <span className="text-xs text-gray-500 block">({reviewer.email})</span>
-                                </>
-                            ) : (
-                                `Reviewer ${index + 1}` // Fallback
-                            )}
-                        </td>
-                        
-                        {/* Column 2: Submitted Date */}
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top">
-                            {formatDate(review.submittedAt)}
-                        </td>
+                                            <th
+                                                className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                                                onClick={() => handleReviewSort("submittedAt")}
+                                            >
+                                                Submitted {reviewSortBy === "submittedAt" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                                            </th>
 
-                        {/* Column 3: Comment */}
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top whitespace-pre-wrap break-words">
-                            {review.Comment || 'N/A'}
-                        </td>
+                                            <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Comment</th>
 
-                        {/* Column 4: Recommendation */}
-                        <td className="py-3 px-4 align-top">
-                            {getRecommendationBadge(review.Recommendation)}
-                        </td>
 
-                        {/* --- NEW: Score Cells --- */}
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
-                            {isPending ? '—' : (review.scoreOriginality || '—')}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
-                            {isPending ? '—' : (review.scoreClarity || '—')}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
-                            {isPending ? '—' : (review.scoreSoundness || '—')}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
-                            {isPending ? '—' : (review.scoreSignificance || '—')}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
-                            {isPending ? '—' : (review.scoreRelevance || '—')}
-                        </td>
-                    </tr>
-                );
-            })}
-        </tbody>
-    </table>
-</div>
+
+                                            <th
+                                                className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                                                onClick={() => handleReviewSort("status")}
+                                            >
+                                                Review Status {reviewSortBy === "status" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                                            </th>
+
+                                            {/* --- NEW: Score Headers --- */}
+                                            <th
+                                                className=" text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                                                onClick={() => handleReviewSort("score")}
+                                            >
+                                                Score {reviewSortBy === "score" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                                            </th>
+                                            <th
+                                                className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                                                onClick={() => handleReviewSort("recommendation")}
+                                            >
+                                                Decision {reviewSortBy === "recommendation" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                                            </th>
+
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {/* --- UPDATED: Map over filteredAndSortedReviews --- */}
+                                        {filteredAndSortedReviews.map((review, index) => {
+                                            const reviewer = review.User || reviewers.find(r => r.id == review.ReviewerId);
+                                            const isPending = !review.submittedAt;
+
+                                            return (
+                                                // ... (table row unchanged) ...
+                                                <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+
+                                                    {/* Column 0: Checkbox */}
+                                                    <td className="py-3 px-4 text-sm align-top">
+                                                        <input type="checkbox" disabled={review.Status==="Submitted"} checked={checkedReviewIds.has(review.ReviewerId)} onChange={() => toggleCheckedReviewId(review.ReviewerId)} />
+                                                    </td>
+
+                                                    {/* Column 1: Reviewer Name */}
+                                                    <td className="py-3 px-4 text-sm font-medium text-[#1f2937] align-top break-words">
+                                                        {reviewer ? (
+                                                            <>
+                                                                {reviewer.firstname} {reviewer.lastname}
+                                                                <span className="text-xs text-gray-500 block">({reviewer.email})</span>
+                                                            </>
+                                                        ) : (
+                                                            `Reviewer ${index + 1}` // Fallback
+                                                        )}
+                                                    </td>
+
+                                                    {/* Column 2: Submitted Date */}
+                                                    <td className="py-3 px-4 text-sm text-[#1f2937] align-top">
+                                                        {formatDate(review.submittedAt)}
+                                                    </td>
+
+                                                    {/* Column 3: Comment */}
+                                                    <td className="py-3 px-4 text-sm text-[#1f2937] align-top whitespace-pre-wrap break-words">
+                                                        {review.Comment || 'N/A'}
+                                                    </td>
+
+
+                                                    <td className="py-3 px-4 text-sm text-[#1f2937] align-top whitespace-pre-wrap break-words">
+                                                        {review.Status || 'N/A'}
+                                                    </td>
+                                                    {/* --- NEW: Score Cells --- */}
+                                                    <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
+                                                        {isPending ? '—' : ((review.scoreOriginality + review.scoreClarity + review.scoreRelevance + review.scoreSignificance + review.scoreSoundness) / 5 || '—')}
+                                                    </td>
+                                                    {/* Column 4: Recommendation */}
+                                                    <td className="py-3 px-4 align-top">
+                                                        {getRecommendationBadge(review.Recommendation)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
                     {/* --- END: Combined Reviews List Section --- */}
 
                     {/* --- REMOVED: Second score table is gone --- */}
-                    
+
                     {/* --- Final Decision Section --- */}
                     {paper.Status === 'Under Review' && (
                         // ... (section unchanged) ...
-                            <div className="pt-6 mt-6 border-t border-[#e5e7eb]">
-                                <h4 className="text-lg font-semibold text-[#1f2937] mb-3">Final Decision</h4>
-                                <div className="flex gap-4 items-center">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="radio" 
-                                            name="hostDecision" 
-                                            value="Accepted"
-                                            checked={hostDecision === 'Accepted'}
-                                            onChange={(e) => setHostDecision(e.target.value)}
-                                            className="form-radio h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
-                                        />
-                                        <span className="px-2 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-700">Accept Paper</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="radio" 
-                                            name="hostDecision" 
-                                            value="Rejected"
-                                            checked={hostDecision === 'Rejected'}
-                                            onChange={(e) => setHostDecision(e.target.value)}
-                                            className="form-radio h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
-                                        />
-                                        <span className="px-2 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-700">Reject Paper</span>
-                                    </label>
-                                </div>
-                                <button 
-                                    onClick={handleFinalSubmit}
-                                    className="mt-4 px-6 py-2 bg-[#059669] text-white font-medium rounded-md hover:bg-[#059669]/90 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                    disabled={hostDecision === 'Under Review' || !hostDecision}
-                                >
-                                    Submit Final Decision
-                                </button>
+                        <div className="pt-6 mt-6 border-t border-[#e5e7eb]">
+                            <h4 className="text-lg font-semibold text-[#1f2937] mb-3">Final Decision</h4>
+                            <div className="flex gap-4 items-center">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="hostDecision"
+                                        value="Accepted"
+                                        checked={hostDecision === 'Accepted'}
+                                        onChange={(e) => setHostDecision(e.target.value)}
+                                        className="form-radio h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                                    />
+                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-700">Accept Paper</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="hostDecision"
+                                        value="Rejected"
+                                        checked={hostDecision === 'Rejected'}
+                                        onChange={(e) => setHostDecision(e.target.value)}
+                                        className="form-radio h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
+                                    />
+                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-700">Reject Paper</span>
+                                </label>
                             </div>
-                        )}
+                            <button
+                                onClick={handleFinalSubmit}
+                                className="mt-4 px-6 py-2 bg-[#059669] text-white font-medium rounded-md hover:bg-[#059669]/90 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                disabled={hostDecision === 'Under Review' || !hostDecision}
+                            >
+                                Submit Final Decision
+                            </button>
+                        </div>
+                    )}
                     {/* --- END: Final Decision Section --- */}
 
                 </div>

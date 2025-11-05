@@ -296,7 +296,6 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
-        ReviewerOrder:true,
         Conference: {
           select: {
             id: true,
@@ -574,7 +573,6 @@ app.get('/users/emails', async (req, res) => {
 app.post('/conference/reviewers', async (req, res) => {
   try {
     const {confId} = req.body;
-    console.log("Fetching reviewers for conference ID:", confId);
     const reviewers = await prisma.conference.findUnique({
       where: {id:confId},
       select: {
@@ -592,7 +590,6 @@ app.post('/conference/reviewers', async (req, res) => {
       },
       cacheStrategy: { ttl: 60 },
     });
-    console.log("Reviewers fetched:", reviewers);
     if (!reviewers || reviewers.length === 0) {
       return res.status(404).json({ message: 'No reviewers found.' });
     }
@@ -607,21 +604,13 @@ app.post('/conference/reviewers', async (req, res) => {
 app.post('/assign-reviewers', async (req, res) => {
   try {
     // 1. Get the data from the request body
-    const { paperId, reviewerIds, reviewerOrder,isBlind } = req.body;
+    const { paperId, reviewerIds,isBlind } = req.body;
 
     // 2. Validate input (basic)
-    if (!paperId || !reviewerIds || !reviewerOrder) {
-      return res.status(400).json({ message: 'Missing paperId, reviewerIds, or reviewerOrder' });
+    if (!paperId || !reviewerIds) {
+      return res.status(400).json({ message: 'Missing paperId, reviewerIds' });
     }
 
-    const updatedPaper = await prisma.paper.update({
-      where: {
-        id: paperId,
-      },
-      data: {
-        ReviewerOrder: reviewerOrder,
-      },
-    });
     const reviewData = reviewerIds.map((id) => ({
       PaperId: paperId,
       ReviewerId: parseInt(id, 10), // Ensure IDs are integers
@@ -651,7 +640,6 @@ app.post('/assign-reviewers', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
-        ReviewerOrder:true,
         Conference: {
           select: {
             id: true,
@@ -776,6 +764,42 @@ app.post('/get-review', async (req, res) => {
   } catch (error) {
     console.error('Failed to Fetch Review:', error);
     res.status(500).json({ message: "Failed to Fetch Review." });
+  }
+});
+
+app.post('/get-conference-invites', async (req, res) => {
+  const { userId } = req.body;
+  console.log("Fetching conference invites for user ID:", userId);
+  try {
+    const invites = await prisma.user.findUnique({
+      where: {
+        id: parseInt(userId, 10)
+      },
+      select: {
+        ConfReviewInvitation: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
+            startsAt: true,
+            endAt: true,
+            deadline: true,
+            status: true,
+            Partners: true
+          }
+        }
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+
+    if (!invites || !invites.ConfReviewInvitation) {
+      return res.status(404).json({ message: 'No conference invitations found.' });
+    }
+
+    res.status(200).json({ conferences: invites.ConfReviewInvitation });
+  } catch (error) {
+    console.error('Failed to fetch conference invites:', error);
+    res.status(500).json({ message: 'Could not fetch conference invitations', details: error.message });
   }
 });
 
@@ -1005,4 +1029,235 @@ app.get('/', (req, res) => {
 
 app.listen(port, () => {
   console.log(`🚀 Server connected to Prisma Postgres, running at http://localhost:${port}`);
+});
+
+// POST /conference/add-reviewer : Add an existing user as a reviewer for a conference
+app.post('/conference/invite-reviewer', async (req, res) => {
+  try {
+    const { confId, reviewerIds } = req.body;
+
+    if (!confId || !reviewerIds) return res.status(400).json({ message: 'confId and reviewerIds are required' });
+
+    const parsedConfId = parseInt(confId, 10);
+
+    // reviewerIds should be an array (but accept single id too)
+    let ids = [];
+    if (Array.isArray(reviewerIds)) {
+      ids = reviewerIds.map(id => parseInt(id, 10));
+    } else {
+      ids = [parseInt(reviewerIds, 10)];
+    }
+
+    // Clean and dedupe
+    const reviewerIdsToConnect = Array.from(new Set(ids.filter(id => !isNaN(id))));
+    if (reviewerIdsToConnect.length === 0) return res.status(400).json({ message: 'No valid reviewerIds provided' });
+
+    // Build connect array for Prisma
+    const connectArray = reviewerIdsToConnect.map(id => ({ id }));
+
+    // Connect the users to the conference Reviewers relation
+    const updated = await prisma.conference.update({
+      where: { id: parsedConfId },
+      data: {
+        InvitedReviewers: {
+          connect: connectArray,
+        }
+      },
+      select: {
+        id: true,
+        Reviewers: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            organisation: true,
+            expertise: true,
+            email: true,
+            country: true,
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ reviewers: updated.Reviewers });
+  } catch (error) {
+    console.error('Failed to add reviewer to conference:', error);
+    res.status(500).json({ message: 'Could not add reviewer to conference', details: error.message });
+  }
+});
+
+// POST /remind-reviewers : Send reminder emails to selected reviewers for a paper
+app.post('/remind-reviewers', async (req, res) => {
+  try {
+    const { paperId, reviewerIds } = req.body;
+    if (!paperId || !reviewerIds || !Array.isArray(reviewerIds) || reviewerIds.length === 0) {
+      return res.status(400).json({ message: 'paperId and reviewerIds (non-empty array) are required' });
+    }
+
+    // Fetch paper title for email context
+    const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { Title: true } });
+
+    for (const id of reviewerIds) {
+      try {
+        const reviewer = await prisma.user.findUnique({ where: { id: parseInt(id, 10) }, select: { email: true, firstname: true, lastname: true } });
+        if (!reviewer) continue;
+        const subject = `Reminder: Review pending for paper ${paper ? paper.Title : paperId}`;
+        const msg = `Dear ${reviewer.firstname || ''} ${reviewer.lastname || ''},<br><br>This is a friendly reminder to submit your review for the paper titled <strong>${paper ? paper.Title : paperId}</strong>.<br><br>Please submit your review at your earliest convenience.<br><br>Thanks,<br>Conference Committee`;
+        sendMail(reviewer.email, subject, msg);
+        console.log(`Reminder sent to reviewer id=${id} (${reviewer.email})`);
+      } catch (innerErr) {
+        console.error(`Failed to send reminder to reviewer ${id}:`, innerErr.message);
+      }
+    }
+
+    res.status(200).json({ success: true, message: 'Reminders sent (attempted).' });
+  } catch (error) {
+    console.error('Failed to send reminders:', error);
+    res.status(500).json({ message: 'Could not send reminders', details: error.message });
+  }
+});
+
+// POST /remind-reviewers : Send reminder emails to selected reviewers for a paper
+app.post('/remind-invited-reviewers', async (req, res) => {
+  try {
+    const { paperId, reviewerIds } = req.body;
+    if (!paperId || !reviewerIds || !Array.isArray(reviewerIds) || reviewerIds.length === 0) {
+      return res.status(400).json({ message: 'paperId and reviewerIds (non-empty array) are required' });
+    }
+
+    // Fetch paper title for email context
+    const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { Title: true } });
+
+    for (const id of reviewerIds) {
+      try {
+        const reviewer = await prisma.user.findUnique({ where: { id: parseInt(id, 10) }, select: { email: true, firstname: true, lastname: true } });
+        if (!reviewer) continue;
+        const subject = `Reminder: Invitaion pending for paper review ${paper ? paper.Title : paperId}`;
+        const msg = `Dear ${reviewer.firstname || ''} ${reviewer.lastname || ''},<br><br>This is a friendly reminder to respond to the invitation to review for the paper titled <strong>${paper ? paper.Title : paperId}</strong>.<br><br>Please update your response at your earliest convenience.<br><br>Thanks,<br>Conference Committee`;
+        sendMail(reviewer.email, subject, msg);
+        console.log(`Reminder sent to reviewer id=${id} (${reviewer.email})`);
+      } catch (innerErr) {
+        console.error(`Failed to send reminder to reviewer ${id}:`, innerErr.message);
+      }
+    }
+
+    res.status(200).json({ success: true, message: 'Reminders sent (attempted).' });
+  } catch (error) {
+    console.error('Failed to send reminders:', error);
+    res.status(500).json({ message: 'Could not send reminders', details: error.message });
+  }
+});
+
+// POST /remove-reviewers : Remove selected reviewers from a paper (delete review assignments)
+// POST /accept-conference-invite: Accept a conference invite
+app.post('/accept-conference-invite', async (req, res) => {
+  try {
+    const { conferenceId, userId } = req.body;
+    if (!conferenceId || !userId) {
+      return res.status(400).json({ message: 'conferenceId and userId are required' });
+    }
+
+    // First disconnect from InvitedReviewers
+    await prisma.conference.update({
+      where: { id: parseInt(conferenceId, 10) },
+      data: {
+        InvitedReviewers: {
+          disconnect: { id: parseInt(userId, 10) }
+        }
+      }
+    });
+
+    // Then connect to Reviewers
+    const updatedConf = await prisma.conference.update({
+      where: { id: parseInt(conferenceId, 10) },
+      data: {
+        Reviewers: {
+          connect: { id: parseInt(userId, 10) }
+        }
+      }
+    });
+
+    res.status(200).json({ conference: updatedConf });
+  } catch (error) {
+    console.error('Failed to accept conference invite:', error);
+    res.status(500).json({ message: 'Could not accept conference invite', details: error.message });
+  }
+});
+
+// POST /decline-conference-invite: Decline a conference invite
+app.post('/decline-conference-invite', async (req, res) => {
+  try {
+    const { conferenceId, userId } = req.body;
+    if (!conferenceId || !userId) {
+      return res.status(400).json({ message: 'conferenceId and userId are required' });
+    }
+
+    // Simply disconnect from InvitedReviewers
+    const updatedConf = await prisma.conference.update({
+      where: { id: parseInt(conferenceId, 10) },
+      data: {
+        InvitedReviewers: {
+          disconnect: { id: parseInt(userId, 10) }
+        }
+      }
+    });
+
+    res.status(200).json({ conference: updatedConf });
+  } catch (error) {
+    console.error('Failed to decline conference invite:', error);
+    res.status(500).json({ message: 'Could not decline conference invite', details: error.message });
+  }
+});
+
+app.post('/remove-reviewers', async (req, res) => {
+  try {
+    const { paperId, reviewerIds } = req.body;
+    if (!paperId || !reviewerIds || !Array.isArray(reviewerIds) || reviewerIds.length === 0) {
+      return res.status(400).json({ message: 'paperId and reviewerIds (non-empty array) are required' });
+    }
+
+    const parsedIds = reviewerIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    if (parsedIds.length === 0) return res.status(400).json({ message: 'No valid reviewerIds provided' });
+
+    // Delete the review records for these reviewers on this paper
+    await prisma.reviews.deleteMany({
+      where: {
+        PaperId: paperId,
+        ReviewerId: { in: parsedIds }
+      }
+    });
+
+    // Return updated paper (similar to other endpoints)
+    const updated = await prisma.paper.findUnique({
+      where: { id: paperId },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Reviews: {
+          select: {
+            id: true,
+            ReviewerId: true,
+            Comment: true,
+            Recommendation: true,
+            submittedAt: true,
+            Status: true,
+            User: {
+              select: {
+                id: true,
+                firstname: true,
+                lastname: true,
+                email: true,
+              }
+            }
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ paper: updated });
+  } catch (error) {
+    console.error('Failed to remove reviewers from paper:', error);
+    res.status(500).json({ message: 'Could not remove reviewers', details: error.message });
+  }
 });
