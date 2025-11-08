@@ -13,6 +13,8 @@ import PaperDecision from './components/PaperDecision';
 import ReviewPaper from './components/ReviewPaper';
 import ManageReviews from './components/ManageReviews';
 import JournalPortal from './components/JournalPortal';
+import PublicationChairPortal from './components/publication';
+import RegistrationChairPortal from './components/registrationChair';
 function App() {
   return (
     <UserProvider>

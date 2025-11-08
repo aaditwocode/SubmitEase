@@ -34,6 +34,20 @@ const getConferenceStatusBadge = (status) => {
   return <span className={badgeClasses}>{status}</span>;
 };
 
+const getUploadStatusBadge = (status) => {
+  let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
+  switch (status) {
+    case "Uploaded":
+      badgeClasses += "bg-green-100 text-green-700";
+      break;
+    case "Pending":
+    default:
+      badgeClasses += "bg-yellow-100 text-yellow-700";
+      break;
+  }
+  return <span className={badgeClasses}>{status}</span>;
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -52,12 +66,157 @@ const formatDateTime = (dateString) => {
   });
 };
 
+// --- NEW: Accepted Papers Upload Component ---
+const AcceptedPapersUpload = ({ acceptedPapers, onUploadDocument }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredPapers = useMemo(() => {
+    return (acceptedPapers || []).filter(paper => 
+      paper.Title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      paper.id?.toString().includes(searchTerm.toLowerCase()) ||
+      paper.Conference?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [acceptedPapers, searchTerm]);
+
+  if (!acceptedPapers || acceptedPapers.length === 0) {
+    return (
+      <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Final Submission Uploads</h3>
+        <p className="text-center text-gray-500 py-4">No accepted papers found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Final Submission Uploads</h3>
+      
+      {/* Search Input */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search accepted papers..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full max-w-md px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+        />
+      </div>
+
+      <div className="space-y-4">
+        {filteredPapers.map((paper) => (
+          <div key={paper.id} className="bg-white border border-[#e5e7eb] rounded-lg p-6 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h4 className="text-lg font-semibold text-[#1f2937]">{paper.Title}</h4>
+                <p className="text-sm text-[#6b7280]">Paper ID: {paper.id} | Conference: {paper.Conference?.name}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-sm text-[#6b7280]">Accepted on: {formatDate(paper.acceptedAt)}</span>
+              </div>
+            </div>
+
+            {/* Upload Sections */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Copyright Form Upload */}
+              <div className="border border-[#e5e7eb] rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <h5 className="font-medium text-[#1f2937]">Copyright Form</h5>
+                  {getUploadStatusBadge(paper.copyrightStatus || 'Pending')}
+                </div>
+                <p className="text-xs text-[#6b7280] mb-3">
+                  Upload signed copyright transfer form
+                </p>
+                <input 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => onUploadDocument(paper.id, 'copyright', e.target.files[0])}
+                  className="w-full text-xs text-[#6b7280] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20 mb-2"
+                />
+                {paper.copyrightFile && (
+                  <p className="text-xs text-green-600">Uploaded: {paper.copyrightFile}</p>
+                )}
+              </div>
+
+              {/* Final Paper Upload */}
+              <div className="border border-[#e5e7eb] rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <h5 className="font-medium text-[#1f2937]">Final Paper</h5>
+                  {getUploadStatusBadge(paper.finalPaperStatus || 'Pending')}
+                </div>
+                <p className="text-xs text-[#6b7280] mb-3">
+                  Upload camera-ready final version
+                </p>
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => onUploadDocument(paper.id, 'finalPaper', e.target.files[0])}
+                  className="w-full text-xs text-[#6b7280] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20 mb-2"
+                />
+                {paper.finalPaperFile && (
+                  <p className="text-xs text-green-600">Uploaded: {paper.finalPaperFile}</p>
+                )}
+              </div>
+
+              {/* Payment Slip Upload */}
+              <div className="border border-[#e5e7eb] rounded-lg p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <h5 className="font-medium text-[#1f2937]">Payment Slip</h5>
+                  {getUploadStatusBadge(paper.paymentStatus || 'Pending')}
+                </div>
+                <p className="text-xs text-[#6b7280] mb-3">
+                  Upload registration fee payment proof
+                </p>
+                <input 
+                  type="file" 
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => onUploadDocument(paper.id, 'payment', e.target.files[0])}
+                  className="w-full text-xs text-[#6b7280] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20 mb-2"
+                />
+                {paper.paymentFile && (
+                  <p className="text-xs text-green-600">Uploaded: {paper.paymentFile}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Overall Status */}
+            <div className="mt-4 pt-4 border-t border-[#e5e7eb]">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-[#1f2937]">Overall Completion:</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-24 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full" 
+                      style={{ 
+                        width: `${(
+                          (paper.copyrightStatus === 'Uploaded' ? 1 : 0) +
+                          (paper.finalPaperStatus === 'Uploaded' ? 1 : 0) +
+                          (paper.paymentStatus === 'Uploaded' ? 1 : 0)
+                        ) / 3 * 100}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <span className="text-xs text-[#6b7280]">
+                    {(
+                      (paper.copyrightStatus === 'Uploaded' ? 1 : 0) +
+                      (paper.finalPaperStatus === 'Uploaded' ? 1 : 0) +
+                      (paper.paymentStatus === 'Uploaded' ? 1 : 0)
+                    )}/3
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // --- Paper List Component ---
 const PaperList = ({ papers }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [searchTerm, setSearchTerm] = useState(""); // <-- NEW: Search state
+  const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
 
   const handleSort = (column) => {
@@ -70,7 +229,6 @@ const PaperList = ({ papers }) => {
   };
 
   const sortedAndFilteredPapers = useMemo(() => {
-    // --- NEW: Filtering logic ---
     const filtered = (papers || []).filter(paper => {
         const lowerSearch = searchTerm.toLowerCase();
         const keywordsString = Array.isArray(paper.Keywords) ? paper.Keywords.join(' ').toLowerCase() : '';
@@ -83,7 +241,6 @@ const PaperList = ({ papers }) => {
         );
     });
 
-    // --- Existing sorting logic, applied to 'filtered' list ---
     const sorted = [...filtered].sort((a, b) => {
       const aValue = a[sortBy];
       const bValue = b[sortBy];
@@ -101,7 +258,7 @@ const PaperList = ({ papers }) => {
       return 0;
     });
     return sorted;
-  }, [papers, sortBy, sortOrder, searchTerm]); // <-- NEW: Added searchTerm dependency
+  }, [papers, sortBy, sortOrder, searchTerm]);
 
   if (!papers || papers.length === 0) {
     return <p className="text-center text-gray-500 py-4">No papers submitted yet.</p>;
@@ -109,7 +266,6 @@ const PaperList = ({ papers }) => {
 
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
-      {/* --- NEW: Search Input --- */}
       <div className="p-4">
         <input
           type="text"
@@ -177,8 +333,7 @@ const PaperList = ({ papers }) => {
   );
 };
 
-
-// --- NEW: Conference List Component ---
+// --- Conference List Component ---
 const ConferenceList = ({ conferences, onNewSubmission }) => {
   const [sortBy, setSortBy] = useState("deadline");
   const [sortOrder, setSortOrder] = useState("asc");
@@ -207,7 +362,6 @@ const ConferenceList = ({ conferences, onNewSubmission }) => {
       const aValue = a[sortBy];
       const bValue = b[sortBy];
 
-      // Handle date sorting
       if (['startsAt', 'endAt', 'deadline'].includes(sortBy)) {
         const dateA = aValue ? new Date(aValue).getTime() : 0;
         const dateB = bValue ? new Date(bValue).getTime() : 0;
@@ -216,7 +370,6 @@ const ConferenceList = ({ conferences, onNewSubmission }) => {
         return 0;
       }
 
-      // Default string/number comparison
       if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
       if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
       return 0;
@@ -226,7 +379,6 @@ const ConferenceList = ({ conferences, onNewSubmission }) => {
 
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
-      {/* Search Input */}
       <div className="p-4">
         <input
           type="text"
@@ -279,7 +431,7 @@ const ConferenceList = ({ conferences, onNewSubmission }) => {
                   <button 
                     onClick={() => onNewSubmission(c)} 
                     className="px-3 py-1 text-xs bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
-                    disabled={c.status !== "Open"} // Optionally disable if not open
+                    disabled={c.status !== "Open"}
                   >
                     New Submission
                   </button>
@@ -297,10 +449,8 @@ const ConferenceList = ({ conferences, onNewSubmission }) => {
   );
 };
 
-
 // --- Small reusable author card (compact) ---
 const CompactAuthorCard = ({ author }) => {
-  // ... (rest of component is unchanged)
   if (!author) return null;
   return (
     <div className="p-3 border rounded-md bg-white">
@@ -313,7 +463,6 @@ const CompactAuthorCard = ({ author }) => {
 
 // --- Utility to reorder array on drag end ---
 const reorder = (list, startIndex, endIndex) => {
-  // ... (rest of function is unchanged)
   const result = Array.from(list);
   const [removed] = result.splice(startIndex, 1);
   result.splice(endIndex, 0, removed);
@@ -331,34 +480,31 @@ export default function ConferencePortal() {
   const [allUsers, setAllUsers] = useState([]);
 
   // --- UI State ---
-  const [showSubmissionForm, setShowSubmissionForm] = useState(false); // Controls modal visibility
+  const [showSubmissionForm, setShowSubmissionForm] = useState(false);
 
   // --- Form State ---
-  // ... (rest of state variables are unchanged)
   const [title, setTitle] = useState("");
   const [abstract, setAbstract] = useState("");
   const [keywords, setKeywords] = useState("");
   const [confId, setConfId] = useState(null);
-  const [conf, setConf] = useState(null); // Store the selected conference object
+  const [conf, setConf] = useState(null);
   const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
 
   // --- Invite Form State ---
-  // ... (rest of state variables are unchanged)
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteOrg, setInviteOrg] = useState("");
   const [inviteCountry, setInviteCountry] = useState("");
-  const countries = [ // Example list, replace or fetch dynamically if needed
+  const countries = [
     "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
     "Australia", "Netherlands", "Sweden", "Switzerland", "Singapore", "South Korea",
     "China", "India", "Brazil", "Italy", "Spain", "Norway", "Denmark", "Finland",
   ];
 
   // --- Event Handlers ---
-  // ... (rest of handlers are unchanged)
   const handlePortalClick = (portal) => navigate(`/${portal}`);
   const handleLogout = () => {
     setUser(null);
@@ -366,9 +512,49 @@ export default function ConferencePortal() {
     navigate("/home");
   };
 
+  // --- NEW: Handle document upload for accepted papers ---
+  const handleDocumentUpload = async (paperId, documentType, file) => {
+    if (!file) {
+      alert("Please select a file to upload.");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('paperId', paperId);
+      formData.append('documentType', documentType);
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:3001/upload-document', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload document');
+      }
+
+      const result = await response.json();
+      
+      // Update the paper in state
+      setPapers(prev => prev.map(paper => 
+        paper.id === paperId ? {
+          ...paper,
+          [`${documentType}Status`]: 'Uploaded',
+          [`${documentType}File`]: file.name,
+          [`${documentType}UploadedAt`]: new Date().toISOString()
+        } : paper
+      ));
+
+      alert(`${documentType.charAt(0).toUpperCase() + documentType.slice(1)} uploaded successfully!`);
+    } catch (error) {
+      console.error('Document upload failed:', error);
+      alert(`Error uploading ${documentType}: ${error.message}`);
+    }
+  };
+
   // --- NEW SUBMISSION FORM LOGIC ---
   const newSubmission = (selectedConf) => {
-    // ... (rest of function is unchanged)
     setTitle("");
     setAbstract("");
     setKeywords("");
@@ -384,7 +570,7 @@ export default function ConferencePortal() {
     setConfId(selectedConf.id);
 
     if (user && user.id) {
-      setAuthors([user]); // Start with the logged-in user
+      setAuthors([user]);
     } else {
       setAuthors([]);
       console.warn("Attempting to create submission without a logged-in user.");
@@ -393,7 +579,6 @@ export default function ConferencePortal() {
   };
 
   // --- Author Management Handlers ---
-  // ... (rest of handlers are unchanged)
   const addAuthorById = (userId) => {
     if (!userId) return;
     const parsedId = parseInt(userId, 10);
@@ -424,14 +609,13 @@ export default function ConferencePortal() {
 
   // --- Invite Author Handler ---
   const handleInviteAuthor = async (e) => {
-    // ... (rest of function is unchanged)
     e?.preventDefault(); 
     if (!inviteEmail || !inviteFirstName || !inviteLastName || !inviteCountry) {
         alert("Please fill in first name, last name, email, and country.");
         return;
     }
     try {
-        const response = await fetch('http://localhost:3001/users', { // Use the create user endpoint
+        const response = await fetch('http://localhost:3001/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -439,11 +623,10 @@ export default function ConferencePortal() {
                 password: "defaultPassword123", 
                 firstname: inviteFirstName,
                 lastname: inviteLastName,
-                role: ["Author"], // Or appropriate role
-                expertise:[], // Default empty expertise
+                role: ["Author"],
+                expertise:[],
                 organisation: inviteOrg,
                 country: inviteCountry,
-            
                 sub: "Invitation for collaboration on SubmitEase",
                 msg: `Hello ${inviteFirstName} ${inviteLastName},
 
@@ -463,12 +646,9 @@ export default function ConferencePortal() {
         }
         const newUser = await response.json();
 
-        
-        // Add user to BOTH lists immediately
         setAuthors(prev => [...prev, newUser]);
-        setAllUsers(prev => [...prev, newUser]); 
+        setAllUsers(prev => [...prev, newUser]);
 
-        // Reset and hide invite form
         setShowInviteForm(false);
         setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteOrg(""); setInviteCountry("");
     } catch (error) {
@@ -479,7 +659,6 @@ export default function ConferencePortal() {
 
   // --- Initial Paper Save Handler ---
   const handlePaperSubmit = async (event) => {
-    // ... (rest of function is unchanged)
     event.preventDefault();
     if (!pdfFile) {
         alert("Please select a PDF file to upload.");
@@ -497,13 +676,11 @@ export default function ConferencePortal() {
     const formData = new FormData();
     formData.append('title', title);
     formData.append('confId', confId);
-    formData.append('conf', JSON.stringify(conf)); // Send the full conf object
+    formData.append('conf', JSON.stringify(conf));
     formData.append('abstract', abstract);
     formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
-    // Send ordered author IDs
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('pdfFile', pdfFile);
-
 
     try {
       const response = await fetch('http://localhost:3001/savepaper', {
@@ -517,8 +694,7 @@ export default function ConferencePortal() {
       const savedPaper = await response.json();
       alert('Paper Saved Successfully! You can view/edit it from "My Submissions".');
       setShowSubmissionForm(false);
-      // Refresh the papers list after successful save
-      await getPapers(); // Call the fetch function directly
+      await getPapers();
     } catch (error) {
         console.error('Submission failed:', error);
         alert(`Error: ${error.message}`);
@@ -526,7 +702,6 @@ export default function ConferencePortal() {
   };
 
   // --- Data Fetching Effects ---
-  // ... (rest of effects are unchanged)
   const getPapers = async () => {
       if (user && user.id) {
           try {
@@ -538,10 +713,10 @@ export default function ConferencePortal() {
               if (!response.ok) throw new Error("Paper data fetch failed.");
               const data = await response.json();
               setPapers(data.papers || []);
-          } catch (err) { console.error("Error fetching papers:", err); setPapers([]); } // Set empty on error
+          } catch (err) { console.error("Error fetching papers:", err); setPapers([]); }
       } else {
           console.log("No user logged in, clearing papers.");
-          setPapers([]); // Clear papers if no user
+          setPapers([]);
       }
   };
 
@@ -555,13 +730,12 @@ export default function ConferencePortal() {
       } catch (err) { console.error("Error fetching conferences:", err); }
     };
     getConferences();
-    getPapers(); // Initial fetch for papers
-  }, [user]); // Re-fetch conferences and papers if user changes
+    getPapers();
+  }, [user]);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // Ensure this route returns FULL user objects
         const response = await fetch('http://localhost:3001/users/emails');
         if (!response.ok) throw new Error("User data fetch failed.");
         const data = await response.json();
@@ -569,13 +743,17 @@ export default function ConferencePortal() {
       } catch (error) { console.error("Error fetching users:", error); }
     };
     fetchUsers();
-  }, []); // Fetch users only once on component mount
+  }, []);
+
+  // --- Calculate accepted papers ---
+  const acceptedPapers = useMemo(() => {
+    return papers.filter(paper => paper.Status === "Accepted");
+  }, [papers]);
 
   // --- RENDER ---
   return (
     <div className="min-h-screen bg-[#ffffff]">
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        {/* ... (header is unchanged) ... */}
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2">
@@ -603,7 +781,6 @@ export default function ConferencePortal() {
           <h2 className="text-3xl font-bold text-[#1f2937]">Conference Portal</h2>
 
           {/* Statistics Section */}
-          {/* ... (statistics section is unchanged) ... */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Total Submissions</h3>
@@ -611,7 +788,7 @@ export default function ConferencePortal() {
             </div>
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Accepted Papers</h3>
-              <p className="text-3xl font-bold text-[#059669]">{papers.filter((p) => p.Status === "Accepted").length}</p>
+              <p className="text-3xl font-bold text-[#059669]">{acceptedPapers.length}</p>
             </div>
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Under Review</h3>
@@ -627,11 +804,15 @@ export default function ConferencePortal() {
             </div>
           </div>
 
+          {/* --- NEW: Accepted Papers Upload Section --- */}
+          <AcceptedPapersUpload 
+            acceptedPapers={acceptedPapers}
+            onUploadDocument={handleDocumentUpload}
+          />
 
-          {/* --- MODIFIED: Available Conferences Section --- */}
+          {/* Available Conferences Section */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Available Conferences</h3>
-            {/* --- Replaced card list with new table component --- */}
             <ConferenceList 
               conferences={conferences} 
               onNewSubmission={newSubmission} 
@@ -641,25 +822,20 @@ export default function ConferencePortal() {
           {/* My Submissions Section */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <h3 className="text-xl font-semibold text-[#1f2937] mb-4">My Submissions</h3>
-            {/* --- This component now includes its own search bar --- */}
             <PaperList papers={papers} />
           </div>
         </div>
       </main>
 
-      {/* --- MODAL with NEW Submission Form --- */}
-      {/* ... (modal and form are unchanged) ... */}
+      {/* Modal with New Submission Form */}
       {showSubmissionForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          {/* Modal Container */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
-            {/* Modal Header */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-[#1f2937]">New Paper Submission</h3>
               <button onClick={() => setShowSubmissionForm(false)} className="text-[#6b7280] hover:text-[#1f2937]">✕</button>
             </div>
 
-            {/* --- Form adapted from ViewPaper --- */}
             <form className="space-y-4" onSubmit={handlePaperSubmit}>
               <div>
                 <label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label>
@@ -669,7 +845,7 @@ export default function ConferencePortal() {
 
               <div>
                 <label className="block text-sm font-medium text-[#1f2937] mb-1">Conference</label>
-                <select value={confId || ""} disabled // Conference is selected initially, not changeable here
+                <select value={confId || ""} disabled
                         className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-gray-100 cursor-not-allowed">
                   {conf && <option value={conf.id}>{conf.name}</option>}
                 </select>
@@ -687,7 +863,7 @@ export default function ConferencePortal() {
                        className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
               </div>
 
-              {/* --- Authors Section --- */}
+              {/* Authors Section */}
               <div>
                 <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors (drag to reorder)</label>
                 <div className="space-y-2">
@@ -712,20 +888,20 @@ export default function ConferencePortal() {
                     </Droppable>
                   </DragDropContext>
 
-                  {/* --- Add/Invite Author UI --- */}
+                  {/* Add/Invite Author UI */}
                   {!showInviteForm && (
                     <div className="flex gap-2 items-center mt-2">
                       <select defaultValue="" onChange={(e) => { addAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
                         <option value="" disabled>-- Add another author by email --</option>
                         {allUsers
-                          .filter(u => u && u.id && !authors.some(a => a && a.id === u.id)) // Added checks for u and u.id
+                          .filter(u => u && u.id && !authors.some(a => a && a.id === u.id))
                           .map(u => ( <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>))}
                       </select>
                       <button type="button" onClick={() => setShowInviteForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
                     </div>
                   )}
 
-                  {/* --- Invite New Author Form (using div instead of form) --- */}
+                  {/* Invite New Author Form */}
                   {showInviteForm && (
                     <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
                        <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
@@ -748,21 +924,21 @@ export default function ConferencePortal() {
                 </div>
               </div>
 
-              {/* --- File Upload --- */}
+              {/* File Upload */}
               <div>
                 <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload Paper (PDF)</label>
                 <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" required className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
               </div>
 
-              {/* --- Action Buttons --- */}
+              {/* Action Buttons */}
               <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
                 <button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Save Paper</button>
                 <button type="button" onClick={() => setShowSubmissionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
               </div>
             </form>
-          </div> {/* End Modal Content */}
-        </div> // End Modal Backdrop
+          </div>
+        </div>
       )}
-    </div> // End Main Div
+    </div>
   );
 }
