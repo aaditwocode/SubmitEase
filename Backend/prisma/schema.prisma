@@ -22,6 +22,7 @@ model User {
   reviewedConferences  Conference[] @relation("ReviewerToConference")
   Reviews              Reviews[]
   ConfReviewInvitation Conference[] @relation("InvitedReviewerToConference")
+  ChairedTracks        Tracks[]     @relation("TrackChairs")
 }
 
 model Conference {
@@ -39,6 +40,7 @@ model Conference {
   Paper            Paper[]
   Reviewers        User[]   @relation("ReviewerToConference")
   InvitedReviewers User[]   @relation("InvitedReviewerToConference")
+  Tracks           Tracks[]
 }
 
 model Paper {
@@ -50,6 +52,8 @@ model Paper {
   URL           String
   Abstract      String
   Keywords      String[]
+  TrackId       Int?
+  Tracks        Tracks?     @relation(fields: [TrackId], references: [id])
   Status        String
   submittedAt   DateTime
   AuthorOrder   Int[]
@@ -73,6 +77,16 @@ model Reviews {
   scoreSoundness    Int?
   scoreSignificance Int?
   scoreRelevance    Int?
+  avgScore          Float     @default(0)
 
   @@unique([PaperId, ReviewerId])
+}
+
+model Tracks {
+  id           Int         @id @default(autoincrement())
+  Name         String
+  ConferenceId Int
+  Conference   Conference? @relation(fields: [ConferenceId], references: [id])
+  Chairs       User[]      @relation("TrackChairs")
+  Paper        Paper[]
 }

@@ -490,6 +490,7 @@ export default function ConferencePortal() {
   const [conf, setConf] = useState(null);
   const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
+  const [trackId, setTrackId] = useState(""); // <-- ADDED
 
   // --- Invite Form State ---
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -559,6 +560,7 @@ export default function ConferencePortal() {
     setAbstract("");
     setKeywords("");
     setPdfFile(null);
+    setTrackId(""); // <-- ADDED: Reset trackId
     setShowInviteForm(false);
     setInviteFirstName("");
     setInviteLastName("");
@@ -672,6 +674,10 @@ export default function ConferencePortal() {
         alert("At least one author is required.");
         return;
     }
+    if (conf?.Tracks && conf.Tracks.length > 0 && !trackId) {
+      alert("Please select a track for this submission.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append('title', title);
@@ -681,6 +687,7 @@ export default function ConferencePortal() {
     formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('pdfFile', pdfFile);
+    formData.append('trackId', trackId);
 
     try {
       const response = await fetch('http://localhost:3001/savepaper', {
@@ -723,6 +730,8 @@ export default function ConferencePortal() {
   useEffect(() => {
     const getConferences = async () => {
       try {
+        // IMPORTANT: Make sure this endpoint includes the Tracks relation
+        // e.g., in your backend: prisma.conference.findMany({ include: { Tracks: true } })
         const response = await fetch("http://localhost:3001/conferences");
         if (!response.ok) throw new Error("Conference data fetch failed.");
         const data = await response.json();
@@ -753,6 +762,7 @@ export default function ConferencePortal() {
   // --- RENDER ---
   return (
     <div className="min-h-screen bg-[#ffffff]">
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
@@ -776,6 +786,7 @@ export default function ConferencePortal() {
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           <h2 className="text-3xl font-bold text-[#1f2937]">Conference Portal</h2>
@@ -862,6 +873,27 @@ export default function ConferencePortal() {
                 <input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} required
                        className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
               </div>
+
+              {/* --- THIS IS THE NEW TRACK SELECTION FIELD --- */}
+              {conf?.Tracks && conf.Tracks.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-[#1f2937] mb-1">Select Track</label>
+                  <select 
+                    value={trackId} 
+                    onChange={(e) => setTrackId(e.target.value)}
+                    className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                  >
+                    <option value="">Select A Track</option>
+                    {conf.Tracks.map((track) => (
+                      <option key={track.id} value={track.id}>
+                        {track.Name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* --- END OF NEW FIELD --- */}
+
 
               {/* Authors Section */}
               <div>

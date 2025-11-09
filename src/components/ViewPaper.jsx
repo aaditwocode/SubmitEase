@@ -65,6 +65,7 @@ export default function ViewPaper() {
   const [confId, setConfId] = useState(null);
   const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null); // For uploading a *new* file
+  const [trackId, setTrackId] = useState(""); // <-- NEW: State for Track
 
   // --- Invite Form State ---
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -73,6 +74,7 @@ export default function ViewPaper() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteOrg, setInviteOrg] = useState("");
   const [inviteCountry, setInviteCountry] = useState("");
+  
   // --- 1. Main Data Fetching Effect (Get Paper Details) ---
   useEffect(() => {
     if (!paperId) {
@@ -83,6 +85,7 @@ export default function ViewPaper() {
     const fetchPaper = async () => {
       setLoading(true);
       try {
+        // IMPORTANT: Ensure this endpoint includes Conference { include: { Tracks: true } }
         const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
         if (!response.ok) {
           throw new Error("Failed to fetch paper details.");
@@ -99,26 +102,22 @@ export default function ViewPaper() {
         setAbstract(data.paper.Abstract);
         setKeywords(data.paper.Keywords.join(', '));
         setConfId(data.paper.Conference.id);
+        setTrackId(data.paper.TrackId || ""); // <-- NEW: Populate trackId
+        
         // --- Sort authors based on AuthorOrder ---
-const fetchedAuthors = data.paper.Authors || [];
-const authorOrder = data.paper.AuthorOrder;
+        const fetchedAuthors = data.paper.Authors || [];
+        const authorOrder = data.paper.AuthorOrder;
 
-if (authorOrder && authorOrder.length > 0 && fetchedAuthors.length > 0) {
-const authorMap = new Map(fetchedAuthors.map(author => [author.id, author]));
-
-// Map the IDs from AuthorOrder to the actual author objects
-const sortedAuthors = authorOrder.map(id => authorMap.get(id)).filter(Boolean); // filter(Boolean) removes nulls/undefined
-
-// Defensively add any authors who are in the Authors list but not in the AuthorOrder list
-const authorsInOrderSet = new Set(authorOrder);
-const authorsNotInOrder = fetchedAuthors.filter(author => !authorsInOrderSet.has(author.id));
-
-setAuthors([...sortedAuthors, ...authorsNotInOrder]);
-} else {
-// Fallback if AuthorOrder is missing or empty
-setAuthors(fetchedAuthors);
-}
- // --- End of author sorting ---
+        if (authorOrder && authorOrder.length > 0 && fetchedAuthors.length > 0) {
+          const authorMap = new Map(fetchedAuthors.map(author => [author.id, author]));
+          const sortedAuthors = authorOrder.map(id => authorMap.get(id)).filter(Boolean);
+          const authorsInOrderSet = new Set(authorOrder);
+          const authorsNotInOrder = fetchedAuthors.filter(author => !authorsInOrderSet.has(author.id));
+          setAuthors([...sortedAuthors, ...authorsNotInOrder]);
+        } else {
+          setAuthors(fetchedAuthors);
+        }
+        // --- End of author sorting ---
         
       } catch (err) {
         setError(err.message);
@@ -133,7 +132,6 @@ setAuthors(fetchedAuthors);
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // ASSUMPTION: This route returns FULL user objects
         const response = await fetch('http://localhost:3001/users/emails');
         if (response.ok) {
           const data = await response.json();
@@ -184,7 +182,6 @@ setAuthors(fetchedAuthors);
     }
 
     try {
-        // ASSUMPTION: You have a POST /users/invite endpoint
         const response = await fetch('http://localhost:3001/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -205,12 +202,10 @@ setAuthors(fetchedAuthors);
             throw new Error(errData.message || "Failed to invite user.");
         }
 
-        const newUser = await response.json(); // Assumes backend returns the new user object
+        const newUser = await response.json(); 
+        setAuthors(prev => [...prev, newUser]); 
+        setAllUsers(prev => [...prev, newUser]); 
         
-        setAuthors(prev => [...prev, newUser]); // Add new user to authors list
-        setAllUsers(prev => [...prev, newUser]); // Add new user to allUsers list
-        
-        // Reset and hide form
         setShowInviteForm(false);
         setInviteEmail("");
         setInviteFirstName("");
@@ -229,13 +224,24 @@ setAuthors(fetchedAuthors);
   // --- Paper Update/Submit Handlers ---
   const handleUpdatePaper = async (e) => {
     e.preventDefault();
+
+    // <-- NEW: Validation for track
+    if (paper?.Conference?.Tracks && paper.Conference.Tracks.length > 0 && !trackId) {
+      alert("Please select a track for this submission.");
+      return;
+    }
+
     const formData = new FormData();
-    formData.append('paperId', paperId); // Send paperId
+    formData.append('paperId', paperId); 
     formData.append('title', title);
     formData.append('abstract', abstract);
     formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('confId', confId);
+    
+    if (trackId) { // <-- NEW: Add trackId to form data
+      formData.append('trackId', trackId);
+    }
     
     if (pdfFile) {
         formData.append('pdfFile', pdfFile);
@@ -253,13 +259,13 @@ setAuthors(fetchedAuthors);
         }
 
         const updatedPaper = await response.json();
-        // Update state to reflect changes
         setPaper(updatedPaper.paper);
         setAuthors(updatedPaper.paper.Authors || []);
         setKeywords(updatedPaper.paper.Keywords.join(', '));
+        setTrackId(updatedPaper.paper.TrackId || ""); // <-- NEW: Re-set trackId
         
         alert('Paper saved successfully!');
-        setPdfFile(null); // Clear staged file
+        setPdfFile(null); 
     } catch (error) {
         console.error('Update failed:', error);
         alert(`Error: ${error.message}`);
@@ -269,23 +275,33 @@ setAuthors(fetchedAuthors);
 
   const handleSubmitForReview = async (e) => {
     e.preventDefault();
+
+    // <-- NEW: Validation for track
+    if (paper?.Conference?.Tracks && paper.Conference.Tracks.length > 0 && !trackId) {
+      alert("Please select a track for this submission.");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to submit this paper? You will no longer be able to edit it.")) {
         return;
     }
     const formData = new FormData();
-    formData.append('paperId', paperId); // Send paperId
+    formData.append('paperId', paperId); 
     formData.append('title', title);
     formData.append('abstract', abstract);
     formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('confId', confId);
     
+    if (trackId) { // <-- NEW: Add trackId to form data
+      formData.append('trackId', trackId);
+    }
+
     if (pdfFile) {
         formData.append('pdfFile', pdfFile);
     }
     try {
         
-        // ASSUMPTION: You have a POST /submitpaper/:id endpoint
         const response = await fetch(`http://localhost:3001/submitpaper`, {
             method: 'POST',
             body: formData,
@@ -298,7 +314,7 @@ setAuthors(fetchedAuthors);
 
         const submittedPaper = await response.json();
         setPaper(submittedPaper.paper);
-        setIsEditable(false); // Lock the form
+        setIsEditable(false); 
         alert('Paper submitted for review!');
 
     } catch (error) {
@@ -340,10 +356,8 @@ setAuthors(fetchedAuthors);
 
       {/* --- Main Content: 2-Column Layout --- */}
       <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* LAYOUT FIX: Changed to lg:grid-cols-5 */}
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-8">
           
-          {/* LAYOUT FIX: Changed to lg:col-span-2 */}
           <div className="lg:col-span-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full space-y-4 h-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-[#1f2937]">Paper Details</h3>
@@ -364,7 +378,7 @@ setAuthors(fetchedAuthors);
                   value={confId || ""} 
                   onChange={(e) => setConfId(e.target.value)} 
                   required 
-                  disabled={true} // Always disabled as per your request
+                  disabled={true} 
                   className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#059669] disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   {paper && paper.Conference ? (
@@ -376,6 +390,31 @@ setAuthors(fetchedAuthors);
                   )}
                 </select>
               </div>
+
+              {/* --- NEW: Track Selection --- */}
+              {paper?.Conference?.Tracks && paper.Conference.Tracks.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-[#1f2937] mb-1">
+                    Track {isEditable && '*'}
+                  </label>
+                  <select 
+                    value={trackId} 
+                    onChange={(e) => setTrackId(e.target.value)} 
+                    required={isEditable}
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#059669] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select a track</option>
+                    {paper.Conference.Tracks.map((track) => (
+                      <option key={track.id} value={track.id}>
+                        {track.Name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* --- END: Track Selection --- */}
+
 
               <div>
                 <label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label>
@@ -491,13 +530,12 @@ setAuthors(fetchedAuthors);
             </form>
           </div>
 
-          {/* LAYOUT FIX: Changed to lg:col-span-3 */}
           <div className="lg:col-span-4 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full h-[90vh]">
             <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Document Viewer</h3> 
             <iframe 
               src={`${paper.URL}?v=${new Date(paper.submittedAt).getTime()}`} 
               title="Paper PDF Viewer" 
-              width="100%" // LAYOUT FIX: Changed to 100%
+              width="100%" 
               height="95%"
               className="border rounded-md"
             />

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
-
 export default function ConferenceRegistration({ onBack }) {
   const navigate = useNavigate();
   
@@ -15,18 +14,20 @@ export default function ConferenceRegistration({ onBack }) {
     city: "", 
     country: "", 
     startsAtDate: "", 
-    startsAtTime: "", 
+    // REMOVED: startsAtTime
     endAtDate: "",
-    endAtTime: "",
+    // REMOVED: endAtTime
     deadlineDate: "",
     deadlineTime: "",
     link: "",
     Partners: [],
+    tracks: [], 
     status: "Pending Approval", 
   });
 
   const [errors, setErrors] = useState({});
   const [partnerInput, setPartnerInput] = useState("");
+  const [trackInput, setTrackInput] = useState(""); 
 
   const countries = [
     "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
@@ -42,25 +43,27 @@ export default function ConferenceRegistration({ onBack }) {
     if (!formData.city.trim()) newErrors.city = "City is required";
     if (!formData.country) newErrors.country = "Country is required";
     if (!formData.startsAtDate) newErrors.startsAtDate = "Start date is required";
-    if (!formData.startsAtTime) newErrors.startsAtTime = "Start time is required";
+    // REMOVED: startsAtTime check
     if (!formData.endAtDate) newErrors.endAtDate = "End date is required";
-    if (!formData.endAtTime) newErrors.endAtTime = "End time is required";
+    // REMOVED: endAtTime check
     if (!formData.deadlineDate) newErrors.deadlineDate = "Submission Deadline Date Is Required";
     if (!formData.deadlineTime) newErrors.deadlineTime = "Submission Deadline Time Is Required";
     if (!formData.link.trim()) newErrors.link = "Conference link is required";
 
-    // CORRECTED: Date validation logic now uses the correct state variables.
-    if (formData.startsAtDate && formData.startsAtTime && formData.endAtDate && formData.endAtTime) {
-      const startsAt = new Date(`${formData.startsAtDate}T${formData.startsAtTime}`);
-      const endAt = new Date(`${formData.endAtDate}T${formData.endAtTime}`);
-      if (endAt <= startsAt) {
-        newErrors.endAtDate = "End date and time must be after the start date and time";
+    // UPDATED: Date validation logic
+    if (formData.startsAtDate && formData.endAtDate) {
+      const startsAt = new Date(formData.startsAtDate);
+      const endAt = new Date(formData.endAtDate);
+      if (endAt < startsAt) {
+        newErrors.endAtDate = "End date must be on or after the start date";
       }
     }
 
-    if (formData.deadlineDate && formData.deadlineTime && formData.startsAtDate && formData.startsAtTime) {
+    // UPDATED: Deadline validation logic
+    if (formData.deadlineDate && formData.deadlineTime && formData.startsAtDate) {
       const deadline = new Date(`${formData.deadlineDate}T${formData.deadlineTime}`);
-      const startsAt = new Date(`${formData.startsAtDate}T${formData.startsAtTime}`);
+      // new Date(string) with just YYYY-MM-DD creates a date at 00:00:00 local time
+      const startsAt = new Date(formData.startsAtDate); 
       if (deadline >= startsAt) {
         newErrors.deadlineDate = "Submission deadline must be before the conference start date";
       }
@@ -108,20 +111,39 @@ export default function ConferenceRegistration({ onBack }) {
     }));
   };
 
+  const addTrack = () => {
+    if (trackInput.trim() && !formData.tracks.includes(trackInput.trim())) {
+      setFormData((prev) => ({
+        ...prev,
+        tracks: [...prev.tracks, trackInput.trim()],
+      }));
+      setTrackInput("");
+    }
+  };
+
+  const removeTrack = (track) => {
+    setFormData((prev) => ({
+      ...prev,
+      tracks: prev.tracks.filter((t) => t !== track),
+    }));
+  };
+
   const handleSubmit = async(e) => {
     e.preventDefault();
     if (validateForm()) {
+      // UPDATED: Construct startsAt and endAt for database
       const conferenceData = {
         name: formData.name,
         location: `${formData.city}, ${formData.country}`,
-        startsAt: new Date(`${formData.startsAtDate}T${formData.startsAtTime}`).toISOString(),
-        endAt: new Date(`${formData.endAtDate}T${formData.endAtTime}`).toISOString(),
-        // CORRECTED: The deadline was being created from a non-existent state variable.
-        // It now correctly uses deadlineDate and deadlineTime.
+        // Set to 00:00:00 on the start date
+        startsAt: new Date(`${formData.startsAtDate}T00:00:00`).toISOString(), 
+        // Set to 23:59:59 on the end date to make it inclusive
+        endAt: new Date(`${formData.endAtDate}T23:59:59`).toISOString(),
         deadline: new Date(`${formData.deadlineDate}T${formData.deadlineTime}`).toISOString(),
         link: formData.link,
         status: formData.status,
         Partners: formData.Partners,
+        tracks: formData.tracks, 
         hostID: user.id,
       };
 
@@ -129,8 +151,6 @@ export default function ConferenceRegistration({ onBack }) {
         const response = await fetch("http://localhost:3001/conference/registeration", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // CORRECTED: The body was trying to stringify an undefined 'payload' variable.
-          // It now correctly uses the 'conferenceData' object.
           body: JSON.stringify(conferenceData),
         });
         if (!response.ok) {
@@ -152,6 +172,13 @@ export default function ConferenceRegistration({ onBack }) {
     if (e.key === "Enter") {
       e.preventDefault();
       addPartner();
+    }
+  };
+
+  const handleTrackKeyPress = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTrack();
     }
   };
 
@@ -270,70 +297,45 @@ export default function ConferenceRegistration({ onBack }) {
                 {/* Right Column */}
                 <div className="space-y-6">
                   
-                  {/* Start DateTime */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Start Date *</label>
-                      <input
-                        type="date"
-                        value={formData.startsAtDate}
-                        onChange={(e) => handleInputChange("startsAtDate", e.target.value)}
-                        className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
-                          errors.startsAtDate ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
-                        }`}
-                      />
-                      {errors.startsAtDate && <p className="text-red-500 text-sm mt-1">{errors.startsAtDate}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Start Time *</label>
-                      <input
-                        type="time"
-                        value={formData.startsAtTime}
-                        onChange={(e) => handleInputChange("startsAtTime", e.target.value)}
-                        className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
-                          errors.startsAtTime ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
-                        }`}
-                      />
-                      {errors.startsAtTime && <p className="text-red-500 text-sm mt-1">{errors.startsAtTime}</p>}
-                    </div>
+                  {/* Start Date */}
+                  {/* MODIFIED: Removed grid and time input */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Start Date *</label>
+                    <input
+                      type="date"
+                      value={formData.startsAtDate}
+                      onChange={(e) => handleInputChange("startsAtDate", e.target.value)}
+                      className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
+                        errors.startsAtDate ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
+                      }`}
+                    />
+                    {errors.startsAtDate && <p className="text-red-500 text-sm mt-1">{errors.startsAtDate}</p>}
                   </div>
-
-                  {/* End DateTime */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference End Date *</label>
-                      <input
-                        type="date"
-                        value={formData.endAtDate}
-                        onChange={(e) => handleInputChange("endAtDate", e.target.value)}
-                        className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
-                          errors.endAtDate ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
-                        }`}
-                      />
-                      {errors.endAtDate && <p className="text-red-500 text-sm mt-1">{errors.endAtDate}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference End Time *</label>
-                      <input
-                        type="time"
-                        value={formData.endAtTime}
-                        onChange={(e) => handleInputChange("endAtTime", e.target.value)}
-                        className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
-                          errors.endAtTime ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
-                        }`}
-                      />
-                      {errors.endAtTime && <p className="text-red-500 text-sm mt-1">{errors.endAtTime}</p>}
-                    </div>
+                    {/* REMOVED: Start Time Input */}
+                 
+                  {/* End Date */}
+                  {/* MODIFIED: Removed grid and time input */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference End Date *</label>
+                    <input
+                      type="date"
+                      value={formData.endAtDate}
+                      onChange={(e) => handleInputChange("endAtDate", e.target.value)}
+                      className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
+                        errors.endAtDate ? "border-red-500" : "border-[#e5e7eb] hover:border-[#059669]/50"
+                      }`}
+                    />
+                    {errors.endAtDate && <p className="text-red-500 text-sm mt-1">{errors.endAtDate}</p>}
                   </div>
+                    {/* REMOVED: End Time Input */}
 
                   {/* Submission Deadline */}
+                  {/* (This section remains unchanged, as a deadline needs a time) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">Submission Deadline Date *</label>
                       <input
                         type="date"
-                        // CORRECTED: The value was pointing to formData.deadline, which does not exist.
-                        // It now correctly points to formData.deadlineDate.
                         value={formData.deadlineDate}
                         onChange={(e) => handleInputChange("deadlineDate", e.target.value)}
                         className={`w-full px-4 py-3 bg-[#f9fafb] border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] ${
@@ -408,6 +410,56 @@ export default function ConferenceRegistration({ onBack }) {
                 )}
               </div>
 
+              {/* Tracks Section */}
+              <div className="mt-8">
+                <label className="block text-sm font-medium text-[#1f2937] mb-2">
+                  Conference Tracks (Optional)
+                </label>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={trackInput}
+                    onChange={(e) => setTrackInput(e.target.value)}
+                    onKeyPress={handleTrackKeyPress}
+                    placeholder="Enter track name (e.g., AI/ML, Cybersecurity)"
+                    className="flex-1 px-4 py-3 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#059669]/50 focus:border-[#059669] hover:border-[#059669]/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={addTrack}
+                    className="px-6 py-3 bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-all duration-200 font-medium"
+                  >
+                    Add
+                  </button>
+                </div>
+                {formData.tracks.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.tracks.map((track, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-2 px-3 py-1 bg-[#059669]/10 text-[#059669] rounded-full text-sm border border-[#059669]/20"
+                      >
+                        {track}
+                        <button
+                          type="button"
+                          onClick={() => removeTrack(track)}
+                          className="hover:bg-[#059669]/20 rounded-full p-1 transition-colors"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Submit Button */}
               <div className="mt-10 pt-6 border-t border-[#e5e7eb]">
                 <button
@@ -424,4 +476,3 @@ export default function ConferenceRegistration({ onBack }) {
     </div>
   );
 }
-

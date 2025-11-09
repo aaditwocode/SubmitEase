@@ -15,6 +15,8 @@ import ManageReviews from './components/ManageReviews';
 import JournalPortal from './components/JournalPortal';
 import PublicationChairPortal from './components/publication';
 import RegistrationChairPortal from './components/registrationChair';
+import ConferenceDetailPage from './components/ConferenceDetails_ChiefChair';
+import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
 function App() {
   return (
     <UserProvider>
@@ -96,6 +98,10 @@ function App() {
                 <ManageConferences/>
               </ProtectedRoute>
             }
+          />
+          <Route 
+            path="/conference/manage/:hashedConId" 
+            element={<ConferenceDetails_ChiefChair />} 
           />
         </Routes>
       </BrowserRouter>
