@@ -43,6 +43,7 @@ export default function SignInPage() {
       setTimeout(() => navigate('/dashboard'), 200);
     } catch (err) {
       console.error(err);
+      setLoading(false);
       setFeedback({ message: err.message, type: 'error' });
     }
   };

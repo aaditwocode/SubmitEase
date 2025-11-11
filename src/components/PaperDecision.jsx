@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 // --- Small reusable author card (compact) ---
-// This can be reused for Reviewers as well
 const CompactAuthorCard = ({ author }) => {
     // ... (component unchanged)
     if (!author) return null;
@@ -16,8 +15,6 @@ const CompactAuthorCard = ({ author }) => {
         </div>
     );
 };
-
-// (drag-and-drop removed) 
 
 // --- Helper for status badge ---
 const getStatusBadge = (status) => {
@@ -74,6 +71,42 @@ const formatDate = (dateString) => {
         });
     } catch (error) {
         return 'Invalid Date';
+    }
+};
+
+// --- NEW: Helper for date difference ---
+const calculateDaysPending = (assignedAt, submittedAt) => {
+    if (submittedAt) { // If submitted, don't show difference
+        return <span className="text-gray-500">—</span>; 
+    }
+    if (!assignedAt) { // If not assigned, can't calculate
+        return <span className="text-gray-500">—</span>;
+    }
+    try {
+        const assignDate = new Date(assignedAt);
+        const now = new Date(); // Current time
+        
+        // Difference in milliseconds
+        const diffTime = now.getTime() - assignDate.getTime();
+
+        // If assignment date is in the future, don't show
+        if (diffTime < 0) {
+            return <span className="text-gray-500">—</span>;
+        }
+        
+        // Difference in days
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Add color based on duration
+        let textColor = "text-green-600"; // Freshly assigned
+        if (diffDays > 7) textColor = "text-yellow-600"; // Over a week
+        if (diffDays > 14) textColor = "text-red-600"; // Over two weeks
+
+        const dayText = diffDays === 1 ? '1 day' : `${diffDays} days`;
+        return <span className={`font-medium ${textColor}`}>{dayText}</span>;
+
+    } catch (error) {
+        return <span className="text-red-500">Error</span>;
     }
 };
 
@@ -257,8 +290,6 @@ export default function PaperDecision() {
         setNewInvitedReviewers(prev => prev.filter((_, idx) => idx !== indexToRemove));
     };
 
-    // drag-and-drop removed: lists are now static (no reorder)
-
     // --- Invite Reviewer Handlers ---
     const handleInviteReviewer = async (e) => {
         // ... (function unchanged)
@@ -283,12 +314,12 @@ export default function PaperDecision() {
                     sub: "Invitation for collaboration on SubmitEase",
                     msg: `Hello ${inviteReviewerFirstName} ${inviteReviewerLastName},
 
-                You are invited to collaborate on SubmitEase. We've created a temporary account for you so you can be added as an author on submissions. Please sign in on Submitease using the email address (${inviteReviewerEmail}) and the temporary password provided below: defaultPassword123
+            You are invited to collaborate on SubmitEase. We've created a temporary account for you so you can be added as an author on submissions. Please sign in on Submitease using the email address (${inviteReviewerEmail}) and the temporary password provided below: defaultPassword123
 
-                If you have any questions, reply to this email.
+            If you have any questions, reply to this email.
 
-                Thanks,
-                ${user?.firstname || 'SubmitEase Team'}`,
+            Thanks,
+            ${user?.firstname || 'SubmitEase Team'}`,
                     sendEmail: true,
                     invitedBy: user?.id || null,
                 }),
@@ -430,6 +461,12 @@ export default function PaperDecision() {
                     aValue = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
                     bValue = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
                     break;
+                // --- NEW SORT CASE ---
+                case 'assignedAt':
+                    aValue = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
+                    bValue = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
+                    break;
+                // --- END NEW SORT CASE ---
                 case 'recommendation':
                     aValue = a.Recommendation || "";
                     bValue = b.Recommendation || "";
@@ -496,7 +533,7 @@ export default function PaperDecision() {
 
     // --- New: Checkbox handlers for selecting reviewers in the table ---
     const toggleCheckedReviewId = (reviewerId) => {
-        // Prevent toggling if the review for this reviewer is already Submitted
+        // ... (function unchanged)
         const reviewObj = (reviews || []).find(r => r.ReviewerId === reviewerId);
         if (reviewObj && (reviewObj.Status || '').toLowerCase() === 'submitted') return;
 
@@ -509,13 +546,13 @@ export default function PaperDecision() {
     };
 
     const handleSelectAllVisible = () => {
+        // ... (function unchanged)
         const visibleReviewerIds = Array.from(new Set(filteredAndSortedReviews
             .filter(r => r.Status !== 'Submitted')
             .map(r => r.ReviewerId)
             .filter(Boolean)));
         const allSelected = visibleReviewerIds.every(id => checkedReviewIds.has(id));
         if (allSelected) {
-            // clear only those visible
             setCheckedReviewIds(prev => {
                 const next = new Set(prev);
                 visibleReviewerIds.forEach(id => next.delete(id));
@@ -532,10 +569,10 @@ export default function PaperDecision() {
 
     // --- New: Remind selected reviewers via backend ---
     const handleRemindReviewers = async () => {
+        // ... (function unchanged)
         const selectedIds = Array.from(checkedReviewIds);
         if (selectedIds.length === 0) return alert('Please select at least one reviewer to remind.');
 
-        // Exclude any reviewers whose review status is 'Submitted'
         const selectableIds = selectedIds.filter(id => {
             const r = (reviews || []).find(rr => rr.ReviewerId === id);
             return !(r && (r.Status || '').toLowerCase() === 'submitted');
@@ -543,7 +580,6 @@ export default function PaperDecision() {
 
         if (selectableIds.length === 0) return alert('No selectable reviewers (selected ones are already submitted).');
 
-        // Partition into under-review and pending-invitation groups
         const underReviewIds = selectableIds.filter(id => {
             const r = (reviews || []).find(rr => rr.ReviewerId === id);
             return r && (r.Status || '').toLowerCase() === 'under review';
@@ -594,6 +630,7 @@ export default function PaperDecision() {
 
     // --- New: Remove selected reviewers from paper ---
     const handleDeleteReviewers = async () => {
+        // ... (function unchanged)
         const reviewerIds = Array.from(checkedReviewIds);
         console.log('Removing reviewers with IDs:', reviewerIds);
         if (reviewerIds.length === 0) return alert('Please select at least one reviewer to remove.');
@@ -891,13 +928,12 @@ export default function PaperDecision() {
                         ) : (
 
                             <div className="overflow-x-auto max-h-[80vh] bg-white rounded-lg shadow border border-[#e5e7eb]">
-                                {/* MODIFIED: Table-fixed and new width classes */}
-                                <table className="w-full table-fixed min-w-[1000px]">
+                                <table className="w-full table-fixed min-w-[1200px]">
                                     <thead>
-                                        {/* ... (table header modified for checkboxes) ... */}
                                         <tr className="border-b border-[#e5e7eb]">
                                             <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]"><input type="checkbox" onChange={handleSelectAllVisible} checked={allVisibleSelected} /></th>
                                             <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Reviewer</th>
+                                            
 
                                             <th
                                                 className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
@@ -905,10 +941,9 @@ export default function PaperDecision() {
                                             >
                                                 Submitted {reviewSortBy === "submittedAt" && (reviewSortOrder === "asc" ? "↑" : "↓")}
                                             </th>
-
+                                            
+                                           
                                             <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Comment</th>
-
-
 
                                             <th
                                                 className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
@@ -917,7 +952,7 @@ export default function PaperDecision() {
                                                 Review Status {reviewSortBy === "status" && (reviewSortOrder === "asc" ? "↑" : "↓")}
                                             </th>
 
-                                            {/* --- NEW: Score Headers --- */}
+                                            {/* --- Score Headers --- */}
                                             <th
                                                 className=" text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
                                                 onClick={() => handleReviewSort("score")}
@@ -930,6 +965,17 @@ export default function PaperDecision() {
                                             >
                                                 Decision {reviewSortBy === "recommendation" && (reviewSortOrder === "asc" ? "↑" : "↓")}
                                             </th>
+                                            {/* --- NEW COLUMN HEADER --- */}
+                                            <th
+                                                className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]"
+                                                onClick={() => handleReviewSort("assignedAt")}
+                                            >
+                                                Assigned On {reviewSortBy === "assignedAt" && (reviewSortOrder === "asc" ? "↑" : "↓")}
+                                            </th>
+                                             {/* --- NEW COLUMN HEADER --- */}
+                                            <th className=" text-left py-3 px-4 text-sm font-medium text-[#6b7280]">
+                                                Days Pending
+                                            </th>
 
                                         </tr>
                                     </thead>
@@ -940,7 +986,6 @@ export default function PaperDecision() {
                                             const isPending = !review.submittedAt;
 
                                             return (
-                                                // ... (table row unchanged) ...
                                                 <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
 
                                                     {/* Column 0: Checkbox */}
@@ -959,11 +1004,15 @@ export default function PaperDecision() {
                                                             `Reviewer ${index + 1}` // Fallback
                                                         )}
                                                     </td>
+                                                    
+                                                    
 
                                                     {/* Column 2: Submitted Date */}
                                                     <td className="py-3 px-4 text-sm text-[#1f2937] align-top">
                                                         {formatDate(review.submittedAt)}
                                                     </td>
+                                                    
+                                                    
 
                                                     {/* Column 3: Comment */}
                                                     <td className="py-3 px-4 text-sm text-[#1f2937] align-top whitespace-pre-wrap break-words">
@@ -976,11 +1025,19 @@ export default function PaperDecision() {
                                                     </td>
                                                     {/* --- NEW: Score Cells --- */}
                                                     <td className="py-3 px-4 text-sm text-[#1f2937] align-top text-center font-medium">
-                                                        {isPending ? '—' : ((review.scoreOriginality + review.scoreClarity + review.scoreRelevance + review.scoreSignificance + review.scoreSoundness) / 5 || '—')}
+                                                        {isPending ? '—' : (review.avgScore || '—')}
                                                     </td>
                                                     {/* Column 4: Recommendation */}
                                                     <td className="py-3 px-4 align-top">
                                                         {getRecommendationBadge(review.Recommendation)}
+                                                    </td>
+                                                    {/* --- NEW COLUMN CELL --- */}
+                                                    <td className="py-3 px-4 text-sm text-[#1f2937] align-top">
+                                                        {formatDate(review.assignedAt)}
+                                                    </td>
+                                                    {/* --- NEW COLUMN CELL --- */}
+                                                    <td className="py-3 px-4 text-sm align-top">
+                                                        {calculateDaysPending(review.assignedAt, review.submittedAt)}
                                                     </td>
                                                 </tr>
                                             );
@@ -991,8 +1048,6 @@ export default function PaperDecision() {
                         )}
                     </div>
                     {/* --- END: Combined Reviews List Section --- */}
-
-                    {/* --- REMOVED: Second score table is gone --- */}
 
                     {/* --- Final Decision Section --- */}
                     {paper.Status === 'Under Review' && (
