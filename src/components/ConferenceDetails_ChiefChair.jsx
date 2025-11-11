@@ -394,7 +394,7 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
  * - Changed prop `onFinalDecision` to `onBulkDecision` for clarity.
  * - Updated local `handleBulkDecision` to call this prop.
  */
-const VerdictSection = ({ papers, onBulkDecision }) => {
+const VerdictSection = ({ papers, onBulkDecision,navigate }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [trackFilter, setTrackFilter] = useState("All");
@@ -483,7 +483,6 @@ const VerdictSection = ({ papers, onBulkDecision }) => {
 
   const selectClasses = "px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white text-sm";
   const inputClasses = "px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white text-sm";
-
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       {/* --- Filter Bar --- */}
@@ -590,6 +589,7 @@ const VerdictSection = ({ papers, onBulkDecision }) => {
                 Avg Rating {getSortIndicator('avgRating')}
               </button>
             </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -617,6 +617,14 @@ const VerdictSection = ({ papers, onBulkDecision }) => {
                 <td className="py-3 px-4 text-sm text-[#1f2937]">
                   {paper.avgRating ? paper.avgRating.toFixed(1) : 'N/A'}
                 </td>
+                <td className="py-3 px-4">
+                                    {/* CHANGED: Added flex and justify-center */}
+                                    <div className="flex justify">
+                                        <button onClick={() => navigate(`/PaperDecision/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                                            View
+                                        </button>
+                                    </div>
+                  </td>
               </tr>
             ))
           ) : (
@@ -680,7 +688,7 @@ const AppHeader = () => {
 // ---
 // --- MAIN DETAIL PAGE COMPONENT ---
 // ---
-export default function ConferenceDetailPage() {
+export default function ConferenceDetails_ChiefChair() {
   const navigate = useNavigate();
   const { hashedConId } = useParams();
   
@@ -1060,12 +1068,12 @@ const handleSaveEdit = async () => {
   // This is the core API call. It does NOT refetch.
   const runSingleDecisionAPI = async (paperId, decision) => {
     try {
-      const response = await fetch(`http://localhost:3001/paper/decision/${paperId}`, {
+      const response = await fetch(`http://localhost:3001/final-paper-decision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
+          paperId: paperId,
           decision: decision,
-          conferenceId: decodedConferenceId
         }),
       });
 
@@ -1484,6 +1492,7 @@ Failed: ${failCount}`);
                   <VerdictSection 
                     papers={papers}
                     onBulkDecision={handleBulkDecisionRequest}
+                    navigate={navigate}
                   />
                 </div>
               )}

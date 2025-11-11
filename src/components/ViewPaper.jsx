@@ -361,7 +361,7 @@ export default function ViewPaper() {
           <div className="lg:col-span-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full space-y-4 h-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-[#1f2937]">Paper Details</h3>
-              {getStatusBadge(paper.Status)}
+              {getStatusBadge(!paper.isFinal && paper.Status!="Pending Submission"?"Under Review":paper.Status)}
             </div>
 
             <form className="space-y-4">

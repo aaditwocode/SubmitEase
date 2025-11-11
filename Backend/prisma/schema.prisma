@@ -52,6 +52,7 @@ model Paper {
   URL           String
   Abstract      String
   Keywords      String[]
+  isFinal       Boolean     @default(false)
   TrackId       Int?
   Tracks        Tracks?     @relation(fields: [TrackId], references: [id])
   Status        String
@@ -72,6 +73,7 @@ model Reviews {
   Status            String?
   isBlind           Boolean?
   submittedAt       DateTime?
+  assignedAt        DateTime?
   scoreOriginality  Int?
   scoreClarity      Int?
   scoreSoundness    Int?

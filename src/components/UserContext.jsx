@@ -7,7 +7,7 @@ export const UserProvider = ({ children }) => {
     const savedUser = localStorage.getItem('user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
-
+  const [loginStatus, setloginStatus] = useState(!!user);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     setLoading(false);
@@ -23,6 +23,8 @@ export const UserProvider = ({ children }) => {
     user,
     setUser,
     loading,
+    loginStatus,
+    setloginStatus,
   };
   return (
     <UserContext.Provider value={value}>

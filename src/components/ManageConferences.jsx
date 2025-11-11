@@ -100,6 +100,7 @@ const RegisteredConferenceList = ({ conferences }) => {
   const [sortBy, setSortBy] = useState("deadline");
   const [sortOrder, setSortOrder] = useState("asc");
   const [searchTerm, setSearchTerm] = useState("");
+  const { user } = useUserData();
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -112,9 +113,14 @@ const RegisteredConferenceList = ({ conferences }) => {
 
   // --- THIS IS THE KEY CHANGE ---
   // Encodes the ID and navigates to the detail page
-  const handleManageClick = (conferenceId) => {
+  const handleManageClick = (conferenceId,hostID) => {
     const hashedId = Base64.encode(String(conferenceId));
-    navigate(`/conference/manage/${hashedId}`);
+    if(hostID==user.id){
+      navigate(`/conference/manage/${hashedId}`);
+    }
+    else{
+      navigate(`/conference/manage/trackpapers/${hashedId}`);
+    }
   };
 
   const filteredAndSortedConferences = useMemo(() => {
@@ -202,7 +208,7 @@ const RegisteredConferenceList = ({ conferences }) => {
                 <td className="py-3 px-4">
                   {/* --- MODIFIED: Button now calls handleManageClick --- */}
                   <button 
-                    onClick={() => handleManageClick(conf.id)} 
+                    onClick={() => handleManageClick(conf.id,conf.hostID)} 
                     className="px-3 py-1 text-xs bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
                   >
                     Manage & View Papers

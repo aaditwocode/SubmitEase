@@ -17,6 +17,7 @@ import PublicationChairPortal from './components/publication';
 import RegistrationChairPortal from './components/registrationChair';
 import ConferenceDetailPage from './components/ConferenceDetails_ChiefChair';
 import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
+import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackChair';
 function App() {
   return (
     <UserProvider>
@@ -102,6 +103,10 @@ function App() {
           <Route 
             path="/conference/manage/:hashedConId" 
             element={<ConferenceDetails_ChiefChair />} 
+          />
+          <Route 
+            path="/conference/manage/trackpapers/:hashedConId" 
+            element={<ConferenceDetails_TrackChair />} 
           />
         </Routes>
       </BrowserRouter>

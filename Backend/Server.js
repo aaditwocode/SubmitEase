@@ -301,6 +301,7 @@ app.get('/papers', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
+        isFinal:true,
         TrackId: true,
         Tracks: {
           select:{
@@ -348,6 +349,7 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
         AuthorOrder: true,
         submittedAt: true,
         TrackId: true,
+        isFinal:true,
         Tracks: {
           select:{
             id:true,
@@ -389,6 +391,9 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
             scoreSoundness:true,
             scoreSignificance:true,
             scoreRelevance:true,
+            avgScore:true,
+            isBlind:true,
+            assignedAt:true,
             User:{
               select:{
                 id:true,
@@ -693,6 +698,7 @@ app.post('/assign-reviewers', async (req, res) => {
       submittedAt:null,  
       Status: "Pending Invitation",
       isBlind: isBlind,
+      assignedAt: new Date(),
     }));
 
     // 5. Create all the new review records at once
@@ -714,6 +720,7 @@ app.post('/assign-reviewers', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
+        isFinal:true,
         TrackId: true,
         Tracks: {
           select:{
@@ -746,6 +753,13 @@ app.post('/assign-reviewers', async (req, res) => {
             submittedAt:true,
             Status:true,
             isBlind:true,
+            scoreOriginality:true,
+            scoreClarity:true,
+            scoreSoundness:true,
+            scoreSignificance:true,
+            scoreRelevance:true,
+            avgScore:true,
+            assignedAt:true,
             User:{
               select:{
                 id:true,
@@ -772,7 +786,7 @@ app.post('/assign-reviewers', async (req, res) => {
 
 app.post('/submit-review', async (req, res) => {
   const { paperId, reviewerId, Recommendation, Comment, scoreOriginality,scoreClarity,scoreSoundness,scoreSignificance,scoreRelevance} = req.body;
-
+  const avgScore = (scoreOriginality + scoreClarity + scoreSoundness + scoreSignificance + scoreRelevance) / 5.0;
   try {
     const newReview = await prisma.reviews.update({
       where:{
@@ -791,6 +805,7 @@ app.post('/submit-review', async (req, res) => {
         scoreSoundness: scoreSoundness,
         scoreSignificance: scoreSignificance,
         scoreRelevance: scoreRelevance,
+        avgScore: avgScore,
       }
     });
     res.status(201).json(newReview);
@@ -903,6 +918,8 @@ app.post('/get-your-reviews', async (req, res) => {
         scoreSoundness:true,
         scoreSignificance:true,
         scoreRelevance:true,
+        avgScore:true,
+        assignedAt:true,
         Paper:{
           select:{
             id:true,
@@ -957,6 +974,7 @@ app.post('/reviewInvitationResponse', async (req, res) => {
       },
       data: {
         Status: response, // "Accepted" or "Declined"
+        assignedAt: new Date(),
       }
     });
     res.status(201).json(updatedReview);
@@ -1052,7 +1070,19 @@ app.post('/conference/registered', async (req, res) => {
     const { userId } = req.body;
     const conferences = await prisma.conference.findMany({
       where: {
-        hostID: parseInt(userId)
+        OR:[
+        {hostID: parseInt(userId)},
+        {Tracks: {
+          some: {
+            Chairs: {
+              some: {
+                id: parseInt(userId),
+              }
+            }
+          }
+        }
+      }
+      ]
       },
       select: {
         id: true,
@@ -1064,6 +1094,7 @@ app.post('/conference/registered', async (req, res) => {
         link: true,
         status: true,
         Partners: true,
+        hostID: true,
         Tracks: {
           select: {
             id: true,
@@ -1104,6 +1135,7 @@ app.post('/conference/papers', async (req, res) => {
         AuthorOrder: true,
         URL: true,
         submittedAt: true,
+        isFinal:true,
         TrackId: true,
         Tracks: {
           select:{
@@ -1133,6 +1165,78 @@ app.post('/conference/papers', async (req, res) => {
     res.status(200).json({ paper: conferencepapers });
 
   } catch (error) {
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+
+app.post('/conference/trackpapers', async (req, res) => {
+  try {
+    const { conferenceId, userId } = req.body;
+
+    // --- Validation ---
+    const parsedConferenceId = parseInt(conferenceId);
+    const parsedUserId = parseInt(userId);
+
+    if (isNaN(parsedConferenceId) || isNaN(parsedUserId)) {
+      return res.status(400).json({ message: 'Invalid conferenceId or userId.' });
+    }
+
+    // --- Removed Host Check ---
+    // The query now *only* finds papers where the user is a track chair.
+
+    const conferencepapers = await prisma.paper.findMany({
+      where: {
+        ConferenceId: parsedConferenceId,
+        Status: {
+          not: "Pending Submission"
+        },
+        // --- This filter is now ALWAYS active ---
+        Tracks: { // Filter by the related Tracks model
+          Chairs: { // Look at the 'Chairs' relation on the track
+            some: { // Check if 'some' of the chairs...
+              id: parsedUserId // ...have an ID matching the user
+            }
+          }
+        }
+      },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        AuthorOrder: true,
+        URL: true,
+        submittedAt: true,
+        TrackId: true,
+        Tracks: {
+          select:{
+            id:true,
+            Name:true,
+          },
+        },
+        Conference: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        Authors: {
+          select: {
+            firstname: true,
+            lastname: true,
+            email: true
+          }
+        }
+      },
+    });
+
+    // Return papers (or an empty array if none found)
+    res.status(200).json({ paper: conferencepapers });
+
+  } catch (error) {
+    console.error("Error fetching conference papers:", error);
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
@@ -1318,9 +1422,8 @@ app.post('/conference/tracks', async (req, res) => {
 // ---
 // 5. Update a Paper's Final Decision (Status)
 // ---
-app.post('/paper/decision/:paperId', async (req, res) => {
-  const { paperId } = req.params;
-  const { decision } = req.body; // "Accepted" or "Rejected"
+app.post('/final-paper-decision', async (req, res) => {
+  const {paperId, decision } = req.body; // "Accepted" or "Rejected"
 
   if (!decision) {
     return res.status(400).json({ message: 'Decision is required.' });
@@ -1330,7 +1433,8 @@ app.post('/paper/decision/:paperId', async (req, res) => {
     await prisma.paper.update({
       where: { id: paperId },
       data: {
-        Status: decision // Updates the 'Status' field in the Paper model
+        Status: decision,// Updates the 'Status' field in the Paper model
+        isFinal: true
       }
     });
     res.status(200).json({ message: 'Decision updated successfully.' });
@@ -1542,6 +1646,41 @@ app.post('/remove-reviewers', async (req, res) => {
         id: true,
         Title: true,
         Status: true,
+        Keywords: true,
+        Abstract: true,
+        URL: true,
+        AuthorOrder: true,
+        submittedAt: true,
+        TrackId: true,
+        isFinal:true,
+        Tracks: {
+          select:{
+            id:true,
+            Name:true,
+          },
+        },
+        Conference: {
+          select: {
+            id: true,
+            name: true,
+            Tracks:{
+              select:{
+                id:true,
+                Name:true,
+              }
+            }
+          },
+        },
+        Authors:{
+          select:{
+            id:true,
+            firstname:true,
+            lastname:true,
+            email:true,
+            organisation:true,
+            expertise:true,
+          }
+        },
         Reviews: {
           select: {
             id: true,
@@ -1550,6 +1689,14 @@ app.post('/remove-reviewers', async (req, res) => {
             Recommendation: true,
             submittedAt: true,
             Status: true,
+            isBlind: true,
+            scoreClarity: true,
+            scoreOriginality: true,
+            scoreRelevance: true,
+            scoreSignificance: true,
+            scoreSoundness: true,
+            avgScore: true,
+            assignedAt: true,
             User: {
               select: {
                 id: true,

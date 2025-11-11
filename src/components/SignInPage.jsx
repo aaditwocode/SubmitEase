@@ -11,7 +11,7 @@ export default function SignInPage() {
     email: "",
     password: "",
   });
-
+  const [loading, setLoading] = useState(false);
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -26,6 +26,7 @@ export default function SignInPage() {
 
     try {
       setFeedback({ message: 'Signing In! Please Wait...', type: 'Signing In' });
+      setLoading(true);
       const response = await fetch("http://localhost:3001/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,6 +38,7 @@ export default function SignInPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Sign in failed.");
       setUser(data.user);
+      setLoading(false);
       setFeedback({ message: 'Sign In Successful! Redirecting...', type: 'Success' });
       setTimeout(() => navigate('/dashboard'), 200);
     } catch (err) {
@@ -111,7 +113,7 @@ export default function SignInPage() {
                 <div className="flex items-center justify-between">
                   <a href="#" className="text-sm text-[#059669] hover:text-[#059669]/80">Forgot your password?</a>
                 </div>
-                <button type="submit" className="w-full bg-[#059669] text-white py-2 px-4 rounded-md hover:bg-[#059669]/90 focus:outline-none focus:ring-2 focus:ring-[#059669] focus:ring-offset-2 transition duration-200">
+                <button type="submit" disabled={loading} className="w-full bg-[#059669] text-white py-2 px-4 rounded-md hover:bg-[#059669]/90 focus:outline-none focus:ring-2 focus:ring-[#059669] focus:ring-offset-2 transition duration-200">
                   Sign In
                 </button>
                 <div className="text-center">

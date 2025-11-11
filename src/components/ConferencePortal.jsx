@@ -316,7 +316,7 @@ const PaperList = ({ papers }) => {
                     ))}
                   </div>
                 </td>
-                <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
+                <td className="py-3 px-4">{getStatusBadge(!paper.isFinal && paper.Status!="Pending Submission"?"Under Review":paper.Status)}</td>
                 <td className="py-3 px-4">
                   <button onClick={() => navigate(`/paper/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">View</button>
                 </td>
@@ -338,7 +338,6 @@ const ConferenceList = ({ conferences, onNewSubmission }) => {
   const [sortBy, setSortBy] = useState("deadline");
   const [sortOrder, setSortOrder] = useState("asc");
   const [searchTerm, setSearchTerm] = useState("");
-
   const handleSort = (column) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -756,9 +755,8 @@ export default function ConferencePortal() {
 
   // --- Calculate accepted papers ---
   const acceptedPapers = useMemo(() => {
-    return papers.filter(paper => paper.Status === "Accepted");
+    return papers.filter(paper => paper.isFinal && paper.Status === "Accepted");
   }, [papers]);
-
   // --- RENDER ---
   return (
     <div className="min-h-screen bg-[#ffffff]">
@@ -799,15 +797,15 @@ export default function ConferencePortal() {
             </div>
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Accepted Papers</h3>
-              <p className="text-3xl font-bold text-[#059669]">{acceptedPapers.length}</p>
+              <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.isFinal && p.Status === "Accepted").length}</p>
             </div>
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Under Review</h3>
-              <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter((p) => p.Status === "Under Review").length}</p>
+              <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter(p => !p.isFinal && p.Status != "Pending Submission").length}</p>
             </div>
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Rejected</h3>
-              <p className="text-3xl font-bold text-red-700">{papers.filter((p) => p.Status === "Rejected").length}</p>
+              <p className="text-3xl font-bold text-red-700">{papers.filter(p => p.isFinal && p.Status === "Rejected").length}</p>
             </div>
             <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
               <h3 className="text-sm font-medium text-[#6b7280]">Pending Submission</h3>
@@ -815,11 +813,7 @@ export default function ConferencePortal() {
             </div>
           </div>
 
-          {/* --- NEW: Accepted Papers Upload Section --- */}
-          <AcceptedPapersUpload 
-            acceptedPapers={acceptedPapers}
-            onUploadDocument={handleDocumentUpload}
-          />
+          
 
           {/* Available Conferences Section */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
@@ -835,6 +829,12 @@ export default function ConferencePortal() {
             <h3 className="text-xl font-semibold text-[#1f2937] mb-4">My Submissions</h3>
             <PaperList papers={papers} />
           </div>
+
+          {/* --- NEW: Accepted Papers Upload Section --- */}
+          <AcceptedPapersUpload 
+            acceptedPapers={acceptedPapers}
+            onUploadDocument={handleDocumentUpload}
+          />
         </div>
       </main>
 

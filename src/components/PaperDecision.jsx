@@ -551,7 +551,7 @@ export default function PaperDecision() {
 
         const pendingIds = selectableIds.filter(id => {
             const r = (reviews || []).find(rr => rr.ReviewerId === id);
-            const isPendingReview = r && (r.Status || '').toLowerCase() === 'pending submission';
+            const isPendingReview = r && (r.Status || '').toLowerCase() === 'pending invitation';
             const isInInvited = (newInvitedReviewers || []).some(u => u.id === id);
             return isPendingReview || isInInvited;
         });
@@ -783,7 +783,7 @@ export default function PaperDecision() {
                                             <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>
                                         ))}
                                 </select>
-                                <button type="button" onClick={() => setShowInviteReviewerForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Add New User</button>
+                                <button type="button" onClick={() => setShowInviteReviewerForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite New User</button>
                             </div>
                         )}
 
