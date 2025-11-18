@@ -126,7 +126,7 @@ const RegisteredConferenceList = ({ conferences }) => {
     // (Assuming Publication Chairs have a specific portal)
     const isPubChair = conf.PublicationChairs?.some(pc => pc.id === userId);
     if (isPubChair) {
-      navigate(`/conference/manage/publications/${hashedId}`);
+      navigate(`/conference/manage/publication/${hashedId}`);
       return;
     }
 
@@ -134,7 +134,7 @@ const RegisteredConferenceList = ({ conferences }) => {
     // (Assuming Registration Chairs have a specific portal)
     const isRegChair = conf.RegistrationChairs?.some(rc => rc.id === userId);
     if (isRegChair) {
-      navigate(`/conference/manage/registrations/${hashedId}`);
+      navigate(`/conference/manage/registration/${hashedId}`);
       return;
     }
 

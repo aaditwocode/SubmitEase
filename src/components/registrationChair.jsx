@@ -44,7 +44,9 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
         <thead>
           <tr className="border-b border-[#e5e7eb]">
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Paper ID</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Details</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Title</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Authors</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Correspondent</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Registration Slip</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Status</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Actions</th>
@@ -54,47 +56,39 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
           {filteredPapers.length > 0 ? (
             filteredPapers.map((paper) => (
               <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
-                <td className="py-3 px-4">
-                  <div>
-                    <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
-                    <p className="text-xs text-[#6b7280]">{paper.authors}</p>
-                    <p className="text-xs text-[#6b7280] italic">{paper.correspondent}</p>
-                  </div>
-                </td>
+                <td className="py-3 px-4 text-sm font-medium text-[#1f2937] truncate">{paper.id}</td>
+                <td className="py-3 px-4 text-sm text-[#1f2937] truncate">{paper.Title}</td>
+                <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.authors}</td>
+                <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.correspondent}</td>
                 <td className="py-3 px-4">
                   {paper.RegistrationURL ? (
                     <button 
                       onClick={() => onViewSlip(paper.RegistrationURL)} 
-                      className="text-xs font-medium text-[#059669] hover:underline flex items-center gap-1"
+                      className="text-sm font-medium text-[#059669] hover:underline flex items-center gap-1"
                     >
                       📄 View Slip
                     </button>
                   ) : (
-                    <span className="text-xs text-gray-400">Not Uploaded</span>
+                    <span className="text-sm text-gray-400">Not Uploaded</span>
                   )}
                 </td>
+                <td className="py-3 px-4">{getStatusBadge(paper)}</td>
                 <td className="py-3 px-4">
-                  {getStatusBadge(paper)}
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex flex-col gap-2">
-                    {/* Logic: If slip exists and not verified, show Approve/Reject. If verified, show "Verified". If missing, show Remind. */}
-                    
+                  <div className="flex items-center justify-center gap-2">
                     {paper.RegistrationURL && !paper.Completed && (
                       <>
                         <button
                           onClick={() => onApprove(paper)}
                           disabled={paper.isProcessing}
-                          className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                          className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-md hover:bg-[#047a56] transition-colors disabled:opacity-50"
                         >
-                          {paper.isProcessing ? "Processing..." : "Approve Payment"}
+                          {paper.isProcessing ? "Processing..." : "Approve"}
                         </button>
                         <button
                           onClick={() => onSendBack(paper)}
-                          className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                          className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                         >
-                          Reject Slip
+                          Reject
                         </button>
                       </>
                     )}
@@ -103,18 +97,18 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
                        <button
                        onClick={() => onRemind(paper)}
                        disabled={paper.isProcessing}
-                       className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-300"
+                       className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-md hover:bg-[#047a56] transition-colors disabled:bg-gray-300"
                      >
-                       {paper.isProcessing ? "Sending..." : "Remind Author"}
+                       {paper.isProcessing ? "Sending..." : "Remind"}
                      </button>
                     )}
 
                     {paper.Completed && (
                        <button
                        onClick={() => onSendBack(paper)} // Allow un-approving if needed
-                       className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                       className="px-4 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
                      >
-                       Revoke Approval
+                       Revoke
                      </button>
                     )}
                   </div>
@@ -181,7 +175,7 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
 // --- Main Registration Chair Component ---
 export default function RegistrationChairPortal() {
   const navigate = useNavigate();
-  const { id } = useParams(); // Conference ID encoded
+  const { hashedConId} = useParams(); // Conference ID encoded
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -195,17 +189,20 @@ export default function RegistrationChairPortal() {
     const fetchPapers = async () => {
       try {
         setLoading(true);
-        const confId = id ? Base64.decode(id) : null;
+        const confId = hashedConId ? Base64.decode(hashedConId) : null;
         if(!confId) throw new Error("Invalid Conference ID");
 
         // API call to fetch papers for this conference
-        const response = await fetch(`http://localhost:3001/conference/${confId}/papers/registration-status`);
+        const response = await fetch(`http://localhost:3001/conference/finalpapers`,{
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conferenceId: confId }),
+        });
         if (!response.ok) throw new Error("Failed to fetch papers");
-        
         const data = await response.json();
 
         // Map Backend Data to UI Model
-        const formattedPapers = (data.papers || []).map((p) => ({
+        const formattedPapers = (data.paper || []).map((p) => ({
             id: p.id,
             Title: p.Title,
             authors: p.Authors ? p.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "Unknown",
@@ -225,7 +222,7 @@ export default function RegistrationChairPortal() {
     };
 
     fetchPapers();
-  }, [id]);
+  }, [hashedConId]);
 
   // --- Handlers ---
 
@@ -320,7 +317,7 @@ export default function RegistrationChairPortal() {
   if (error) return <div className="flex justify-center items-center h-screen text-red-600">Error: {error}</div>;
 
   return (
-    <div className="min-h-screen bg-[#ffffff]">
+    <div className="min-h-screen bg-[#f9fafb]">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -344,20 +341,18 @@ export default function RegistrationChairPortal() {
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gray-50 border rounded-lg p-5">
-                <h3 className="text-sm text-gray-500">Total Papers</h3>
-                <p className="text-3xl font-bold text-[#059669]">{papers.length}</p>
-            </div>
-            <div className="bg-gray-50 border rounded-lg p-5">
-                <h3 className="text-sm text-gray-500">Verified (Paid)</h3>
-                <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.Completed).length}</p>
-            </div>
-            <div className="bg-gray-50 border rounded-lg p-5">
-                <h3 className="text-sm text-gray-500">Pending Verification</h3>
-                <p className="text-3xl font-bold text-yellow-600">
-                    {papers.filter(p => p.RegistrationURL && !p.Completed).length}
-                </p>
-            </div>
+          <div className="bg-white border border-[#e5e7eb] rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm text-[#6b7280]">Total Papers</h3>
+            <p className="text-3xl font-bold text-[#059669]">{papers.length}</p>
+          </div>
+          <div className="bg-white border border-[#e5e7eb] rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm text-[#6b7280]">Verified (Paid)</h3>
+            <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.Completed).length}</p>
+          </div>
+          <div className="bg-white border border-[#e5e7eb] rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm text-[#6b7280]">Pending Verification</h3>
+            <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter(p => p.RegistrationURL && !p.Completed).length}</p>
+          </div>
         </div>
 
         {/* Main Table */}

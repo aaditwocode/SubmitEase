@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Base64 } from "js-base64";
-
+import { useUserData } from "./UserContext";
 // --- Helper Functions ---
 const getStatusBadge = (paper) => {
   if (paper.Completed) {
@@ -43,45 +43,43 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
         <thead>
           <tr className="border-b border-[#e5e7eb]">
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Paper ID</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Title & Authors</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Documents</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Status</th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Actions</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Title</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Authors</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Correspondent</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Final Paper</th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Copyright</th>
+            <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280]">Actions</th>
           </tr>
         </thead>
         <tbody>
           {filteredPapers.length > 0 ? (
             filteredPapers.map((paper) => (
               <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.id}</td>
-                <td className="py-3 px-4">
+                <td className="py-3 px-4 text-sm font-medium text-[#1f2937] truncate">{paper.id}</td>
+                <td className="py-3 px-4 truncate">
                   <div>
-                    <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
-                    <p className="text-xs text-[#6b7280]">{paper.authors}</p>
-                    <p className="text-xs text-[#6b7280] italic">{paper.correspondent}</p>
+                    <p className="text-sm font-medium text-[#1f2937] truncate">{paper.Title}</p>
                   </div>
                 </td>
+                <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.authors}</td>
+                <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.correspondent}</td>
                 <td className="py-3 px-4">
-                  <div className="flex flex-col gap-1">
-                    {paper.CopyrightURL ? (
-                        <button onClick={() => onViewFile(paper.CopyrightURL)} className="text-xs text-[#059669] hover:underline text-left">View Copyright</button>
-                    ) : <span className="text-xs text-red-500">Missing Copyright</span>}
-                    
-                    {paper.FinalPaperURL ? (
-                        <button onClick={() => onViewFile(paper.FinalPaperURL)} className="text-xs text-[#059669] hover:underline text-left">View Final Paper</button>
-                    ) : <span className="text-xs text-red-500">Missing Final Paper</span>}
-                  </div>
+                  {paper.FinalPaperURL ? (
+                      <button onClick={() => onViewFile(paper.FinalPaperURL)} className="text-sm text-[#059669] hover:underline text-left">View Final Paper</button>
+                    ) : <span className="text-sm text-red-500">Missing Final Paper</span>}
                 </td>
                 <td className="py-3 px-4">
-                  {getStatusBadge(paper)}
+                  {paper.CopyrightURL ? (
+                      <button onClick={() => onViewFile(paper.CopyrightURL)} className="text-sm text-[#059669] hover:underline text-left">View Copyright</button>
+                    ) : <span className="text-sm text-red-500">Missing Copyright</span>}
                 </td>
                 <td className="py-3 px-4">
-                  <div className="flex flex-col gap-2">
+                  <div className="flex justify-center gap-2">
                     {/* Button 1: Remind Author */}
                     <button
                       onClick={() => onRemind(paper)}
                       disabled={paper.isProcessing}
-                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-md hover:bg-[#047a56] transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {paper.isProcessing ? "Sending..." : "Remind Author"}
                     </button>
@@ -89,9 +87,9 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
                     {/* Button 2: Send Back to Author */}
                     <button
                       onClick={() => onSendBack(paper)}
-                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                      className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors whitespace-nowrap"
                     >
-                      Send Back (Reject)
+                      Send Back
                     </button>
                   </div>
                 </td>
@@ -157,30 +155,39 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
 // --- Main Publication Chair Component ---
 export default function PublicationChairPortal() {
   const navigate = useNavigate();
-  const { id } = useParams(); 
+  const { hashedConId } = useParams(); 
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const { setUser, setloginStatus } = useUserData();
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPaper, setSelectedPaper] = useState(null);
+
+  const handleLogout = () => {
+    setUser(null);
+    setloginStatus(false);
+    navigate("/home");
+  };
 
   // --- Fetch Logic ---
   useEffect(() => {
     const fetchPapers = async () => {
       try {
         setLoading(true);
-        const confId = id ? Base64.decode(id) : null;
+        const confId = hashedConId ? Base64.decode(hashedConId) : null;
         if(!confId) throw new Error("Invalid Conference ID");
 
         // Replace with your actual backend endpoint
-        const response = await fetch(`http://localhost:3001/conference/${confId}/papers/publication-status`);
+        const response = await fetch(`http://localhost:3001/conference/finalpapers`,{
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conferenceId: confId }),
+        });
         if (!response.ok) throw new Error("Failed to fetch papers");
         
         const data = await response.json();
-
-        const formattedPapers = (data.papers || []).map((p) => ({
+        const formattedPapers = (data.paper || []).map((p) => ({
             id: p.id,
             Title: p.Title,
             authors: p.Authors ? p.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "Unknown",
@@ -201,7 +208,7 @@ export default function PublicationChairPortal() {
     };
 
     fetchPapers();
-  }, [id]);
+  }, [hashedConId]);
 
   // --- Handlers ---
   
@@ -276,42 +283,52 @@ export default function PublicationChairPortal() {
   if (error) return <div className="flex justify-center items-center h-screen text-red-600">Error: {error}</div>;
 
   return (
-    <div className="min-h-screen bg-[#ffffff]">
+    <div className="min-h-screen bg-[#f9fafb]">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                <span className="text-lg font-bold text-white">S</span>
-              </div>
-              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+              <span className="text-lg font-bold text-white">S</span>
+            </div>
+            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
           </div>
-          <div className="flex gap-4">
-            <button onClick={() => navigate("/conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm text-white hover:bg-[#059669]/90">Conference Portal</button>
-            <button onClick={() => navigate("/home")} className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Logout</button>
-          </div>
+          <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+            <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+            <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+            <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
+          </nav>
         </div>
-      </header>
+        <div className="flex items-center gap-4">
+          <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
+          <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
+        </div>
+      </div>
+    </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <button onClick={() => navigate("/conference/manage")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
+          &larr; Back to All Conferences
+        </button>
         <div className="flex justify-between items-center">
             <h2 className="text-3xl font-bold text-[#1f2937]">Publication Chair Portal</h2>
         </div>
 
         {/* Statistics - Simplified */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gray-50 border rounded-lg p-5">
-                <h3 className="text-sm text-gray-500">Total Papers</h3>
-                <p className="text-3xl font-bold text-[#059669]">{papers.length}</p>
-            </div>
-            <div className="bg-gray-50 border rounded-lg p-5">
-                <h3 className="text-sm text-gray-500">Completed</h3>
-                <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.Completed).length}</p>
-            </div>
-            <div className="bg-gray-50 border rounded-lg p-5">
-                <h3 className="text-sm text-gray-500">Pending Actions</h3>
-                <p className="text-3xl font-bold text-yellow-600">{papers.filter(p => !p.Completed).length}</p>
-            </div>
+          <div className="bg-white border border-[#e5e7eb] rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm text-[#6b7280]">Total Papers</h3>
+            <p className="text-3xl font-bold text-[#059669]">{papers.length}</p>
+          </div>
+          <div className="bg-white border border-[#e5e7eb] rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm text-[#6b7280]">Completed</h3>
+            <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.Completed).length}</p>
+          </div>
+          <div className="bg-white border border-[#e5e7eb] rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm text-[#6b7280]">Pending Actions</h3>
+            <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter(p => !p.Completed).length}</p>
+          </div>
         </div>
 
         {/* Main Table */}

@@ -28,46 +28,46 @@ model User {
 }
 
 model Conference {
-  id                  Int      @id @default(autoincrement())
-  name                String
-  location            String
-  startsAt            DateTime
-  endAt               DateTime
-  deadline            DateTime
-  link                String
-  status              String
-  Partners            String[]
-  hostID              Int
-  host                User?    @relation("HostToConference", fields: [hostID], references: [id])
-  Paper               Paper[]
-  Reviewers           User[]   @relation("ReviewerToConference")
-  InvitedReviewers    User[]   @relation("InvitedReviewerToConference")
-  Tracks              Tracks[]
-  PublicationChairs   User[]   @relation("PublicationChairs")
-  RegistrationChairs  User[]   @relation("RegistrationChairs")
+  id                 Int      @id @default(autoincrement())
+  name               String
+  location           String
+  startsAt           DateTime
+  endAt              DateTime
+  deadline           DateTime
+  link               String
+  status             String
+  Partners           String[]
+  hostID             Int
+  host               User?    @relation("HostToConference", fields: [hostID], references: [id])
+  Paper              Paper[]
+  Reviewers          User[]   @relation("ReviewerToConference")
+  InvitedReviewers   User[]   @relation("InvitedReviewerToConference")
+  Tracks             Tracks[]
+  PublicationChairs  User[]   @relation("PublicationChairs")
+  RegistrationChairs User[]   @relation("RegistrationChairs")
 }
 
 model Paper {
-  id            String      @id
-  Title         String
-  ConferenceId  Int
-  Conference    Conference? @relation(fields: [ConferenceId], references: [id])
-  Authors       User[]
-  URL           String
-  Abstract      String
-  Keywords      String[]
-  isFinal       Boolean     @default(false)
-  TrackId       Int?
-  Tracks        Tracks?     @relation(fields: [TrackId], references: [id])
-  Status        String
-  submittedAt   DateTime
-  AuthorOrder   Int[]
-  Reviews       Reviews[]
-  ReviewerOrder Int[]
-  FinalPaperURL String?
-  CopyrightURL  String?
+  id              String      @id
+  Title           String
+  ConferenceId    Int
+  Conference      Conference? @relation(fields: [ConferenceId], references: [id])
+  Authors         User[]
+  URL             String
+  Abstract        String
+  Keywords        String[]
+  isFinal         Boolean     @default(false)
+  TrackId         Int?
+  Tracks          Tracks?     @relation(fields: [TrackId], references: [id])
+  Status          String
+  submittedAt     DateTime
+  AuthorOrder     Int[]
+  Reviews         Reviews[]
+  ReviewerOrder   Int[]
+  FinalPaperURL   String?
+  CopyrightURL    String?
   RegistrationURL String?
-  Completed     Boolean  @default(false)
+  Completed       Boolean     @default(false)
 }
 
 model Reviews {

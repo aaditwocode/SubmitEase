@@ -1320,6 +1320,54 @@ app.post('/conference/trackpapers', async (req, res) => {
   }
 });
 
+app.post('/conference/finalpapers', async (req, res) => {
+  try {
+    const { conferenceId } = req.body;
+
+    const parsedConferenceId = parseInt(conferenceId);
+
+    if (isNaN(parsedConferenceId)) {
+      return res.status(400).json({ message: 'Invalid conferenceId.' });
+    }
+
+    const conferencepapers = await prisma.paper.findMany({
+      where: {
+        ConferenceId: parsedConferenceId,
+        Status: "Accepted",
+        isFinal:true,
+      },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        AuthorOrder: true,
+        URL: true,
+        submittedAt: true,
+        FinalPaperURL:true,
+        CopyrightURL:true,
+        RegistrationURL:true,
+        Completed:true,
+        Authors: {
+          select: {
+            firstname: true,
+            lastname: true,
+            email: true
+          }
+        }
+      },
+    });
+    console.log("Final papers fetched:", conferencepapers);
+    res.status(200).json({ paper: conferencepapers });
+
+  } catch (error) {
+    console.error("Error fetching conference papers:", error);
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+
 app.post('/conference/tracks/assign-chairs', async (req, res) => {
   const { trackId, userIds, conferenceId } = req.body;
 
