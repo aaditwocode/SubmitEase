@@ -64,6 +64,10 @@ model Paper {
   AuthorOrder   Int[]
   Reviews       Reviews[]
   ReviewerOrder Int[]
+  FinalPaperURL String?
+  CopyrightURL  String?
+  RegistrationURL String?
+  Completed     Boolean  @default(false)
 }
 
 model Reviews {

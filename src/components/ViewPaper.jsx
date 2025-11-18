@@ -75,6 +75,16 @@ export default function ViewPaper() {
   const [inviteOrg, setInviteOrg] = useState("");
   const [inviteCountry, setInviteCountry] = useState("");
   
+  // --- Final Submission File State ---
+  const [copyrightFile, setCopyrightFile] = useState(null);
+  const [finalPaperFile, setFinalPaperFile] = useState(null);
+  const [paySlipFile, setPaySlipFile] = useState(null);
+
+  // --- State for file previews (Object URLs) ---
+  const [copyrightPreview, setCopyrightPreview] = useState(null);
+  const [finalPaperPreview, setFinalPaperPreview] = useState(null);
+  const [paySlipPreview, setPaySlipPreview] = useState(null);
+  
   // --- 1. Main Data Fetching Effect (Get Paper Details) ---
   useEffect(() => {
     if (!paperId) {
@@ -85,7 +95,6 @@ export default function ViewPaper() {
     const fetchPaper = async () => {
       setLoading(true);
       try {
-        // IMPORTANT: Ensure this endpoint includes Conference { include: { Tracks: true } }
         const response = await fetch(`http://localhost:3001/getpaperbyid/${paperId}`);
         if (!response.ok) {
           throw new Error("Failed to fetch paper details.");
@@ -102,7 +111,7 @@ export default function ViewPaper() {
         setAbstract(data.paper.Abstract);
         setKeywords(data.paper.Keywords.join(', '));
         setConfId(data.paper.Conference.id);
-        setTrackId(data.paper.TrackId || ""); // <-- NEW: Populate trackId
+        setTrackId(data.paper.TrackId || ""); 
         
         // --- Sort authors based on AuthorOrder ---
         const fetchedAuthors = data.paper.Authors || [];
@@ -141,6 +150,16 @@ export default function ViewPaper() {
     };
     fetchUsers();
   }, []);
+
+  // --- 3. Effect for cleaning up Object URLs ---
+  useEffect(() => {
+    // Cleanup object URLs on component unmount
+    return () => {
+      if (copyrightPreview) URL.revokeObjectURL(copyrightPreview);
+      if (finalPaperPreview) URL.revokeObjectURL(finalPaperPreview);
+      if (paySlipPreview) URL.revokeObjectURL(paySlipPreview);
+    };
+  }, [copyrightPreview, finalPaperPreview, paySlipPreview]);
 
 
   // --- Event Handlers ---
@@ -225,7 +244,7 @@ export default function ViewPaper() {
   const handleUpdatePaper = async (e) => {
     e.preventDefault();
 
-    // <-- NEW: Validation for track
+    // Validation for track
     if (paper?.Conference?.Tracks && paper.Conference.Tracks.length > 0 && !trackId) {
       alert("Please select a track for this submission.");
       return;
@@ -239,7 +258,7 @@ export default function ViewPaper() {
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('confId', confId);
     
-    if (trackId) { // <-- NEW: Add trackId to form data
+    if (trackId) { 
       formData.append('trackId', trackId);
     }
     
@@ -262,7 +281,7 @@ export default function ViewPaper() {
         setPaper(updatedPaper.paper);
         setAuthors(updatedPaper.paper.Authors || []);
         setKeywords(updatedPaper.paper.Keywords.join(', '));
-        setTrackId(updatedPaper.paper.TrackId || ""); // <-- NEW: Re-set trackId
+        setTrackId(updatedPaper.paper.TrackId || ""); 
         
         alert('Paper saved successfully!');
         setPdfFile(null); 
@@ -276,7 +295,7 @@ export default function ViewPaper() {
   const handleSubmitForReview = async (e) => {
     e.preventDefault();
 
-    // <-- NEW: Validation for track
+    // Validation for track
     if (paper?.Conference?.Tracks && paper.Conference.Tracks.length > 0 && !trackId) {
       alert("Please select a track for this submission.");
       return;
@@ -293,7 +312,7 @@ export default function ViewPaper() {
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('confId', confId);
     
-    if (trackId) { // <-- NEW: Add trackId to form data
+    if (trackId) { 
       formData.append('trackId', trackId);
     }
 
@@ -324,10 +343,98 @@ export default function ViewPaper() {
     navigate('/conference');
   };
 
+  // --- Final Submission Handler ---
+  const handleFinalSubmission = async (e) => {
+    e.preventDefault();
+    // This logic allows uploading 1, 2, or all 3 files at once.
+    if (!copyrightFile && !finalPaperFile && !paySlipFile) {
+      alert("Please select at least one file to upload.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('paperId', paperId);
+    
+    if (copyrightFile) {
+      formData.append('copyrightFile', copyrightFile);
+    }
+    if (finalPaperFile) {
+      formData.append('finalPaperFile', finalPaperFile);
+    }
+    if (paySlipFile) {
+      formData.append('paySlipFile', paySlipFile);
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/uploadfinalfiles`, { // Assuming this endpoint
+          method:'POST',
+          body: formData,
+      });
+
+      if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.message || 'Failed to upload final files.');
+      }
+
+      const updatedPaper = await response.json();
+      setPaper(updatedPaper.paper); // Refresh paper data to get new URLs
+      
+      // Clear file inputs
+      setCopyrightFile(null);
+      setFinalPaperFile(null);
+      setPaySlipFile(null);
+
+      // Clear previews
+      setCopyrightPreview(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setFinalPaperPreview(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setPaySlipPreview(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      
+      alert('Final files uploaded successfully!');
+
+    } catch (error) {
+        console.error('Final upload failed:', error);
+        alert(`Error: ${error.message}`);
+    }
+  };
+
+  // --- Helper for creating file previews ---
+  const handleFileChange = (e, setFile, setPreview) => {
+    const file = e.target.files[0];
+    setFile(file);
+    
+    // Clear old preview
+    setPreview(prev => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+
+    // Create new preview
+    if (file && file.type === "application/pdf") {
+      setPreview(URL.createObjectURL(file));
+    }
+  };
+
   // --- Render Logic ---
   if (loading) return <div className="p-8 text-center">Loading paper...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
   if (!paper) return <div className="p-8 text-center">Paper not found.</div>;
+
+  const fileInputStyles = "w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20";
+
+  // Determine which PDF to show in the main viewer
+  const displayPdfUrl = paper.FinalPaperURL || paper.URL;
+  // Use updatedAt to cache-bust if it exists, otherwise submittedAt
+  const cacheBustKey = new Date(paper.updatedAt || paper.submittedAt).getTime();
+
 
   return (
     <div className="min-h-screen bg-[#ffffff]">
@@ -391,7 +498,7 @@ export default function ViewPaper() {
                 </select>
               </div>
 
-              {/* --- NEW: Track Selection --- */}
+              {/* --- Track Selection --- */}
               {paper?.Conference?.Tracks && paper.Conference.Tracks.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">
@@ -514,7 +621,7 @@ export default function ViewPaper() {
               {isEditable && (
                 <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload New Version (PDF)</label>
-                  <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
+                  <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className={fileInputStyles} />
                   <p className="text-xs text-gray-500 mt-1">If you select a new file, it will replace the current one when you save.</p>
                 </div>
               )}
@@ -528,18 +635,117 @@ export default function ViewPaper() {
                 </div>
               )}
             </form>
+
+            {/* --- UPDATED: FINAL SUBMISSION SECTION --- */}
+            {paper.isFinal && paper.Status === 'Accepted' && (
+              <div className="mt-6 pt-6 border-t border-[#e5e7eb]">
+                <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Final Submission Files</h3>
+                <form className="space-y-4" onSubmit={handleFinalSubmission}>
+                   {/* Final Paper */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Final Paper (PDF)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="file" 
+                        onChange={(e) => handleFileChange(e, setFinalPaperFile, setFinalPaperPreview)} 
+                        accept=".pdf" 
+                        className={`${fileInputStyles} flex-1`} 
+                      />
+                      {finalPaperPreview && (
+                        <a href={finalPaperPreview} target="_blank" rel="noopener noreferrer" className="px-3 py-2 text-sm font-medium text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 flex-shrink-0">
+                          View
+                        </a>
+                      )}
+                      {!finalPaperPreview && paper.FinalPaperURL && (
+                         <a href={paper.FinalPaperURL} target="_blank" rel="noopener noreferrer" className="px-3 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 flex-shrink-0">
+                          View
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Copyright Form */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Copyright Form (PDF)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="file" 
+                        onChange={(e) => handleFileChange(e, setCopyrightFile, setCopyrightPreview)} 
+                        accept=".pdf" 
+                        className={`${fileInputStyles} flex-1`} 
+                      />
+                      {/* Show button for NEWLY selected file */}
+                      {copyrightPreview && (
+                        <a href={copyrightPreview} target="_blank" rel="noopener noreferrer" className="px-3 py-2 text-sm font-medium text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 flex-shrink-0">
+                          View
+                        </a>
+                      )}
+                      {/* Show button for EXISTING uploaded file (if no new one is staged) */}
+                      {!copyrightPreview && paper.CopyrightURL && (
+                         <a href={paper.CopyrightURL} target="_blank" rel="noopener noreferrer" className="px-3 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 flex-shrink-0">
+                          View
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                 
+
+                  {/* Pay Slip */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Payment Slip (PDF)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="file" 
+                        onChange={(e) => handleFileChange(e, setPaySlipFile, setPaySlipPreview)} 
+                        accept=".pdf" 
+                        className={`${fileInputStyles} flex-1`} 
+                      />
+                      {paySlipPreview && (
+                        <a href={paySlipPreview} target="_blank" rel="noopener noreferrer" className="px-3 py-2 text-sm font-medium text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 flex-shrink-0">
+                          View
+                        </a>
+                      )}
+                      {!paySlipPreview && paper.PaySlipURL && (
+                         <a href={paper.PaySlipURL} target="_blank" rel="noopener noreferrer" className="px-3 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 flex-shrink-0">
+                          View
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="mt-4 w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                    Upload Final Files
+                  </button>
+                </form>
+              </div>
+            )}
+            {/* --- END: FINAL SUBMISSION --- */}
+
           </div>
 
-          <div className="lg:col-span-4 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full h-[90vh]">
-            <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Document Viewer</h3> 
+          {/* --- Main Document Viewer --- */}
+          <div className="lg:col-span-4 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+              <h3 className="text-lg font-semibold text-[#1f2937]">Document Viewer</h3>
+              <a 
+                href={`${displayPdfUrl}?v=${cacheBustKey}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-3 py-1 text-sm font-medium text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50"
+              >
+                Open in New Tab ↗
+              </a>
+            </div>
             <iframe 
-              src={`${paper.URL}?v=${new Date(paper.submittedAt).getTime()}`} 
+              src={`${displayPdfUrl}?v=${cacheBustKey}`} 
               title="Paper PDF Viewer" 
               width="100%" 
-              height="95%"
-              className="border rounded-md"
+              height="100%"
+              className="border rounded-md flex-grow"
             />
           </div>
+          {/* --- END: Main Document Viewer --- */}
         </div>
       </main>
     </div>

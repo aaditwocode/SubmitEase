@@ -111,27 +111,56 @@ const RegisteredConferenceList = ({ conferences }) => {
     }
   };
 
-  // --- THIS IS THE KEY CHANGE ---
-  // Encodes the ID and navigates to the detail page
-  const handleManageClick = (conferenceId,hostID) => {
-    const hashedId = Base64.encode(String(conferenceId));
-    if(hostID==user.id){
+  // --- UPDATED NAVIGATION LOGIC ---
+  const handleManageClick = (conf) => {
+    const hashedId = Base64.encode(String(conf.id));
+    const userId = user.id;
+
+    // 1. Check if Host
+    if (conf.hostID === userId) {
       navigate(`/conference/manage/${hashedId}`);
+      return;
     }
-    else{
+
+    // 2. Check if Publication Chair
+    // (Assuming Publication Chairs have a specific portal)
+    const isPubChair = conf.PublicationChairs?.some(pc => pc.id === userId);
+    if (isPubChair) {
+      navigate(`/conference/manage/publications/${hashedId}`);
+      return;
+    }
+
+    // 3. Check if Registration Chair
+    // (Assuming Registration Chairs have a specific portal)
+    const isRegChair = conf.RegistrationChairs?.some(rc => rc.id === userId);
+    if (isRegChair) {
+      navigate(`/conference/manage/registrations/${hashedId}`);
+      return;
+    }
+
+    // 4. Check if Track Chair
+    // We check if the user is a chair of ANY track in this conference
+    const isTrackChair = conf.Tracks?.some(track => 
+      track.Chairs?.some(chair => chair.id === userId)
+    );
+
+    if (isTrackChair) {
       navigate(`/conference/manage/trackpapers/${hashedId}`);
+      return;
     }
+
+    // Fallback (e.g. if role was revoked but UI hasn't updated)
+    alert("You do not have permission to manage this conference.");
   };
 
   const filteredAndSortedConferences = useMemo(() => {
-    // ... (filtering and sorting logic unchanged) ...
-     const filtered = (conferences || []).filter(c => {
-        const lowerSearch = searchTerm.toLowerCase();
-        return (
-            c.name?.toLowerCase().includes(lowerSearch) ||
-            c.location?.toLowerCase().includes(lowerSearch) ||
-            c.status?.toLowerCase().includes(lowerSearch)
-        );
+    const filtered = (conferences || []).filter(c => {
+      const lowerSearch = searchTerm.toLowerCase();
+      return (
+        c.name?.toLowerCase().includes(lowerSearch) ||
+        c.location?.toLowerCase().includes(lowerSearch) ||
+        c.status?.toLowerCase().includes(lowerSearch)
+      );
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -172,7 +201,6 @@ const RegisteredConferenceList = ({ conferences }) => {
       </div>
       <table className="w-full">
         <thead>
-          {/* ... (table head unchanged) ... */}
           <tr className="border-b border-[#e5e7eb]">
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("name")}>
               Conference Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
@@ -206,9 +234,9 @@ const RegisteredConferenceList = ({ conferences }) => {
                   <a href={conf.link} target="_blank" rel="noopener noreferrer" className="text-[#059669] hover:underline">Visit Site</a>
                 </td>
                 <td className="py-3 px-4">
-                  {/* --- MODIFIED: Button now calls handleManageClick --- */}
+                  {/* Pass the entire 'conf' object to the handler */}
                   <button 
-                    onClick={() => handleManageClick(conf.id,conf.hostID)} 
+                    onClick={() => handleManageClick(conf)} 
                     className="px-3 py-1 text-xs bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
                   >
                     Manage & View Papers

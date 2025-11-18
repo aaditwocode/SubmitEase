@@ -108,6 +108,14 @@ function App() {
             path="/conference/manage/trackpapers/:hashedConId" 
             element={<ConferenceDetails_TrackChair />} 
           />
+          <Route 
+            path="/conference/manage/publication/:hashedConId" 
+            element={<PublicationChairPortal />} 
+          />
+          <Route 
+            path="/conference/manage/registration/:hashedConId" 
+            element={<RegistrationChairPortal/>} 
+          />
         </Routes>
       </BrowserRouter>
     </UserProvider>

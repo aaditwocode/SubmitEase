@@ -210,196 +210,6 @@ app.post('/conference/assign-registration-chairs', async (req, res) => {
   }
 });
 
-// Get Publication Statistics
-app.post('/conference/publication-stats', async (req, res) => {
-  try {
-    const { conferenceId } = req.body;
-
-    if (!conferenceId) {
-      return res.status(400).json({ message: 'conferenceId is required.' });
-    }
-
-    const papers = await prisma.paper.findMany({
-      where: {
-        ConferenceId: parseInt(conferenceId, 10),
-        Status: {
-          not: "Pending Submission"
-        }
-      },
-      select: {
-        id: true,
-        Status: true,
-        isFinal: true
-      }
-    });
-
-    const totalPapers = papers.length;
-    const acceptedPapers = papers.filter(p => p.Status === 'Accepted').length;
-    const publishedPapers = papers.filter(p => p.isFinal === true).length;
-    const pendingPublication = acceptedPapers - publishedPapers;
-
-    const stats = {
-      totalPapers,
-      acceptedPapers,
-      publishedPapers,
-      pendingPublication: pendingPublication > 0 ? pendingPublication : 0
-    };
-
-    res.status(200).json({ stats });
-  } catch (error) {
-    console.error("Error fetching publication stats:", error);
-    res.status(500).json({ message: 'Failed to fetch publication statistics', details: error.message });
-  }
-});
-
-// Get Registration Statistics
-app.post('/conference/registration-stats', async (req, res) => {
-  try {
-    const { conferenceId } = req.body;
-
-    if (!conferenceId) {
-      return res.status(400).json({ message: 'conferenceId is required.' });
-    }
-
-    // Get all papers for the conference
-    const papers = await prisma.paper.findMany({
-      where: {
-        ConferenceId: parseInt(conferenceId, 10),
-        Status: {
-          not: "Pending Submission"
-        }
-      },
-      select: {
-        id: true,
-        Status: true,
-        Authors: {
-          select: {
-            id: true
-          }
-        }
-      }
-    });
-
-    // Calculate unique authors (registrations)
-    const authorSet = new Set();
-    papers.forEach(paper => {
-      paper.Authors.forEach(author => {
-        authorSet.add(author.id);
-      });
-    });
-
-    const totalSubmissions = papers.length;
-    const completedRegistrations = authorSet.size;
-    
-    // For demo purposes, using some mock calculations
-    const pendingRegistrations = Math.max(0, totalSubmissions - completedRegistrations);
-    const confirmedAttendees = Math.floor(completedRegistrations * 0.8);
-
-    const stats = {
-      totalSubmissions,
-      completedRegistrations,
-      pendingRegistrations,
-      confirmedAttendees
-    };
-
-    res.status(200).json({ stats });
-  } catch (error) {
-    console.error("Error fetching registration stats:", error);
-    res.status(500).json({ message: 'Failed to fetch registration statistics', details: error.message });
-  }
-});
-
-// Get conferences for Publication Chairs
-app.post('/conference/publication-chair-conferences', async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ message: 'userId is required.' });
-    }
-
-    const conferences = await prisma.conference.findMany({
-      where: {
-        PublicationChairs: {
-          some: {
-            id: parseInt(userId, 10)
-          }
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        location: true,
-        startsAt: true,
-        endAt: true,
-        deadline: true,
-        link: true,
-        status: true,
-        Partners: true,
-        PublicationChairs: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true
-          }
-        }
-      }
-    });
-
-    res.status(200).json({ conferences });
-  } catch (error) {
-    console.error("Error fetching publication chair conferences:", error);
-    res.status(500).json({ message: 'Failed to fetch conferences', details: error.message });
-  }
-});
-
-// Get conferences for Registration Chairs
-app.post('/conference/registration-chair-conferences', async (req, res) => {
-  try {
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ message: 'userId is required.' });
-    }
-
-    const conferences = await prisma.conference.findMany({
-      where: {
-        RegistrationChairs: {
-          some: {
-            id: parseInt(userId, 10)
-          }
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        location: true,
-        startsAt: true,
-        endAt: true,
-        deadline: true,
-        link: true,
-        status: true,
-        Partners: true,
-        RegistrationChairs: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true
-          }
-        }
-      }
-    });
-
-    res.status(200).json({ conferences });
-  } catch (error) {
-    console.error("Error fetching registration chair conferences:", error);
-    res.status(500).json({ message: 'Failed to fetch conferences', details: error.message });
-  }
-});
-
-// --- EXISTING ENDPOINTS (keep all your original endpoints) ---
 
 // POST /users: Create a new user (Sign-Up) with a hashed password
 app.post('/users', async (req, res) => {
@@ -1334,21 +1144,19 @@ app.post('/conference/registeration', async (req, res) => {
 app.post('/conference/registered', async (req, res) => {
   try {
     const { userId } = req.body;
+    const parsedUserId = parseInt(userId);
+
     const conferences = await prisma.conference.findMany({
       where: {
-        OR:[
-        {hostID: parseInt(userId)},
-        {Tracks: {
-          some: {
-            Chairs: {
-              some: {
-                id: parseInt(userId),
-              }
-            }
-          }
-        }
-      }
-      ]
+        OR: [
+          { hostID: parsedUserId },
+          // Check if user is a Chair of ANY track in this conference
+          { Tracks: { some: { Chairs: { some: { id: parsedUserId } } } } },
+          // Check if user is a Publication Chair
+          { PublicationChairs: { some: { id: parsedUserId } } },
+          // Check if user is a Registration Chair
+          { RegistrationChairs: { some: { id: parsedUserId } } }
+        ]
       },
       select: {
         id: true,
@@ -1361,15 +1169,26 @@ app.post('/conference/registered', async (req, res) => {
         status: true,
         Partners: true,
         hostID: true,
+        // Return IDs of chairs to verify on frontend
+        PublicationChairs: {
+          select: { id: true }
+        },
+        RegistrationChairs: {
+          select: { id: true }
+        },
         Tracks: {
           select: {
             id: true,
             Name: true,
+            Chairs: {
+              select: { id: true }
+            }
           }
         }
       },
-      cacheStrategy: { ttl: 60 },
+      // cacheStrategy: { ttl: 60 }, // Commented out for testing immediate role changes
     });
+
     if (!conferences || conferences.length === 0) {
       return res.status(404).json({ message: 'No Available Conferences.' });
     }
@@ -1377,6 +1196,7 @@ app.post('/conference/registered', async (req, res) => {
     res.status(200).json({ conference: conferences });
 
   } catch (error) {
+    console.error("Error fetching registered conferences:", error);
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
