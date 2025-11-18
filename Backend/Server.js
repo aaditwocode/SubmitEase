@@ -2,13 +2,12 @@ import { PrismaClient } from '@prisma/client';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcrypt'; // --- ADD THIS ---
+import bcrypt from 'bcrypt';
 import multer from "multer";
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
-import 'dotenv/config'; // Load environment variables from .env file
+import 'dotenv/config';
 import { parse } from 'path';
-
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 
@@ -50,7 +49,6 @@ function sendMail(to, sub, msg) {
 }
 
 // --- Initialize Supabase Client ---
-// It's safe to use process.env here because of the 'dotenv/config' import
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
@@ -61,15 +59,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
  * Uploads a file to a Supabase Storage bucket and returns the public URL.
- * @param {Buffer} fileBuffer - The file content as a buffer.
- * @param {string} Filename - The name of the file.
- * @returns {Promise<string>} The public URL of the uploaded file.
  */
-async function uploadPdfToSupabase(fileBuffer, Filename,editpdf=false) {
+async function uploadPdfToSupabase(fileBuffer, Filename, editpdf = false) {
   const fileName = `${Filename}`;
-  const bucketName = 'SubmitEase'; // Make sure this bucket exists and is public in your Supabase project
+  const bucketName = 'SubmitEase';
 
-  // 1. Upload the file
   const { error: uploadError } = await supabase.storage
     .from(bucketName)
     .upload(fileName, fileBuffer, {
@@ -81,7 +75,6 @@ async function uploadPdfToSupabase(fileBuffer, Filename,editpdf=false) {
     throw new Error(`Supabase upload failed: ${uploadError.message}`);
   }
 
-  // 2. Get the public URL for the uploaded file
   const { data } = supabase.storage
     .from(bucketName)
     .getPublicUrl(fileName);
@@ -102,13 +95,9 @@ app.post('/upload', upload.single('pdfFile'), async (req, res) => {
   try {
     console.log(`Received file: ${req.file.originalname}, size: ${req.file.size} bytes`);
 
-    // Call our upload function with the file's buffer and original name
     const publicUrl = await uploadPdfToSupabase(req.file.buffer, req.file.originalname);
 
     console.log(`File successfully uploaded. URL: ${publicUrl}`);
-
-    // Here you would save the 'publicUrl' to your own database
-    // e.g., await prisma.document.create({ data: { url: publicUrl } });
 
     res.status(200).json({
       message: 'File uploaded successfully!',
@@ -121,20 +110,308 @@ app.post('/upload', upload.single('pdfFile'), async (req, res) => {
   }
 });
 
+// --- NEW ENDPOINTS FOR PUBLICATION & REGISTRATION MANAGEMENT ---
 
-// --- MODIFY THIS ENDPOINT ---
+// Assign Publication Chairs
+app.post('/conference/assign-publication-chairs', async (req, res) => {
+  try {
+    const { conferenceId, userIds } = req.body;
+
+    if (!conferenceId || !Array.isArray(userIds)) {
+      return res.status(400).json({ message: 'conferenceId and userIds array are required.' });
+    }
+
+    const prismaUserConnect = userIds.map(id => ({ id: parseInt(id, 10) }));
+
+    const updatedConference = await prisma.conference.update({
+      where: { id: parseInt(conferenceId, 10) },
+      data: {
+        PublicationChairs: {
+          set: prismaUserConnect,
+        },
+      },
+      include: {
+        PublicationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        },
+        RegistrationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ conference: updatedConference });
+  } catch (error) {
+    console.error("Error assigning publication chairs:", error);
+    res.status(500).json({ message: 'Failed to assign publication chairs', details: error.message });
+  }
+});
+
+// Assign Registration Chairs
+app.post('/conference/assign-registration-chairs', async (req, res) => {
+  try {
+    const { conferenceId, userIds } = req.body;
+
+    if (!conferenceId || !Array.isArray(userIds)) {
+      return res.status(400).json({ message: 'conferenceId and userIds array are required.' });
+    }
+
+    const prismaUserConnect = userIds.map(id => ({ id: parseInt(id, 10) }));
+
+    const updatedConference = await prisma.conference.update({
+      where: { id: parseInt(conferenceId, 10) },
+      data: {
+        RegistrationChairs: {
+          set: prismaUserConnect,
+        },
+      },
+      include: {
+        PublicationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        },
+        RegistrationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ conference: updatedConference });
+  } catch (error) {
+    console.error("Error assigning registration chairs:", error);
+    res.status(500).json({ message: 'Failed to assign registration chairs', details: error.message });
+  }
+});
+
+// Get Publication Statistics
+app.post('/conference/publication-stats', async (req, res) => {
+  try {
+    const { conferenceId } = req.body;
+
+    if (!conferenceId) {
+      return res.status(400).json({ message: 'conferenceId is required.' });
+    }
+
+    const papers = await prisma.paper.findMany({
+      where: {
+        ConferenceId: parseInt(conferenceId, 10),
+        Status: {
+          not: "Pending Submission"
+        }
+      },
+      select: {
+        id: true,
+        Status: true,
+        isFinal: true
+      }
+    });
+
+    const totalPapers = papers.length;
+    const acceptedPapers = papers.filter(p => p.Status === 'Accepted').length;
+    const publishedPapers = papers.filter(p => p.isFinal === true).length;
+    const pendingPublication = acceptedPapers - publishedPapers;
+
+    const stats = {
+      totalPapers,
+      acceptedPapers,
+      publishedPapers,
+      pendingPublication: pendingPublication > 0 ? pendingPublication : 0
+    };
+
+    res.status(200).json({ stats });
+  } catch (error) {
+    console.error("Error fetching publication stats:", error);
+    res.status(500).json({ message: 'Failed to fetch publication statistics', details: error.message });
+  }
+});
+
+// Get Registration Statistics
+app.post('/conference/registration-stats', async (req, res) => {
+  try {
+    const { conferenceId } = req.body;
+
+    if (!conferenceId) {
+      return res.status(400).json({ message: 'conferenceId is required.' });
+    }
+
+    // Get all papers for the conference
+    const papers = await prisma.paper.findMany({
+      where: {
+        ConferenceId: parseInt(conferenceId, 10),
+        Status: {
+          not: "Pending Submission"
+        }
+      },
+      select: {
+        id: true,
+        Status: true,
+        Authors: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+
+    // Calculate unique authors (registrations)
+    const authorSet = new Set();
+    papers.forEach(paper => {
+      paper.Authors.forEach(author => {
+        authorSet.add(author.id);
+      });
+    });
+
+    const totalSubmissions = papers.length;
+    const completedRegistrations = authorSet.size;
+    
+    // For demo purposes, using some mock calculations
+    const pendingRegistrations = Math.max(0, totalSubmissions - completedRegistrations);
+    const confirmedAttendees = Math.floor(completedRegistrations * 0.8);
+
+    const stats = {
+      totalSubmissions,
+      completedRegistrations,
+      pendingRegistrations,
+      confirmedAttendees
+    };
+
+    res.status(200).json({ stats });
+  } catch (error) {
+    console.error("Error fetching registration stats:", error);
+    res.status(500).json({ message: 'Failed to fetch registration statistics', details: error.message });
+  }
+});
+
+// Get conferences for Publication Chairs
+app.post('/conference/publication-chair-conferences', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'userId is required.' });
+    }
+
+    const conferences = await prisma.conference.findMany({
+      where: {
+        PublicationChairs: {
+          some: {
+            id: parseInt(userId, 10)
+          }
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+        Partners: true,
+        PublicationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ conferences });
+  } catch (error) {
+    console.error("Error fetching publication chair conferences:", error);
+    res.status(500).json({ message: 'Failed to fetch conferences', details: error.message });
+  }
+});
+
+// Get conferences for Registration Chairs
+app.post('/conference/registration-chair-conferences', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'userId is required.' });
+    }
+
+    const conferences = await prisma.conference.findMany({
+      where: {
+        RegistrationChairs: {
+          some: {
+            id: parseInt(userId, 10)
+          }
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+        Partners: true,
+        RegistrationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({ conferences });
+  } catch (error) {
+    console.error("Error fetching registration chair conferences:", error);
+    res.status(500).json({ message: 'Failed to fetch conferences', details: error.message });
+  }
+});
+
+// --- EXISTING ENDPOINTS (keep all your original endpoints) ---
+
 // POST /users: Create a new user (Sign-Up) with a hashed password
 app.post('/users', async (req, res) => {
   try {
-    const { email, password, firstname, lastname, role, expertise, organisation, country , sub,msg } = req.body;
-    // Hash the password before storing it
+    const { email, password, firstname, lastname, role, expertise, organisation, country, sub, msg } = req.body;
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = await prisma.user.create({
       data: {
         email,
-        password: hashedPassword, // Store the hashed password
+        password: hashedPassword,
         firstname,
         lastname,
         role,
@@ -144,13 +421,11 @@ app.post('/users', async (req, res) => {
       },
       cacheStrategy: { ttl: 60 },
     });
-    // Don't send the password back, even the hash
     const { password: _, ...userWithoutPassword } = newUser;
     res.status(201).json(userWithoutPassword);
-    sendMail(email,sub,msg);
+    sendMail(email, sub, msg);
 
   } catch (error) {
-    // Handle specific error for unique email constraint
     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
       return res.status(400).json({ message: 'An account with this email already exists.' });
     }
@@ -158,13 +433,11 @@ app.post('/users', async (req, res) => {
   }
 });
 
-// --- ADD THIS NEW ENDPOINT ---
 // POST /login: Authenticate a user (Sign-In)
 app.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Find the user by their unique email
     const user = await prisma.user.findUnique({
       where: { email },
       select: {
@@ -181,18 +454,15 @@ app.post('/login', async (req, res) => {
       cacheStrategy: { ttl: 60 },
     });
 
-    // 2. If no user is found, the credentials are invalid
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials. Please check your email and password.' });
     }
 
-    // 3. Compare the provided password with the stored hash
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       return res.status(400).json({ message: 'Invalid credentials. Please check your email and password.' });
     }
 
-    // 4. Login successful. Send back user data (without the password)
     const { password: _, ...userWithoutPassword } = user;
     res.status(200).json({ user: userWithoutPassword });
 
@@ -236,42 +506,61 @@ app.get('/conferences', async (req, res) => {
   }
 });
 
-  // Get single conference by id
-  app.post('/get-conference-by-id', async (req, res) => {
-    try {
-
-      const { conferenceId } = req.body;
-      const conference = await prisma.conference.findUnique({
-        where: { id: parseInt(conferenceId, 10) },
-        select: {
-          id: true,
-          name: true,
-          location: true,
-          startsAt: true,
-          endAt: true,
-          deadline: true,
-          link: true,
-          status: true,
-          Partners: true,
-          hostID: true,
-          Tracks:{
-            select:{
-              id:true,
-              Name:true,
-            }
+// Get single conference by id
+app.post('/get-conference-by-id', async (req, res) => {
+  try {
+    const { conferenceId } = req.body;
+    const conference = await prisma.conference.findUnique({
+      where: { id: parseInt(conferenceId, 10) },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+        Partners: true,
+        hostID: true,
+        PublicationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
           }
         },
-        cacheStrategy: { ttl: 60 },
-      });
+        RegistrationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        },
+        Tracks:{
+          select:{
+            id:true,
+            Name:true,
+          }
+        }
+      },
+      cacheStrategy: { ttl: 60 },
+    });
 
-      if (!conference) return res.status(404).json({ message: 'Conference not found' });
+    if (!conference) return res.status(404).json({ message: 'Conference not found' });
 
-      res.status(200).json({ conference });
-    } catch (error) {
-      console.error('Failed to fetch conference:', error);
-      res.status(500).json({ message: 'Could not fetch conference', details: error.message });
-    }
-  });
+    res.status(200).json({ conference });
+  } catch (error) {
+    console.error('Failed to fetch conference:', error);
+    res.status(500).json({ message: 'Could not fetch conference', details: error.message });
+  }
+});
 
 app.get('/papers', async (req, res) => {
   const { authorId } = req.query;
@@ -323,11 +612,10 @@ app.get('/papers', async (req, res) => {
       return res.status(404).json({ message: 'No papers found for this author.' });
     }
 
-    // 4. Use a conventional plural key for the array in the response
     res.status(200).json({ papers: papers });
 
   } catch (error) {
-    console.error(error); // It's good practice to log the error on the server
+    console.error(error);
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
@@ -416,7 +704,7 @@ app.get('/getpaperbyid/:paperId', async (req, res) => {
     res.status(200).json({ paper: papers });
 
   } catch (error) {
-    console.error(error); // It's good practice to log the error on the server
+    console.error(error);
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
@@ -426,23 +714,20 @@ function createAbbreviation(fullName) {
   const acronym = fullName.split(' ').filter(word => !stopWords.includes(word.toLowerCase())).map(word => word.charAt(0)).join('');
   return acronym.toUpperCase().slice(0, 5);
 }
+
 app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
-  // 1. The file is now in req.file, not req.body
-  // The other fields are in req.body
   const { title, confId:cid, abstract } = req.body;
   const confId = parseInt(cid, 10);
-  // 2. Parse the stringified fields back into objects/arrays
   const conf = JSON.parse(req.body.conf);
   const keywords = JSON.parse(req.body.keywords);
   const authorIds = JSON.parse(req.body.authorIds);
   const authorIdsInt = authorIds.map(id => parseInt(id, 10));
   const trackId = req.body.trackId ? parseInt(req.body.trackId, 10) : null;
-  // 3. Check for the file from multer
+  
   if (!req.file) {
     return res.status(400).json({ error: 'No file was uploaded.' });
   }
 
-  
   try {
     const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
     const lastpaperID = await prisma.paper.findFirst({
@@ -463,7 +748,6 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
     let url;
     try {
       url = await uploadPdfToSupabase(req.file.buffer, newPaperID + '.pdf');
-
     } catch (error) {
       console.error('An error occurred during upload:', error);
       return res.status(500).json({ error: error.message });
@@ -494,7 +778,6 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
     res.status(201).json({ paper: newPaper });
   } catch (error) {
     console.error('Failed to create paper:', error);
-
     if (error.code === 'P2025') {
       return res.status(400).json({ message: 'One or more author IDs do not correspond to an existing user.' });
     }
@@ -682,18 +965,16 @@ app.post('/conference/reviewers', async (req, res) => {
 
 app.post('/assign-reviewers', async (req, res) => {
   try {
-    // 1. Get the data from the request body
     const { paperId, reviewerIds,isBlind } = req.body;
 
-    // 2. Validate input (basic)
     if (!paperId || !reviewerIds) {
       return res.status(400).json({ message: 'Missing paperId, reviewerIds' });
     }
 
     const reviewData = reviewerIds.map((id) => ({
       PaperId: paperId,
-      ReviewerId: parseInt(id, 10), // Ensure IDs are integers
-      Comment: "",                   // Placeholder for "reasons"
+      ReviewerId: parseInt(id, 10),
+      Comment: "",
       Recommendation: "",
       submittedAt:null,  
       Status: "Pending Invitation",
@@ -701,10 +982,9 @@ app.post('/assign-reviewers', async (req, res) => {
       assignedAt: new Date(),
     }));
 
-    // 5. Create all the new review records at once
     await prisma.reviews.createMany({
       data: reviewData,
-      skipDuplicates: true // Good to add, in case a reviewer was already assigned
+      skipDuplicates: true
     });
 
     const papers = await prisma.paper.findUnique({
@@ -774,11 +1054,10 @@ app.post('/assign-reviewers', async (req, res) => {
         }
       },
     });
-    // 5. Send the updated paper back as a success response
+
     res.status(200).json({ paper: papers });
 
   } catch (error) {
-    // 6. Send a relevant error message
     console.error('Failed to assign reviewers:', error);
     res.status(500).json({ message: 'Could not assign reviewers', details: error.message });
   }
@@ -796,7 +1075,7 @@ app.post('/submit-review', async (req, res) => {
         }
       },
       data: {
-        Recommendation: Recommendation, // "Accepted" or "Rejected"
+        Recommendation: Recommendation,
         Comment: Comment,
         submittedAt: new Date(),
         Status:"Submitted",
@@ -826,7 +1105,7 @@ app.post('/save-review', async (req, res) => {
         }
       },
       data: {
-        Recommendation: Recommendation, // "Accepted" or "Rejected"
+        Recommendation: Recommendation,
         Comment: Comment, 
         scoreOriginality: scoreOriginality,
         scoreClarity: scoreClarity,
@@ -963,7 +1242,6 @@ app.post('/get-your-reviews', async (req, res) => {
   }
 });
 
-
 app.post('/reviewInvitationResponse', async (req, res) => {
   const { reviewId, response} = req.body;
   
@@ -973,7 +1251,7 @@ app.post('/reviewInvitationResponse', async (req, res) => {
         id:reviewId
       },
       data: {
-        Status: response, // "Accepted" or "Declined"
+        Status: response,
         assignedAt: new Date(),
       }
     });
@@ -988,7 +1266,6 @@ app.post('/paper-decision', async (req, res) => {
   try {
     const { paperId, status, total } = req.body;
 
-    // `total` should be an array of emails from frontend (e.g., ["a@gmail.com", "b@gmail.com"])
     const updatePaper = await prisma.paper.update({
       where: { id: paperId },
       data: {
@@ -997,9 +1274,6 @@ app.post('/paper-decision', async (req, res) => {
       cacheStrategy: { ttl: 60 },
     });
 
-   
-
-    // Respond immediately to frontend (so they don't wait for all mails)
     res.status(200).json({ paper: updatePaper });
 
      for (const author of total) {
@@ -1015,20 +1289,16 @@ app.post('/paper-decision', async (req, res) => {
       }
     }
 
-    
-
   } catch (error) {
     console.error("❌ Paper decision error:", error);
     res.status(500).json({ message: 'Could not update paper status', details: error.message });
   }
 });
 
-
 app.post('/conference/registeration', async (req, res) => {
   try {
     const { name, location, startsAt, endAt, deadline, link, status, Partners, hostID, tracks } = req.body;
     
-    // Basic validation (you should add more)
     if (!name || !location || !startsAt || !endAt || !deadline || !hostID) {
       return res.status(400).json({ message: 'Missing required conference fields' });
     }
@@ -1044,12 +1314,8 @@ app.post('/conference/registeration', async (req, res) => {
         deadline: new Date(deadline),
         link,
         status,
-        Partners, // This is correct, as Partners is String[]
+        Partners,
         hostID,
-        
-        // Use the 'Tracks' relation field (capital 'T')
-        // and tell Prisma to 'create' new records in the Tracks table
-        // linked to this new conference.
         Tracks: {
           create: tracksToCreate
         }
@@ -1060,7 +1326,7 @@ app.post('/conference/registeration', async (req, res) => {
     res.status(201).json({ conference: newConference });
 
   } catch (error) {
-    console.error('Conference registration failed:', error); // Log the error for debugging
+    console.error('Conference registration failed:', error);
     res.status(500).json({ message: 'Could not create conference', details: error.message });
   }
 });
@@ -1169,12 +1435,10 @@ app.post('/conference/papers', async (req, res) => {
   }
 });
 
-
 app.post('/conference/trackpapers', async (req, res) => {
   try {
     const { conferenceId, userId } = req.body;
 
-    // --- Validation ---
     const parsedConferenceId = parseInt(conferenceId);
     const parsedUserId = parseInt(userId);
 
@@ -1182,20 +1446,16 @@ app.post('/conference/trackpapers', async (req, res) => {
       return res.status(400).json({ message: 'Invalid conferenceId or userId.' });
     }
 
-    // --- Removed Host Check ---
-    // The query now *only* finds papers where the user is a track chair.
-
     const conferencepapers = await prisma.paper.findMany({
       where: {
         ConferenceId: parsedConferenceId,
         Status: {
           not: "Pending Submission"
         },
-        // --- This filter is now ALWAYS active ---
-        Tracks: { // Filter by the related Tracks model
-          Chairs: { // Look at the 'Chairs' relation on the track
-            some: { // Check if 'some' of the chairs...
-              id: parsedUserId // ...have an ID matching the user
+        Tracks: {
+          Chairs: {
+            some: {
+              id: parsedUserId
             }
           }
         }
@@ -1232,7 +1492,6 @@ app.post('/conference/trackpapers', async (req, res) => {
       },
     });
 
-    // Return papers (or an empty array if none found)
     res.status(200).json({ paper: conferencepapers });
 
   } catch (error) {
@@ -1241,16 +1500,6 @@ app.post('/conference/trackpapers', async (req, res) => {
   }
 });
 
-// Assume you have Express and Prisma initialized:
-// const express = require('express');
-// const { PrismaClient } = require('@prisma/client');
-// const app = express();
-// const prisma = new PrismaClient();
-// app.use(express.json());
-
-// ---
-// 1. Assign Track Chairs
-// ---
 app.post('/conference/tracks/assign-chairs', async (req, res) => {
   const { trackId, userIds, conferenceId } = req.body;
 
@@ -1265,17 +1514,16 @@ app.post('/conference/tracks/assign-chairs', async (req, res) => {
       where: { id: trackId },
       data: {
         Chairs: {
-          set: prismaUserConnect, // 'set' replaces the existing list
+          set: prismaUserConnect,
         },
       },
     });
 
-    // Return the full list of tracks for the conference, including relations
     const updatedTracks = await prisma.tracks.findMany({
       where: { ConferenceId: parseInt(conferenceId, 10) },
       include: {
         Chairs: true,
-        Paper: true, // Use 'Paper' (plural) to match your schema
+        Paper: true,
       },
     });
 
@@ -1287,10 +1535,6 @@ app.post('/conference/tracks/assign-chairs', async (req, res) => {
   }
 });
 
-
-// ---
-// 2. Create a New Track
-// ---
 app.post('/conference/new-track', async (req, res) => {
   const { name, conferenceId } = req.body;
 
@@ -1299,7 +1543,6 @@ app.post('/conference/new-track', async (req, res) => {
   }
 
   try {
-    // Create the new track and connect it to the conference
     await prisma.tracks.create({
       data: {
         Name: name,
@@ -1309,12 +1552,11 @@ app.post('/conference/new-track', async (req, res) => {
       }
     });
 
-    // Return the full list of tracks for the conference
     const updatedTracks = await prisma.tracks.findMany({
       where: { ConferenceId: parseInt(conferenceId, 10) },
       include: {
         Chairs: true,
-        Paper: true, // Use 'Paper' (plural) to match your schema
+        Paper: true,
       },
     });
 
@@ -1326,12 +1568,7 @@ app.post('/conference/new-track', async (req, res) => {
   }
 });
 
-
-// ---
-// 3. Update Conference "Core" Details (for "Edit Conference Details" button)
-// ---
 app.post('/conference/update-details', async (req, res) => {
-  // This payload matches the 'details' editModeType
   const { id,name, location, startsAt, endAt, link, Partners, status } = req.body;
 
   try {
@@ -1343,10 +1580,10 @@ app.post('/conference/update-details', async (req, res) => {
         startsAt: new Date(startsAt),
         endAt: new Date(endAt),
         link,
-        Partners, // This is a String[] in your schema, so a direct update is correct
+        Partners,
         status
       },
-      include: { // Return the full conference object
+      include: {
         Tracks: {
           include: {
             Chairs: true,
@@ -1355,7 +1592,6 @@ app.post('/conference/update-details', async (req, res) => {
         }
       }
     });
-    // Return the single updated conference object
     res.status(200).json(updatedConference);
   } catch (error) {
     console.error("Error updating core conference details:", error);
@@ -1363,12 +1599,7 @@ app.post('/conference/update-details', async (req, res) => {
   }
 });
 
-
-// ---
-// 4. Update Conference "Deadline" Only (for "Edit Submission Deadline" button)
-// ---
 app.post('/conference/update-deadline', async (req, res) => {
-  // This payload matches the 'deadline' editModeType
   const { id,deadline } = req.body;
 
   if (!deadline) {
@@ -1381,7 +1612,7 @@ app.post('/conference/update-deadline', async (req, res) => {
       data: {
         deadline: new Date(deadline),
       },
-      include: { // Return the full conference object
+      include: {
         Tracks: {
           include: {
             Chairs: true,
@@ -1390,7 +1621,6 @@ app.post('/conference/update-deadline', async (req, res) => {
         }
       }
     });
-    // Return the single updated conference object
     res.status(200).json(updatedConference);
   } catch (error) {
     console.error("Error updating conference deadline:", error);
@@ -1405,7 +1635,7 @@ app.post('/conference/tracks', async (req, res) => {
       where: {ConferenceId:parseInt(conferenceId,10)},
       include: {
         Chairs: true,
-        Paper: true, // Use 'Paper' (plural) to match your schema
+        Paper: true,
       },
       cacheStrategy: { ttl: 60 },
     });
@@ -1419,11 +1649,9 @@ app.post('/conference/tracks', async (req, res) => {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
-// ---
-// 5. Update a Paper's Final Decision (Status)
-// ---
+
 app.post('/final-paper-decision', async (req, res) => {
-  const {paperId, decision } = req.body; // "Accepted" or "Rejected"
+  const {paperId, decision } = req.body;
 
   if (!decision) {
     return res.status(400).json({ message: 'Decision is required.' });
@@ -1433,7 +1661,7 @@ app.post('/final-paper-decision', async (req, res) => {
     await prisma.paper.update({
       where: { id: paperId },
       data: {
-        Status: decision,// Updates the 'Status' field in the Paper model
+        Status: decision,
         isFinal: true
       }
     });
@@ -1443,7 +1671,7 @@ app.post('/final-paper-decision', async (req, res) => {
     res.status(500).json({ message: 'Failed to update decision', details: error.message });
   }
 });
-// POST /conference/add-reviewer : Add an existing user as a reviewer for a conference
+
 app.post('/conference/invite-reviewer', async (req, res) => {
   try {
     const { confId, reviewerIds } = req.body;
@@ -1452,7 +1680,6 @@ app.post('/conference/invite-reviewer', async (req, res) => {
 
     const parsedConfId = parseInt(confId, 10);
 
-    // reviewerIds should be an array (but accept single id too)
     let ids = [];
     if (Array.isArray(reviewerIds)) {
       ids = reviewerIds.map(id => parseInt(id, 10));
@@ -1460,14 +1687,11 @@ app.post('/conference/invite-reviewer', async (req, res) => {
       ids = [parseInt(reviewerIds, 10)];
     }
 
-    // Clean and dedupe
     const reviewerIdsToConnect = Array.from(new Set(ids.filter(id => !isNaN(id))));
     if (reviewerIdsToConnect.length === 0) return res.status(400).json({ message: 'No valid reviewerIds provided' });
 
-    // Build connect array for Prisma
     const connectArray = reviewerIdsToConnect.map(id => ({ id }));
 
-    // Connect the users to the conference Reviewers relation
     const updated = await prisma.conference.update({
       where: { id: parsedConfId },
       data: {
@@ -1498,7 +1722,6 @@ app.post('/conference/invite-reviewer', async (req, res) => {
   }
 });
 
-// POST /remind-reviewers : Send reminder emails to selected reviewers for a paper
 app.post('/remind-reviewers', async (req, res) => {
   try {
     const { paperId, reviewerIds } = req.body;
@@ -1506,7 +1729,6 @@ app.post('/remind-reviewers', async (req, res) => {
       return res.status(400).json({ message: 'paperId and reviewerIds (non-empty array) are required' });
     }
 
-    // Fetch paper title for email context
     const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { Title: true } });
 
     for (const id of reviewerIds) {
@@ -1529,7 +1751,6 @@ app.post('/remind-reviewers', async (req, res) => {
   }
 });
 
-// POST /remind-reviewers : Send reminder emails to selected reviewers for a paper
 app.post('/remind-invited-reviewers', async (req, res) => {
   try {
     const { paperId, reviewerIds } = req.body;
@@ -1537,7 +1758,6 @@ app.post('/remind-invited-reviewers', async (req, res) => {
       return res.status(400).json({ message: 'paperId and reviewerIds (non-empty array) are required' });
     }
 
-    // Fetch paper title for email context
     const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { Title: true } });
 
     for (const id of reviewerIds) {
@@ -1560,8 +1780,6 @@ app.post('/remind-invited-reviewers', async (req, res) => {
   }
 });
 
-// POST /remove-reviewers : Remove selected reviewers from a paper (delete review assignments)
-// POST /accept-conference-invite: Accept a conference invite
 app.post('/accept-conference-invite', async (req, res) => {
   try {
     const { conferenceId, userId } = req.body;
@@ -1569,7 +1787,6 @@ app.post('/accept-conference-invite', async (req, res) => {
       return res.status(400).json({ message: 'conferenceId and userId are required' });
     }
 
-    // First disconnect from InvitedReviewers
     await prisma.conference.update({
       where: { id: parseInt(conferenceId, 10) },
       data: {
@@ -1579,7 +1796,6 @@ app.post('/accept-conference-invite', async (req, res) => {
       }
     });
 
-    // Then connect to Reviewers
     const updatedConf = await prisma.conference.update({
       where: { id: parseInt(conferenceId, 10) },
       data: {
@@ -1596,7 +1812,6 @@ app.post('/accept-conference-invite', async (req, res) => {
   }
 });
 
-// POST /decline-conference-invite: Decline a conference invite
 app.post('/decline-conference-invite', async (req, res) => {
   try {
     const { conferenceId, userId } = req.body;
@@ -1604,7 +1819,6 @@ app.post('/decline-conference-invite', async (req, res) => {
       return res.status(400).json({ message: 'conferenceId and userId are required' });
     }
 
-    // Simply disconnect from InvitedReviewers
     const updatedConf = await prisma.conference.update({
       where: { id: parseInt(conferenceId, 10) },
       data: {
@@ -1631,7 +1845,6 @@ app.post('/remove-reviewers', async (req, res) => {
     const parsedIds = reviewerIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
     if (parsedIds.length === 0) return res.status(400).json({ message: 'No valid reviewerIds provided' });
 
-    // Delete the review records for these reviewers on this paper
     await prisma.reviews.deleteMany({
       where: {
         PaperId: paperId,
@@ -1639,7 +1852,6 @@ app.post('/remove-reviewers', async (req, res) => {
       }
     });
 
-    // Return updated paper (similar to other endpoints)
     const updated = await prisma.paper.findUnique({
       where: { id: paperId },
       select: {
@@ -1716,7 +1928,6 @@ app.post('/remove-reviewers', async (req, res) => {
     res.status(500).json({ message: 'Could not remove reviewers', details: error.message });
   }
 });
-
 
 app.get('/', (req, res) => {
   res.send('🚀 API is running and connected to Prisma Postgres!');

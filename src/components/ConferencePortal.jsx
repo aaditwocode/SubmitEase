@@ -4,6 +4,10 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
+// Import your existing chair components
+import PublicationChairPortal from "./publication";
+import RegistrationChairPortal from "./registrationChair";
+
 // --- Helper Functions & Table Component for Paper List ---
 const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
@@ -477,6 +481,8 @@ export default function ConferencePortal() {
   const [conferences, setConferences] = useState([]);
   const [papers, setPapers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [userConferences, setUserConferences] = useState([]);
+  const [activeTab, setActiveTab] = useState("available");
 
   // --- UI State ---
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
@@ -489,7 +495,7 @@ export default function ConferencePortal() {
   const [conf, setConf] = useState(null);
   const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
-  const [trackId, setTrackId] = useState(""); // <-- ADDED
+  const [trackId, setTrackId] = useState("");
 
   // --- Invite Form State ---
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -511,6 +517,19 @@ export default function ConferencePortal() {
     setloginStatus(false);
     navigate("/home");
   };
+
+  // --- Check if user is assigned as chair ---
+  const isPublicationChair = useMemo(() => {
+    return userConferences.some(conf => 
+      conf.PublicationChairs?.some(chair => chair.id === user?.id)
+    );
+  }, [userConferences, user]);
+
+  const isRegistrationChair = useMemo(() => {
+    return userConferences.some(conf => 
+      conf.RegistrationChairs?.some(chair => chair.id === user?.id)
+    );
+  }, [userConferences, user]);
 
   // --- NEW: Handle document upload for accepted papers ---
   const handleDocumentUpload = async (paperId, documentType, file) => {
@@ -559,7 +578,7 @@ export default function ConferencePortal() {
     setAbstract("");
     setKeywords("");
     setPdfFile(null);
-    setTrackId(""); // <-- ADDED: Reset trackId
+    setTrackId("");
     setShowInviteForm(false);
     setInviteFirstName("");
     setInviteLastName("");
@@ -726,11 +745,27 @@ export default function ConferencePortal() {
       }
   };
 
+  const getUserConferences = async () => {
+    if (user && user.id) {
+      try {
+        const response = await fetch('http://localhost:3001/conference/registered', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUserConferences(data.conference || []);
+        }
+      } catch (error) {
+        console.error('Error fetching user conferences:', error);
+      }
+    }
+  };
+
   useEffect(() => {
     const getConferences = async () => {
       try {
-        // IMPORTANT: Make sure this endpoint includes the Tracks relation
-        // e.g., in your backend: prisma.conference.findMany({ include: { Tracks: true } })
         const response = await fetch("http://localhost:3001/conferences");
         if (!response.ok) throw new Error("Conference data fetch failed.");
         const data = await response.json();
@@ -739,6 +774,7 @@ export default function ConferencePortal() {
     };
     getConferences();
     getPapers();
+    getUserConferences();
   }, [user]);
 
   useEffect(() => {
@@ -757,6 +793,7 @@ export default function ConferencePortal() {
   const acceptedPapers = useMemo(() => {
     return papers.filter(paper => paper.isFinal && paper.Status === "Accepted");
   }, [papers]);
+
   // --- RENDER ---
   return (
     <div className="min-h-screen bg-[#ffffff]">
@@ -789,52 +826,119 @@ export default function ConferencePortal() {
         <div className="space-y-8">
           <h2 className="text-3xl font-bold text-[#1f2937]">Conference Portal</h2>
 
-          {/* Statistics Section */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
-              <h3 className="text-sm font-medium text-[#6b7280]">Total Submissions</h3>
-              <p className="text-3xl font-bold text-[#059669]">{papers.length}</p>
-            </div>
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
-              <h3 className="text-sm font-medium text-[#6b7280]">Accepted Papers</h3>
-              <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.isFinal && p.Status === "Accepted").length}</p>
-            </div>
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
-              <h3 className="text-sm font-medium text-[#6b7280]">Under Review</h3>
-              <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter(p => !p.isFinal && p.Status != "Pending Submission").length}</p>
-            </div>
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
-              <h3 className="text-sm font-medium text-[#6b7280]">Rejected</h3>
-              <p className="text-3xl font-bold text-red-700">{papers.filter(p => p.isFinal && p.Status === "Rejected").length}</p>
-            </div>
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
-              <h3 className="text-sm font-medium text-[#6b7280]">Pending Submission</h3>
-              <p className="text-3xl font-bold text-red-700">{papers.filter((p) => p.Status === "Pending Submission").length}</p>
-            </div>
+          {/* Tab Navigation */}
+          <div className="border-b border-[#e5e7eb]">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab("available")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "available"
+                    ? "border-[#059669] text-[#059669]"
+                    : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                }`}
+              >
+                Available Conferences
+              </button>
+              <button
+                onClick={() => setActiveTab("submissions")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "submissions"
+                    ? "border-[#059669] text-[#059669]"
+                    : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                }`}
+              >
+                My Submissions
+              </button>
+              {isPublicationChair && (
+                <button
+                  onClick={() => setActiveTab("publication")}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === "publication"
+                      ? "border-[#059669] text-[#059669]"
+                      : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                  }`}
+                >
+                  Manage Publication
+                </button>
+              )}
+              {isRegistrationChair && (
+                <button
+                  onClick={() => setActiveTab("registration")}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === "registration"
+                      ? "border-[#059669] text-[#059669]"
+                      : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                  }`}
+                >
+                  Manage Registration
+                </button>
+              )}
+            </nav>
           </div>
 
-          
+          {/* Tab Content */}
+          <div className="mt-6">
+            {activeTab === "available" && (
+              <div className="space-y-8">
+                {/* Statistics Section */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                  <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
+                    <h3 className="text-sm font-medium text-[#6b7280]">Total Submissions</h3>
+                    <p className="text-3xl font-bold text-[#059669]">{papers.length}</p>
+                  </div>
+                  <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
+                    <h3 className="text-sm font-medium text-[#6b7280]">Accepted Papers</h3>
+                    <p className="text-3xl font-bold text-[#059669]">{papers.filter(p => p.isFinal && p.Status === "Accepted").length}</p>
+                  </div>
+                  <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
+                    <h3 className="text-sm font-medium text-[#6b7280]">Under Review</h3>
+                    <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter(p => !p.isFinal && p.Status != "Pending Submission").length}</p>
+                  </div>
+                  <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
+                    <h3 className="text-sm font-medium text-[#6b7280]">Rejected</h3>
+                    <p className="text-3xl font-bold text-red-700">{papers.filter(p => p.isFinal && p.Status === "Rejected").length}</p>
+                  </div>
+                  <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
+                    <h3 className="text-sm font-medium text-[#6b7280]">Pending Submission</h3>
+                    <p className="text-3xl font-bold text-red-700">{papers.filter((p) => p.Status === "Pending Submission").length}</p>
+                  </div>
+                </div>
 
-          {/* Available Conferences Section */}
-          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-            <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Available Conferences</h3>
-            <ConferenceList 
-              conferences={conferences} 
-              onNewSubmission={newSubmission} 
-            />
+                {/* Available Conferences Section */}
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Available Conferences</h3>
+                  <ConferenceList 
+                    conferences={conferences} 
+                    onNewSubmission={newSubmission} 
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "submissions" && (
+              <div className="space-y-8">
+                {/* My Submissions Section */}
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-[#1f2937] mb-4">My Submissions</h3>
+                  <PaperList papers={papers} />
+                </div>
+
+                {/* Accepted Papers Upload Section */}
+                <AcceptedPapersUpload 
+                  acceptedPapers={acceptedPapers}
+                  onUploadDocument={handleDocumentUpload}
+                />
+              </div>
+            )}
+
+            {activeTab === "publication" && isPublicationChair && (
+              <PublicationChairPortal />
+            )}
+
+            {activeTab === "registration" && isRegistrationChair && (
+              <RegistrationChairPortal />
+            )}
           </div>
-
-          {/* My Submissions Section */}
-          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-            <h3 className="text-xl font-semibold text-[#1f2937] mb-4">My Submissions</h3>
-            <PaperList papers={papers} />
-          </div>
-
-          {/* --- NEW: Accepted Papers Upload Section --- */}
-          <AcceptedPapersUpload 
-            acceptedPapers={acceptedPapers}
-            onUploadDocument={handleDocumentUpload}
-          />
         </div>
       </main>
 
@@ -874,7 +978,7 @@ export default function ConferencePortal() {
                        className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
               </div>
 
-              {/* --- THIS IS THE NEW TRACK SELECTION FIELD --- */}
+              {/* Track Selection Field */}
               {conf?.Tracks && conf.Tracks.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Select Track</label>
@@ -892,8 +996,6 @@ export default function ConferencePortal() {
                   </select>
                 </div>
               )}
-              {/* --- END OF NEW FIELD --- */}
-
 
               {/* Authors Section */}
               <div>

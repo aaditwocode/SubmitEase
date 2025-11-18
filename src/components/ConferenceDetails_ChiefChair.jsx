@@ -141,7 +141,6 @@ const useSortableData = (items, config = { key: 'id', direction: 'ascending' }) 
 // ---
 
 // --- Assign Chair Modal Component ---
-// ... (AssignChairModal component remains unchanged) ...
 const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -314,11 +313,6 @@ const TrackStatistics = ({ papers }) => {
 
 
 // --- Track List Component ---
-/**
- * MODIFIED:
- * - Removed `onBulkDecision` from props.
- * - Replaced `TrackPaperTable` with `TrackStatistics`.
- */
 const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -365,9 +359,7 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
               </div>
             </div>
             
-            {/* --- MODIFIED: Replaced paper table with stats --- */}
             <TrackStatistics papers={track.Paper} />
-            {/* --- END OF MODIFICATION --- */}
 
             <div className="p-4 bg-[#f9fafb] border-t border-[#e5e7eb] text-right">
               <button 
@@ -389,12 +381,7 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
 };
 
 // --- Verdict Section Component ---
-/**
- * MODIFIED:
- * - Changed prop `onFinalDecision` to `onBulkDecision` for clarity.
- * - Updated local `handleBulkDecision` to call this prop.
- */
-const VerdictSection = ({ papers, onBulkDecision,navigate }) => {
+const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [trackFilter, setTrackFilter] = useState("All");
@@ -462,15 +449,13 @@ const VerdictSection = ({ papers, onBulkDecision,navigate }) => {
     });
   };
 
-  // --- HANDLER FOR BULK DECISIONS (NOW CALLS PROP) ---
+  // --- HANDLER FOR BULK DECISIONS ---
   const handleBulkDecision = (decision) => {
     if (selectedPaperIds.size === 0) {
       alert("Please select at least one paper.");
       return;
     }
-    // Call the prop from the parent component
     onBulkDecision(Array.from(selectedPaperIds), decision);
-    // Clear selection locally
     setSelectedPaperIds(new Set());
   };
   
@@ -618,19 +603,17 @@ const VerdictSection = ({ papers, onBulkDecision,navigate }) => {
                   {paper.avgRating ? paper.avgRating.toFixed(1) : 'N/A'}
                 </td>
                 <td className="py-3 px-4">
-                                    {/* CHANGED: Added flex and justify-center */}
-                                    <div className="flex justify">
-                                        <button onClick={() => navigate(`/PaperDecision/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
-                                            View
-                                        </button>
-                                    </div>
-                  </td>
+                  <div className="flex justify">
+                    <button onClick={() => navigate(`/PaperDecision/${paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                      View
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              {/* --- MODIFIED: colSpan updated to 7 --- */}
-              <td colSpan="7" className="text-center text-gray-500 py-4">
+              <td colSpan="8" className="text-center text-gray-500 py-4">
                 {searchTerm || statusFilter !== 'All' || trackFilter !== 'All' || ratingFilter > 0
                   ? 'No papers match your filters.' 
                   : 'No papers found.'
@@ -644,11 +627,329 @@ const VerdictSection = ({ papers, onBulkDecision,navigate }) => {
   );
 };
 
+// --- Publication & Registration Management Component ---
+const PublicationRegistrationManagement = ({ 
+  conference, 
+  allUsers, 
+  onAssignPublicationChairs, 
+  onAssignRegistrationChairs 
+}) => {
+  const [selectedPublicationChairs, setSelectedPublicationChairs] = useState([]);
+  const [selectedRegistrationChairs, setSelectedRegistrationChairs] = useState([]);
+  const [isPublicationModalOpen, setIsPublicationModalOpen] = useState(false);
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+
+  // Initialize chairs from conference data
+  useEffect(() => {
+    if (conference?.PublicationChairs) {
+      setSelectedPublicationChairs(conference.PublicationChairs);
+    }
+    if (conference?.RegistrationChairs) {
+      setSelectedRegistrationChairs(conference.RegistrationChairs);
+    }
+  }, [conference]);
+
+  const handleAssignPublicationChairs = (userIds) => {
+    onAssignPublicationChairs(userIds);
+    setIsPublicationModalOpen(false);
+  };
+
+  const handleAssignRegistrationChairs = (userIds) => {
+    onAssignRegistrationChairs(userIds);
+    setIsRegistrationModalOpen(false);
+  };
+
+  // Mock data for statistics (replace with actual data from props)
+  const publicationStats = {
+    totalPapers: 156,
+    acceptedPapers: 89,
+    publishedPapers: 67,
+    pendingPublication: 22
+  };
+
+  const registrationStats = {
+    totalSubmissions: 234,
+    completedRegistrations: 189,
+    pendingRegistrations: 45,
+    confirmedAttendees: 167
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Statistics Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Publication Statistics */}
+        <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
+          <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb]">
+            <h3 className="text-lg font-semibold text-[#1f2937]">Publication Statistics</h3>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-[#6b7280]">Total Papers</h3>
+                <p className="text-2xl font-bold text-[#1f2937]">{publicationStats.totalPapers}</p>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-green-700">Accepted Papers</h3>
+                <p className="text-2xl font-bold text-green-700">{publicationStats.acceptedPapers}</p>
+              </div>
+              <div className="bg-[#059669]/10 border border-[#059669]/20 rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-[#059669]">Published</h3>
+                <p className="text-2xl font-bold text-[#059669]">{publicationStats.publishedPapers}</p>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-yellow-700">Pending Publication</h3>
+                <p className="text-2xl font-bold text-yellow-700">{publicationStats.pendingPublication}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Registration Statistics */}
+        <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
+          <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb]">
+            <h3 className="text-lg font-semibold text-[#1f2937]">Registration Statistics</h3>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-[#6b7280]">Total Submissions</h3>
+                <p className="text-2xl font-bold text-[#1f2937]">{registrationStats.totalSubmissions}</p>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-green-700">Completed Registrations</h3>
+                <p className="text-2xl font-bold text-green-700">{registrationStats.completedRegistrations}</p>
+              </div>
+              <div className="bg-[#059669]/10 border border-[#059669]/20 rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-[#059669]">Confirmed Attendees</h3>
+                <p className="text-2xl font-bold text-[#059669]">{registrationStats.confirmedAttendees}</p>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                <h3 className="text-sm font-medium text-yellow-700">Pending Registrations</h3>
+                <p className="text-2xl font-bold text-yellow-700">{registrationStats.pendingRegistrations}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chairs Assignment Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Publication Chairs Card */}
+        <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
+          <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-[#1f2937]">Publication Chairs</h3>
+            <button 
+              onClick={() => setIsPublicationModalOpen(true)}
+              className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors text-sm"
+            >
+              Assign Publication Chairs
+            </button>
+          </div>
+          <div className="p-4">
+            <h4 className="text-sm font-medium text-[#6b7280] mb-2">Assigned Chairs</h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedPublicationChairs && selectedPublicationChairs.length > 0 ? (
+                selectedPublicationChairs.map(chair => (
+                  <span key={chair.id} className="px-3 py-1 bg-[#059669]/10 text-[#059669] text-sm font-medium rounded-full">
+                    {chair.firstname} {chair.lastname}
+                  </span>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No publication chairs assigned.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Registration Chairs Card */}
+        <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
+          <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-[#1f2937]">Registration Chairs</h3>
+            <button 
+              onClick={() => setIsRegistrationModalOpen(true)}
+              className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors text-sm"
+            >
+              Assign Registration Chairs
+            </button>
+          </div>
+          <div className="p-4">
+            <h4 className="text-sm font-medium text-[#6b7280] mb-2">Assigned Chairs</h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedRegistrationChairs && selectedRegistrationChairs.length > 0 ? (
+                selectedRegistrationChairs.map(chair => (
+                  <span key={chair.id} className="px-3 py-1 bg-[#059669]/10 text-[#059669] text-sm font-medium rounded-full">
+                    {chair.firstname} {chair.lastname}
+                  </span>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No registration chairs assigned.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {isPublicationModalOpen && (
+        <AssignChairModalGeneric
+          title="Assign Publication Chairs"
+          selectedUsers={selectedPublicationChairs}
+          allUsers={allUsers}
+          onClose={() => setIsPublicationModalOpen(false)}
+          onAssign={handleAssignPublicationChairs}
+        />
+      )}
+
+      {isRegistrationModalOpen && (
+        <AssignChairModalGeneric
+          title="Assign Registration Chairs"
+          selectedUsers={selectedRegistrationChairs}
+          allUsers={allUsers}
+          onClose={() => setIsRegistrationModalOpen(false)}
+          onAssign={handleAssignRegistrationChairs}
+        />
+      )}
+    </div>
+  );
+};
+
+// --- Reusable AssignChairModal Component for Publication/Registration ---
+const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAssign }) => {
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const userMap = useMemo(() => 
+    new Map(allUsers.map(user => [user.id, user])), 
+    [allUsers]
+  );
+  
+  const currentSelectedUsers = useMemo(() => 
+    selectedUserIds.map(id => userMap.get(id)).filter(Boolean),
+    [selectedUserIds, userMap]
+  );
+
+  useEffect(() => {
+    if (selectedUsers) {
+      setSelectedUserIds(selectedUsers.map(user => user.id));
+    } else {
+      setSelectedUserIds([]);
+    }
+  }, [selectedUsers]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onAssign(selectedUserIds);
+  };
+
+  const addChair = (userId) => {
+    if (!selectedUserIds.includes(userId)) {
+      setSelectedUserIds([...selectedUserIds, userId]);
+    }
+    setSearchTerm("");
+  };
+
+  const removeChair = (userId) => {
+    setSelectedUserIds(selectedUserIds.filter(id => id !== userId));
+  };
+
+  const availableUsers = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase();
+    return allUsers.filter(user => 
+      !selectedUserIds.includes(user.id) && (
+        user.firstname.toLowerCase().includes(lowerSearch) ||
+        user.lastname.toLowerCase().includes(lowerSearch) ||
+        user.email.toLowerCase().includes(lowerSearch)
+      )
+    );
+  }, [allUsers, selectedUserIds, searchTerm]);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <form onSubmit={handleSubmit} className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl">
+        <h3 className="text-lg font-semibold text-[#1f2937] mb-4">
+          {title}
+        </h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[#1f2937] mb-2">Selected Chairs</label>
+            <div className="p-2 min-h-[40px] border border-[#e5e7eb] rounded-md bg-white flex flex-wrap gap-2">
+              {currentSelectedUsers.length > 0 ? (
+                currentSelectedUsers.map(user => (
+                  <span key={user.id} className="inline-flex items-center gap-2 px-3 py-1 bg-[#059669]/10 text-[#059669] rounded-full text-sm">
+                    {user.firstname} {user.lastname}
+                    <button 
+                      type="button" 
+                      onClick={() => removeChair(user.id)} 
+                      className="hover:bg-[#059669]/20 rounded-full p-0.5"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <p className="text-sm text-gray-400 px-2 py-1">No chairs selected.</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1f2937] mb-1">Find Users</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+            />
+          </div>
+
+          <div className="w-full h-60 overflow-y-auto border border-[#e5e7eb] rounded-md bg-white">
+            {availableUsers.length > 0 ? (
+              availableUsers.map(user => (
+                <div 
+                  key={user.id}
+                  onClick={() => addChair(user.id)}
+                  className="p-3 border-b border-[#e5e7eb] last:border-b-0 hover:bg-[#f3f4f6] cursor-pointer"
+                >
+                  <p className="font-medium text-[#1f2937]">{user.firstname} {user.lastname}</p>
+                  <p className="text-sm text-[#6b7280]">{user.email}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 text-center p-4">
+                {searchTerm ? "No users match your search." : "All users are selected."}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex gap-3 pt-4">
+            <button 
+              type="submit"
+              className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90"
+            >
+              Save Changes
+            </button>
+            <button 
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+};
 
 // ---
 // --- HEADER COMPONENT ---
 // ---
-// ... (AppHeader component remains unchanged) ...
 const AppHeader = () => {
   const navigate = useNavigate();
   const { setUser, setloginStatus } = useUserData();
@@ -722,7 +1023,6 @@ export default function ConferenceDetails_ChiefChair() {
   // ---
   // --- DATA FETCHING ---
   // ---
-  // ... (fetchUsers, fetchPapers, fetchTracks functions remain unchanged) ...
   const fetchUsers = async () => {
     try {
       const response = await fetch('http://localhost:3001/users/emails');
@@ -767,7 +1067,7 @@ export default function ConferenceDetails_ChiefChair() {
       if (response.status === 404) setTracks([]);
       else if (response.ok) {
         const data = await response.json();
-        setTracks(data.tracks || []); // Set the 'tracks' state
+        setTracks(data.tracks || []);
       } else {
          throw new Error("Track data fetch failed.");
       }
@@ -777,7 +1077,6 @@ export default function ConferenceDetails_ChiefChair() {
     }
   };
 
-  // ... (main useEffect for getConference remains unchanged) ...
   useEffect(() => {
     let conferenceId;
     try {
@@ -820,7 +1119,7 @@ export default function ConferenceDetails_ChiefChair() {
           deadlineTime: deadline.toTimeString().substring(0, 5),
           link: conf.link || "",
           Partners: conf.Partners || [],
-          Tracks: [] // Will be populated by the useEffect below
+          Tracks: []
         });
         setEditMode(false);
         
@@ -838,35 +1137,28 @@ export default function ConferenceDetails_ChiefChair() {
     getConference();
   }, [hashedConId]);
 
-  // ... (useEffect for syncing tracks to editFormData remains unchanged) ...
   useEffect(() => {
-    // Only update if tracks have been loaded
     if (tracks.length > 0 || conference?.Tracks?.length > 0) {
       setEditFormData((prev) => ({
         ...prev,
         Tracks: tracks
       }));
     }
-  }, [tracks, conference]); // Added conference to handle initial load
+  }, [tracks, conference]);
 
-
-  // ... (useMemo for tracksWithPapers remains unchanged) ...
   const tracksWithPapers = useMemo(() => {
     return tracks.map(track => {
-      // Find all papers that belong to this track
       const papersForThisTrack = papers.filter(paper => paper.TrackId === track.id);
       return {
         ...track,
         Paper: papersForThisTrack,
       };
     });
-  }, [tracks, papers]); // Re-run whenever tracks or papers change
-
+  }, [tracks, papers]);
 
   // ---
   // --- EVENT HANDLERS (Conference Edit) ---
   // ---
-  // ... (all conference edit handlers: handleEditDetailsClick, handleEditDeadlineClick, handleSaveEdit, handleInputChange, addPartner, removePartner, handleKeyPress remain unchanged) ...
   const handleEditDetailsClick = () => {
     setEditModeType('details');
     setEditMode(true);
@@ -876,21 +1168,18 @@ export default function ConferenceDetails_ChiefChair() {
     setEditMode(true);
   };
 
-const handleSaveEdit = async () => {
+  const handleSaveEdit = async () => {
     let endpoint = '';
     let payload = {};
 
     if (editModeType === 'details') {
-      // --- MODIFICATION: Changed alert to confirm and added a check ---
       const isConfirmed = window.confirm(
         "Please Note: This will close your conference for submission and will be transferred to Admin for 'Approval'.\n\nDo you want to proceed?"
       );
       
-      // If user clicks "Cancel", stop the function
       if (!isConfirmed) {
         return; 
       }
-      // --- END MODIFICATION ---
       
       payload = {
         id: decodedConferenceId,
@@ -912,7 +1201,6 @@ const handleSaveEdit = async () => {
       endpoint = `http://localhost:3001/conference/update-deadline`;
     }
     
-    // The try/catch block only runs if the user confirms (or if type is 'deadline')
     try {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -935,7 +1223,7 @@ const handleSaveEdit = async () => {
       const deadline = new Date(updatedConference.deadline);
 
       setEditFormData(prev => ({
-        ...prev, // Keep existing tracks
+        ...prev,
         name: updatedConference.name || "",
         city: city || "",
         country: country || "",
@@ -983,11 +1271,9 @@ const handleSaveEdit = async () => {
     }
   };
 
-
   // ---
   // --- EVENT HANDLERS (Track/Verdict tabs) ---
   // ---
-  // ... (handleCreateTrack, handleAssignChairClick, handleCloseModal, handleSaveTrack, handleAssignChairs remain unchanged) ...
   const handleCreateTrack = () => {
     setShowCreateTrackForm(true);
   };
@@ -1022,7 +1308,7 @@ const handleSaveEdit = async () => {
       }
       
       const data = await response.json();
-      setTracks(data.tracks || []); // Update tracks state
+      setTracks(data.tracks || []);
       
       setNewTrackName("");
       setShowCreateTrackForm(false);
@@ -1050,7 +1336,7 @@ const handleSaveEdit = async () => {
       }
 
       const data = await response.json();
-      setTracks(data.tracks || []); // Update tracks state
+      setTracks(data.tracks || []);
       
       handleCloseModal(); 
       alert(`Track chairs updated successfully!`);
@@ -1060,12 +1346,9 @@ const handleSaveEdit = async () => {
     }
   };
 
-
   // ---
   // --- BULK DECISION LOGIC ---
   // ---
-
-  // This is the core API call. It does NOT refetch.
   const runSingleDecisionAPI = async (paperId, decision) => {
     try {
       const response = await fetch(`http://localhost:3001/final-paper-decision`, {
@@ -1081,17 +1364,13 @@ const handleSaveEdit = async () => {
         const err = await response.json();
         throw new Error(err.message || 'Failed to update decision');
       }
-      return await response.json(); // Return success
+      return await response.json();
     } catch (error) {
       console.error(`Failed to save decision for paper ${paperId}:`, error);
-      throw error; // Re-throw for Promise.allSettled
+      throw error;
     }
   };
 
-  /**
-   * This is the function passed to child components.
-   * It runs all API calls in parallel and refetches *once*.
-   */
   const handleBulkDecisionRequest = async (paperIds, decision) => {
     if (!paperIds || paperIds.length === 0) {
       alert("No papers selected.");
@@ -1114,17 +1393,66 @@ Failed: ${failCount}`);
       console.error("Bulk update failed:", error);
       alert("An error occurred during the bulk update.");
     } finally {
-      // Refetch papers ONCE, after all are processed.
       fetchPapers(decodedConferenceId);
     }
   };
 
+  // ---
+  // --- PUBLICATION/REGISTRATION HANDLERS ---
+  // ---
+  const handleAssignPublicationChairs = async (userIds) => {
+    try {
+      const response = await fetch(`http://localhost:3001/conference/assign-publication-chairs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conferenceId: decodedConferenceId,
+          userIds: userIds,
+        }),
+      });
+      
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "Failed to assign publication chairs");
+      }
+
+      const data = await response.json();
+      setConference(data.conference);
+      alert('Publication chairs updated successfully!');
+    } catch (error) {
+      console.error("Error assigning publication chairs:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleAssignRegistrationChairs = async (userIds) => {
+    try {
+      const response = await fetch(`http://localhost:3001/conference/assign-registration-chairs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conferenceId: decodedConferenceId,
+          userIds: userIds,
+        }),
+      });
+      
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "Failed to assign registration chairs");
+      }
+
+      const data = await response.json();
+      setConference(data.conference);
+      alert('Registration chairs updated successfully!');
+    } catch (error) {
+      console.error("Error assigning registration chairs:", error);
+      alert(`Error: ${error.message}`);
+    }
+  };
 
   // ---
   // --- RENDER LOGIC ---
   // ---
-
-  // ... (Loading and Error states remain unchanged) ...
   if (loading) {
     return (
       <div className="min-h-screen bg-[#ffffff]">
@@ -1150,7 +1478,6 @@ Failed: ${failCount}`);
     );
   }
 
-  // ... (Main component render, AppHeader, and Conference Detail/Edit section remain unchanged) ...
   return (
     <div className="min-h-screen bg-[#ffffff]">
       <AppHeader />
@@ -1191,7 +1518,6 @@ Failed: ${failCount}`);
 
               {!editMode ? (
                 // --- VIEW MODE ---
-                // ... (View mode remains unchanged) ...
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div>
@@ -1250,7 +1576,6 @@ Failed: ${failCount}`);
                 </div>
               ) : (
                 // --- EDIT MODE FORM ---
-                // ... (Edit mode form remains unchanged) ...
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div>
@@ -1444,14 +1769,23 @@ Failed: ${failCount}`);
                 >
                   Final Verdicts (All Papers)
                 </button>
+                <button
+                  onClick={() => setActiveTab("pubreg")}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === "pubreg"
+                      ? "border-[#059669] text-[#059669]"
+                      : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                  }`}
+                >
+                  Publication & Registration
+                </button>
               </nav>
             </div>
 
             <div className="mt-6">
               {activeTab === "tracks" && (
                 <div className="space-y-6">
-                
-                  {/* --- ADDED: Conference-Wide Statistics Block --- */}
+                  {/* Conference-Wide Statistics Block */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
                       <h3 className="text-sm font-medium text-[#6b7280]">Total Tracks</h3>
@@ -1465,7 +1799,6 @@ Failed: ${failCount}`);
                     </div>
                     <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
                       <h3 className="text-sm font-medium text-[#6b7280]">Pending Decisions</h3>
-                      {/* Using "Under Review" as the equivalent of "Pending" */}
                       <p className="text-3xl font-bold text-[#f59e0b]">{papers.filter(p => p.Status === 'Under Review').length}</p>
                     </div>
                     <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
@@ -1475,9 +1808,7 @@ Failed: ${failCount}`);
                       </p>
                     </div>
                   </div>
-                  {/* --- END: Conference-Wide Statistics Block --- */}
 
-                  {/* --- MODIFIED: Removed onBulkDecision prop --- */}
                   <TrackList 
                     tracks={tracksWithPapers}
                     onAssignChairClick={handleAssignChairClick}
@@ -1488,11 +1819,21 @@ Failed: ${failCount}`);
 
               {activeTab === "verdicts" && (
                 <div className="space-y-6">
-                  {/* --- MODIFIED: Renamed prop to onBulkDecision --- */}
                   <VerdictSection 
                     papers={papers}
                     onBulkDecision={handleBulkDecisionRequest}
                     navigate={navigate}
+                  />
+                </div>
+              )}
+
+              {activeTab === "pubreg" && (
+                <div className="space-y-6">
+                  <PublicationRegistrationManagement 
+                    conference={conference}
+                    allUsers={allUsers}
+                    onAssignPublicationChairs={handleAssignPublicationChairs}
+                    onAssignRegistrationChairs={handleAssignRegistrationChairs}
                   />
                 </div>
               )}
@@ -1504,7 +1845,6 @@ Failed: ${failCount}`);
       </main>
 
       {/* --- MODALS --- */}
-      {/* ... (Create Track Modal and Assign Chair Modal remain unchanged) ... */}
       {showCreateTrackForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-md">
