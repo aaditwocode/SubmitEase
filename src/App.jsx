@@ -13,11 +13,11 @@ import PaperDecision from './components/PaperDecision';
 import ReviewPaper from './components/ReviewPaper';
 import ManageReviews from './components/ManageReviews';
 import JournalPortal from './components/JournalPortal';
-import PublicationChairPortal from './components/publication';
+
 import RegistrationChairPortal from './components/registrationChair';
-import ConferenceDetailPage from './components/ConferenceDetails_ChiefChair';
 import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
 import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackChair';
+import PublicationChairPortal from './components/PublicationChair';
 function App() {
   return (
     <UserProvider>
@@ -96,25 +96,25 @@ function App() {
             path="/conference/manage"
             element={
               <ProtectedRoute>
-                <ManageConferences/>
+                <ManageConferences />
               </ProtectedRoute>
             }
           />
-          <Route 
-            path="/conference/manage/:hashedConId" 
-            element={<ConferenceDetails_ChiefChair />} 
+          <Route
+            path="/conference/manage/:hashedConId"
+            element={<ConferenceDetails_ChiefChair />}
           />
-          <Route 
-            path="/conference/manage/trackpapers/:hashedConId" 
-            element={<ConferenceDetails_TrackChair />} 
+          <Route
+            path="/conference/manage/trackpapers/:hashedConId"
+            element={<ConferenceDetails_TrackChair />}
           />
-          <Route 
-            path="/conference/manage/publication/:hashedConId" 
-            element={<PublicationChairPortal />} 
+          <Route
+            path="/conference/manage/publication/:hashedConId"
+            element={<PublicationChairPortal />}
           />
-          <Route 
-            path="/conference/manage/registration/:hashedConId" 
-            element={<RegistrationChairPortal/>} 
+          <Route
+            path="/conference/manage/registration/:hashedConId"
+            element={<RegistrationChairPortal />}
           />
         </Routes>
       </BrowserRouter>

@@ -68,6 +68,8 @@ model Paper {
   CopyrightURL    String?
   RegistrationURL String?
   Completed       Boolean     @default(false)
+  CompletedPublication Boolean @default(false)
+  CompletedRegistration Boolean @default(false)
 }
 
 model Reviews {

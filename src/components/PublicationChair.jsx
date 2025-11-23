@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Base64 } from "js-base64";
 import { useUserData } from "./UserContext";
+
 // --- Helper Functions ---
 const getStatusBadge = (paper) => {
   if (paper.Completed) {
@@ -15,8 +16,9 @@ const getStatusBadge = (paper) => {
 };
 
 // --- Paper List Component ---
-const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
+const PaperList = ({ papers, onRemind, onSendBack, onViewFile, onBulkApprove }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const filteredPapers = papers.filter((paper) => {
     const searchLower = searchTerm.toLowerCase();
@@ -27,9 +29,25 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
     );
   });
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredPapers.map(p => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(sid => sid !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <div className="p-4">
+      <div className="p-4 flex justify-between items-center">
         <input
           type="text"
           placeholder="Search papers (ID, Title, Authors...)"
@@ -37,11 +55,30 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
         />
+        {selectedIds.length > 0 && (
+          <button
+            onClick={() => {
+              onBulkApprove(selectedIds);
+              setSelectedIds([]);
+            }}
+            className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#047a56] font-medium"
+          >
+            Approve Selected ({selectedIds.length})
+          </button>
+        )}
       </div>
 
       <table className="w-full">
         <thead>
           <tr className="border-b border-[#e5e7eb]">
+            <th className="py-3 px-4 text-left">
+              <input
+                type="checkbox"
+                onChange={handleSelectAll}
+                checked={filteredPapers.length > 0 && selectedIds.length === filteredPapers.length}
+                className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]"
+              />
+            </th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Paper ID</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Title</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Authors</th>
@@ -55,6 +92,14 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
           {filteredPapers.length > 0 ? (
             filteredPapers.map((paper) => (
               <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(paper.id)}
+                    onChange={() => handleSelectOne(paper.id)}
+                    className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]"
+                  />
+                </td>
                 <td className="py-3 px-4 text-sm font-medium text-[#1f2937] truncate">{paper.id}</td>
                 <td className="py-3 px-4 truncate">
                   <div>
@@ -65,13 +110,13 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
                 <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.correspondent}</td>
                 <td className="py-3 px-4">
                   {paper.FinalPaperURL ? (
-                      <button onClick={() => onViewFile(paper.FinalPaperURL)} className="text-sm text-[#059669] hover:underline text-left">View Final Paper</button>
-                    ) : <span className="text-sm text-red-500">Missing Final Paper</span>}
+                    <button onClick={() => onViewFile(paper.FinalPaperURL)} className="text-sm text-[#059669] hover:underline text-left">View Final Paper</button>
+                  ) : <span className="text-sm text-red-500">Missing Final Paper</span>}
                 </td>
                 <td className="py-3 px-4">
                   {paper.CopyrightURL ? (
-                      <button onClick={() => onViewFile(paper.CopyrightURL)} className="text-sm text-[#059669] hover:underline text-left">View Copyright</button>
-                    ) : <span className="text-sm text-red-500">Missing Copyright</span>}
+                    <button onClick={() => onViewFile(paper.CopyrightURL)} className="text-sm text-[#059669] hover:underline text-left">View Copyright</button>
+                  ) : <span className="text-sm text-red-500">Missing Copyright</span>}
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex justify-center gap-2">
@@ -97,7 +142,7 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="5" className="text-center text-gray-500 py-4">No papers found.</td>
+              <td colSpan="8" className="text-center text-gray-500 py-4">No papers found.</td>
             </tr>
           )}
         </tbody>
@@ -123,7 +168,7 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
         <p className="text-sm text-gray-600">
           This action will mark the paper as <b>Incomplete</b> (Completed: false). Please provide a reason or instructions for the author.
         </p>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Email Message to Author</label>
           <textarea
@@ -139,8 +184,8 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
             Cancel
           </button>
-          <button 
-            onClick={() => onConfirm(paper, message)} 
+          <button
+            onClick={() => onConfirm(paper, message)}
             disabled={!message.trim()}
             className="px-4 py-2 text-sm text-white bg-red-600 rounded hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
@@ -155,7 +200,7 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
 // --- Main Publication Chair Component ---
 export default function PublicationChairPortal() {
   const navigate = useNavigate();
-  const { hashedConId } = useParams(); 
+  const { hashedConId } = useParams();
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -176,26 +221,26 @@ export default function PublicationChairPortal() {
       try {
         setLoading(true);
         const confId = hashedConId ? Base64.decode(hashedConId) : null;
-        if(!confId) throw new Error("Invalid Conference ID");
+        if (!confId) throw new Error("Invalid Conference ID");
 
         // Replace with your actual backend endpoint
-        const response = await fetch(`http://localhost:3001/conference/finalpapers`,{
+        const response = await fetch(`http://localhost:3001/conference/finalpapers`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conferenceId: confId }),
         });
         if (!response.ok) throw new Error("Failed to fetch papers");
-        
+
         const data = await response.json();
         const formattedPapers = (data.paper || []).map((p) => ({
-            id: p.id,
-            Title: p.Title,
-            authors: p.Authors ? p.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "Unknown",
-            correspondent: p.User?.email || "N/A", 
-            CopyrightURL: p.CopyrightURL,
-            FinalPaperURL: p.FinalPaperURL,
-            Completed: p.Completed,
-            isProcessing: false
+          id: p.id,
+          Title: p.Title,
+          authors: p.Authors ? p.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "Unknown",
+          correspondent: p.User?.email || "N/A",
+          CopyrightURL: p.CopyrightURL,
+          FinalPaperURL: p.FinalPaperURL,
+          Completed: p.Completed,
+          isProcessing: false
         }));
 
         setPapers(formattedPapers);
@@ -211,7 +256,7 @@ export default function PublicationChairPortal() {
   }, [hashedConId]);
 
   // --- Handlers ---
-  
+
   const handleViewFile = (url) => {
     if (url) {
       window.open(`http://localhost:3001/${url}`, "_blank");
@@ -221,13 +266,13 @@ export default function PublicationChairPortal() {
   const handleRemindAuthor = async (paper) => {
     try {
       setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: true } : p));
-      
+
       const response = await fetch(`http://localhost:3001/paper/${paper.id}/remind`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            email: paper.correspondent,
-            type: "general_reminder" // Backend can handle template
+        body: JSON.stringify({
+          email: paper.correspondent,
+          type: "general_reminder" // Backend can handle template
         }),
       });
 
@@ -255,17 +300,17 @@ export default function PublicationChairPortal() {
       const response = await fetch(`http://localhost:3001/paper/${paper.id}/send-back`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            email: paper.correspondent,
-            message: message,
-            action: "mark_incomplete" // Signal backend to set Completed = false
+        body: JSON.stringify({
+          email: paper.correspondent,
+          message: message,
+          action: "mark_incomplete" // Signal backend to set Completed = false
         }),
       });
 
       if (!response.ok) throw new Error("Failed to update paper status");
 
       // Update local state to reflect change (Completed -> false)
-      setPapers(prev => prev.map(p => 
+      setPapers(prev => prev.map(p =>
         p.id === paper.id ? { ...p, Completed: false, isProcessing: false } : p
       ));
 
@@ -278,6 +323,34 @@ export default function PublicationChairPortal() {
     }
   };
 
+  // --- Bulk Approve ---
+  const handleBulkApprove = async (paperIds) => {
+    if (!confirm(`Are you sure you want to approve ${paperIds.length} papers?`)) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/paper/bulk-approve-publication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperIds }),
+      });
+
+      if (!response.ok) throw new Error('Failed to bulk approve papers');
+
+      const result = await response.json();
+      alert(`Successfully approved ${result.count} papers.`);
+
+      // Refresh papers to show updated status
+      setPapers(prevPapers =>
+        prevPapers.map(paper =>
+          paperIds.includes(paper.id) ? { ...paper, Completed: true } : paper
+        )
+      );
+    } catch (error) {
+      console.error('Bulk approve error:', error);
+      alert('Failed to approve papers.');
+    }
+  };
+
   // --- Render ---
   if (loading) return <div className="flex justify-center items-center h-screen text-[#059669]">Loading...</div>;
   if (error) return <div className="flex justify-center items-center h-screen text-red-600">Error: {error}</div>;
@@ -286,33 +359,33 @@ export default function PublicationChairPortal() {
     <div className="min-h-screen bg-[#f9fafb]">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-              <span className="text-lg font-bold text-white">S</span>
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
+              </div>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             </div>
-            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+            <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+              <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
+              <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
+              <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
+            </nav>
           </div>
-          <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-            <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
-            <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
-            <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
-          </nav>
+          <div className="flex items-center gap-4">
+            <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
+            <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">Return To Conference Portal</button>
-          <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
-        </div>
-      </div>
-    </header>
+      </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         <button onClick={() => navigate("/conference/manage")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
           &larr; Back to All Conferences
         </button>
         <div className="flex justify-between items-center">
-            <h2 className="text-3xl font-bold text-[#1f2937]">Publication Chair Portal</h2>
+          <h2 className="text-3xl font-bold text-[#1f2937]">Publication Chair Portal</h2>
         </div>
 
         {/* Statistics - Simplified */}
@@ -332,18 +405,19 @@ export default function PublicationChairPortal() {
         </div>
 
         {/* Main Table */}
-        <PaperList 
-          papers={papers} 
+        <PaperList
+          papers={papers}
           onRemind={handleRemindAuthor}
           onSendBack={initiateSendBack}
           onViewFile={handleViewFile}
+          onBulkApprove={handleBulkApprove}
         />
       </main>
 
       {/* Modal */}
-      <SendBackModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <SendBackModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onConfirm={handleSendBackConfirm}
         paper={selectedPaper}
       />

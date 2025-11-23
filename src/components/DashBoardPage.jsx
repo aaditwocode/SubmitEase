@@ -1,11 +1,12 @@
 "use client";
 
-import { useState,useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 export default function DashBoardPage() {
-  const { user,setUser} = useUserData();
+  const { user, setUser } = useUserData();
   const [activePortal, setActivePortal] = useState(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
   const goToProfile = () => {
@@ -34,28 +35,66 @@ export default function DashBoardPage() {
             <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
           </div>
 
-            {/* Right side - Portal buttons and logout */}
-            <div className="flex items-center space-x-4">
+          {/* Right side - Portal buttons and logout */}
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => handlePortalClick("journal")}
+              className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+            >
+              Journal Portal
+            </button>
+            <div className="relative">
               <button
-                onClick={() => handlePortalClick("journal")}
-                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
-              >
-                Journal Portal
-              </button>
-              <button
-                onClick={() => handlePortalClick("conference")}
-                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors flex items-center gap-2"
               >
                 Conference Portal
+                <svg className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
-              >
-                Logout
-              </button>
+
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-1 z-50">
+                  <h2 className="text-m font-semibold text-[#1f2937] mb-2 px-4 py-1">Signin As</h2>
+                  <button
+                    onClick={() => {
+                      navigate("/conference");
+                      setIsDropdownOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-1 text-sm text-[#1f2937] hover:bg-[#f3f4f6]"
+                  >
+                    Author
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate("/conference/manage");
+                      setIsDropdownOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-1 text-sm text-[#1f2937] hover:bg-[#f3f4f6]"
+                  >
+                    Conference Host
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate("/ManageReviews");
+                      setIsDropdownOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-1 text-sm text-[#1f2937] hover:bg-[#f3f4f6]"
+                  >
+                    Reviewer
+                  </button>
+                </div>
+              )}
             </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
+            >
+              Logout
+            </button>
           </div>
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

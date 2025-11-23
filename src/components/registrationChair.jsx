@@ -15,8 +15,9 @@ const getStatusBadge = (paper) => {
 };
 
 // --- Paper List Component ---
-const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
+const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip, onBulkApprove }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const filteredPapers = papers.filter((paper) => {
     const searchLower = searchTerm.toLowerCase();
@@ -28,9 +29,25 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
     );
   });
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredPapers.map(p => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(sid => sid !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <div className="p-4">
+      <div className="p-4 flex justify-between items-center">
         <input
           type="text"
           placeholder="Search (ID, Title, Author, Email...)"
@@ -38,11 +55,30 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
         />
+        {selectedIds.length > 0 && (
+          <button
+            onClick={() => {
+              onBulkApprove(selectedIds);
+              setSelectedIds([]);
+            }}
+            className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#047a56] font-medium"
+          >
+            Approve Selected ({selectedIds.length})
+          </button>
+        )}
       </div>
 
       <table className="w-full">
         <thead>
           <tr className="border-b border-[#e5e7eb]">
+            <th className="py-3 px-4 text-left">
+              <input
+                type="checkbox"
+                onChange={handleSelectAll}
+                checked={filteredPapers.length > 0 && selectedIds.length === filteredPapers.length}
+                className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]"
+              />
+            </th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Paper ID</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Title</th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Authors</th>
@@ -56,14 +92,22 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
           {filteredPapers.length > 0 ? (
             filteredPapers.map((paper) => (
               <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(paper.id)}
+                    onChange={() => handleSelectOne(paper.id)}
+                    className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]"
+                  />
+                </td>
                 <td className="py-3 px-4 text-sm font-medium text-[#1f2937] truncate">{paper.id}</td>
                 <td className="py-3 px-4 text-sm text-[#1f2937] truncate">{paper.Title}</td>
                 <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.authors}</td>
                 <td className="py-3 px-4 text-sm text-[#6b7280] truncate">{paper.correspondent}</td>
                 <td className="py-3 px-4">
                   {paper.RegistrationURL ? (
-                    <button 
-                      onClick={() => onViewSlip(paper.RegistrationURL)} 
+                    <button
+                      onClick={() => onViewSlip(paper.RegistrationURL)}
                       className="text-sm font-medium text-[#059669] hover:underline flex items-center gap-1"
                     >
                       📄 View Slip
@@ -94,22 +138,22 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
                     )}
 
                     {!paper.RegistrationURL && (
-                       <button
-                       onClick={() => onRemind(paper)}
-                       disabled={paper.isProcessing}
-                       className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-md hover:bg-[#047a56] transition-colors disabled:bg-gray-300"
-                     >
-                       {paper.isProcessing ? "Sending..." : "Remind"}
-                     </button>
+                      <button
+                        onClick={() => onRemind(paper)}
+                        disabled={paper.isProcessing}
+                        className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-md hover:bg-[#047a56] transition-colors disabled:bg-gray-300"
+                      >
+                        {paper.isProcessing ? "Sending..." : "Remind"}
+                      </button>
                     )}
 
                     {paper.Completed && (
-                       <button
-                       onClick={() => onSendBack(paper)} // Allow un-approving if needed
-                       className="px-4 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
-                     >
-                       Revoke
-                     </button>
+                      <button
+                        onClick={() => onSendBack(paper)} // Allow un-approving if needed
+                        className="px-4 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+                      >
+                        Revoke
+                      </button>
                     )}
                   </div>
                 </td>
@@ -117,7 +161,7 @@ const PaperList = ({ papers, onApprove, onRemind, onSendBack, onViewSlip }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="5" className="text-center text-gray-500 py-4">No papers found.</td>
+              <td colSpan="8" className="text-center text-gray-500 py-4">No papers found.</td>
             </tr>
           )}
         </tbody>
@@ -131,7 +175,7 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (isOpen) setMessage(""); 
+    if (isOpen) setMessage("");
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -143,7 +187,7 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
         <p className="text-sm text-gray-600">
           This will mark the registration as <b>Incomplete</b>. Please explain why the payment slip is invalid (e.g., wrong amount, unreadable).
         </p>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Rejection (Email to Author)</label>
           <textarea
@@ -159,8 +203,8 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
             Cancel
           </button>
-          <button 
-            onClick={() => onConfirm(paper, message)} 
+          <button
+            onClick={() => onConfirm(paper, message)}
             disabled={!message.trim()}
             className="px-4 py-2 text-sm text-white bg-red-600 rounded hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
@@ -175,7 +219,7 @@ const SendBackModal = ({ isOpen, onClose, onConfirm, paper }) => {
 // --- Main Registration Chair Component ---
 export default function RegistrationChairPortal() {
   const navigate = useNavigate();
-  const { hashedConId} = useParams(); // Conference ID encoded
+  const { hashedConId } = useParams(); // Conference ID encoded
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -190,10 +234,10 @@ export default function RegistrationChairPortal() {
       try {
         setLoading(true);
         const confId = hashedConId ? Base64.decode(hashedConId) : null;
-        if(!confId) throw new Error("Invalid Conference ID");
+        if (!confId) throw new Error("Invalid Conference ID");
 
         // API call to fetch papers for this conference
-        const response = await fetch(`http://localhost:3001/conference/finalpapers`,{
+        const response = await fetch(`http://localhost:3001/conference/finalpapers`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conferenceId: confId }),
@@ -203,13 +247,13 @@ export default function RegistrationChairPortal() {
 
         // Map Backend Data to UI Model
         const formattedPapers = (data.paper || []).map((p) => ({
-            id: p.id,
-            Title: p.Title,
-            authors: p.Authors ? p.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "Unknown",
-            correspondent: p.User?.email || "N/A",
-            RegistrationURL: p.RegistrationURL, // The payment slip
-            Completed: p.Completed, // Verified status
-            isProcessing: false
+          id: p.id,
+          Title: p.Title,
+          authors: p.Authors ? p.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "Unknown",
+          correspondent: p.User?.email || "N/A",
+          RegistrationURL: p.RegistrationURL, // The payment slip
+          Completed: p.Completed, // Verified status
+          isProcessing: false
         }));
 
         setPapers(formattedPapers);
@@ -234,34 +278,34 @@ export default function RegistrationChairPortal() {
 
   const handleApprove = async (paper) => {
     try {
-        setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: true } : p));
+      setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: true } : p));
 
-        const response = await fetch(`http://localhost:3001/paper/${paper.id}/approve-registration`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" }
-        });
+      const response = await fetch(`http://localhost:3001/paper/${paper.id}/approve-registration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
 
-        if (!response.ok) throw new Error("Failed to approve");
+      if (!response.ok) throw new Error("Failed to approve");
 
-        // Update State: Mark as Completed
-        setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, Completed: true, isProcessing: false } : p));
-        alert("Registration Verified Successfully.");
+      // Update State: Mark as Completed
+      setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, Completed: true, isProcessing: false } : p));
+      alert("Registration Verified Successfully.");
     } catch (err) {
-        alert(err.message);
-        setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: false } : p));
+      alert(err.message);
+      setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: false } : p));
     }
   };
 
   const handleRemindAuthor = async (paper) => {
     try {
       setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: true } : p));
-      
+
       const response = await fetch(`http://localhost:3001/paper/${paper.id}/remind`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            email: paper.correspondent,
-            type: "registration_reminder"
+        body: JSON.stringify({
+          email: paper.correspondent,
+          type: "registration_reminder"
         }),
       });
 
@@ -289,17 +333,17 @@ export default function RegistrationChairPortal() {
       const response = await fetch(`http://localhost:3001/paper/${paper.id}/send-back-registration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            email: paper.correspondent,
-            message: message,
-            action: "mark_incomplete" // Backend should set Completed = false
+        body: JSON.stringify({
+          email: paper.correspondent,
+          message: message,
+          action: "mark_incomplete" // Backend should set Completed = false
         }),
       });
 
       if (!response.ok) throw new Error("Failed to reject registration");
 
       // Update State: Mark as NOT Completed
-      setPapers(prev => prev.map(p => 
+      setPapers(prev => prev.map(p =>
         p.id === paper.id ? { ...p, Completed: false, isProcessing: false } : p
       ));
 
@@ -309,6 +353,34 @@ export default function RegistrationChairPortal() {
       console.error(err);
       alert("Error: " + err.message);
       setPapers(prev => prev.map(p => p.id === paper.id ? { ...p, isProcessing: false } : p));
+    }
+  };
+
+  // --- Bulk Approve ---
+  const handleBulkApprove = async (paperIds) => {
+    if (!confirm(`Are you sure you want to approve ${paperIds.length} registrations?`)) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/paper/bulk-approve-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperIds }),
+      });
+
+      if (!response.ok) throw new Error('Failed to bulk approve registrations');
+
+      const result = await response.json();
+      alert(`Successfully approved ${result.count} registrations.`);
+
+      // Refresh papers to show updated status
+      setPapers(prevPapers =>
+        prevPapers.map(paper =>
+          paperIds.includes(paper.id) ? { ...paper, Completed: true } : paper
+        )
+      );
+    } catch (error) {
+      console.error('Bulk approve error:', error);
+      alert('Failed to approve registrations.');
     }
   };
 
@@ -322,10 +394,10 @@ export default function RegistrationChairPortal() {
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                <span className="text-lg font-bold text-white">S</span>
-              </div>
-              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+              <span className="text-lg font-bold text-white">S</span>
+            </div>
+            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
           </div>
           <div className="flex gap-4">
             <button onClick={() => navigate("/conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm text-white hover:bg-[#059669]/90">Conference Portal</button>
@@ -336,7 +408,7 @@ export default function RegistrationChairPortal() {
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         <div className="flex justify-between items-center">
-            <h2 className="text-3xl font-bold text-[#1f2937]">Registration Chair Portal</h2>
+          <h2 className="text-3xl font-bold text-[#1f2937]">Registration Chair Portal</h2>
         </div>
 
         {/* Statistics */}
@@ -356,19 +428,20 @@ export default function RegistrationChairPortal() {
         </div>
 
         {/* Main Table */}
-        <PaperList 
-          papers={papers} 
+        <PaperList
+          papers={papers}
           onApprove={handleApprove}
           onRemind={handleRemindAuthor}
           onSendBack={initiateSendBack}
           onViewSlip={handleViewSlip}
+          onBulkApprove={handleBulkApprove}
         />
       </main>
 
       {/* Reject Modal */}
-      <SendBackModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <SendBackModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onConfirm={handleSendBackConfirm}
         paper={selectedPaper}
       />

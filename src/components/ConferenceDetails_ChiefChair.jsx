@@ -5,7 +5,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 import { Base64 } from "js-base64"; // <-- Make sure to install: npm install js-base64
-
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 // ---
 // --- HELPER FUNCTIONS & HOOKS ---
 // ---
@@ -36,8 +37,8 @@ const getConferenceStatusBadge = (status) => {
       badgeClasses += "bg-[#059669]/10 text-[#059669]";
       break;
     case "Pending Approval":
-       badgeClasses += "bg-yellow-100 text-yellow-700";
-       break;
+      badgeClasses += "bg-yellow-100 text-yellow-700";
+      break;
     default: // Closed, etc.
       badgeClasses += "bg-red-100 text-red-700";
       break;
@@ -83,7 +84,7 @@ const useSortableData = (items, config = { key: 'id', direction: 'ascending' }) 
     }
     setSortConfig({ key, direction });
   };
-  
+
   // Helper to get sort indicator
   const getSortIndicator = (key) => {
     if (sortConfig.key !== key) return <span className="text-gray-400"> ↕</span>;
@@ -96,7 +97,7 @@ const useSortableData = (items, config = { key: 'id', direction: 'ascending' }) 
       sortableItems.sort((a, b) => {
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
-        
+
         // Handle nested keys like 'Tracks.Name'
         if (sortConfig.key.includes('.')) {
           const keys = sortConfig.key.split('.');
@@ -106,14 +107,14 @@ const useSortableData = (items, config = { key: 'id', direction: 'ascending' }) 
 
         // Handle special cases
         if (sortConfig.key === 'Keywords') {
-            aVal = a.Keywords.join(', ');
-            bVal = b.Keywords.join(', ');
+          aVal = a.Keywords.join(', ');
+          bVal = b.Keywords.join(', ');
         }
-        
+
         // Handle null/undefined
         if (aVal === null || aVal === undefined) return 1;
         if (bVal === null || bVal === undefined) return -1;
-        
+
         // Type-aware comparison
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
@@ -125,7 +126,7 @@ const useSortableData = (items, config = { key: 'id', direction: 'ascending' }) 
           if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
           if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
         }
-        
+
         return 0;
       });
     }
@@ -145,12 +146,12 @@ const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const userMap = useMemo(() => 
-    new Map(allUsers.map(user => [user.id, user])), 
+  const userMap = useMemo(() =>
+    new Map(allUsers.map(user => [user.id, user])),
     [allUsers]
   );
-  
-  const selectedUsers = useMemo(() => 
+
+  const selectedUsers = useMemo(() =>
     selectedUserIds.map(id => userMap.get(id)).filter(Boolean),
     [selectedUserIds, userMap]
   );
@@ -181,7 +182,7 @@ const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
 
   const availableUsers = useMemo(() => {
     const lowerSearch = searchTerm.toLowerCase();
-    return allUsers.filter(user => 
+    return allUsers.filter(user =>
       !selectedUserIds.includes(user.id) && (
         user.firstname.toLowerCase().includes(lowerSearch) ||
         user.lastname.toLowerCase().includes(lowerSearch) ||
@@ -198,7 +199,7 @@ const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
         <h3 className="text-lg font-semibold text-[#1f2937] mb-4">
           Assign Track Chairs for: <span className="text-[#059669]">{track.Name}</span>
         </h3>
-        
+
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[#1f2937] mb-2">Selected Chairs</label>
@@ -207,9 +208,9 @@ const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
                 selectedUsers.map(user => (
                   <span key={user.id} className="inline-flex items-center gap-2 px-3 py-1 bg-[#059669]/10 text-[#059669] rounded-full text-sm">
                     {user.firstname} {user.lastname}
-                    <button 
-                      type="button" 
-                      onClick={() => removeChair(user.id)} 
+                    <button
+                      type="button"
+                      onClick={() => removeChair(user.id)}
                       className="hover:bg-[#059669]/20 rounded-full p-0.5"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -236,7 +237,7 @@ const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
           <div className="w-full h-60 overflow-y-auto border border-[#e5e7eb] rounded-md bg-white">
             {availableUsers.length > 0 ? (
               availableUsers.map(user => (
-                <div 
+                <div
                   key={user.id}
                   onClick={() => addChair(user.id)}
                   className="p-3 border-b border-[#e5e7eb] last:border-b-0 hover:bg-[#f3f4f6] cursor-pointer"
@@ -251,15 +252,15 @@ const AssignChairModal = ({ track, allUsers, onClose, onAssign }) => {
               </p>
             )}
           </div>
-          
+
           <div className="flex gap-3 pt-4">
-            <button 
+            <button
               type="submit"
               className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90"
             >
               Save Changes
             </button>
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]"
@@ -316,7 +317,7 @@ const TrackStatistics = ({ papers }) => {
 const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredTracks = tracks.filter(track => 
+  const filteredTracks = tracks.filter(track =>
     track.Name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -330,14 +331,14 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
         />
-        <button 
+        <button
           onClick={onCreateTrack}
           className="ml-4 px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
         >
           Create New Track
         </button>
       </div>
-      
+
       {filteredTracks.length > 0 ? (
         filteredTracks.map((track) => (
           <div key={track.id} className="overflow-hidden bg-white rounded-lg shadow">
@@ -358,11 +359,11 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
                 )}
               </div>
             </div>
-            
+
             <TrackStatistics papers={track.Paper} />
 
             <div className="p-4 bg-[#f9fafb] border-t border-[#e5e7eb] text-right">
-              <button 
+              <button
                 onClick={() => onAssignChairClick(track)}
                 className="px-4 py-2 text-sm bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors"
               >
@@ -385,18 +386,18 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [trackFilter, setTrackFilter] = useState("All");
-  const [ratingFilter, setRatingFilter] = useState(0); 
+  const [ratingFilter, setRatingFilter] = useState(0);
   const [selectedPaperIds, setSelectedPaperIds] = useState(new Set());
-  
+
   const safePapers = Array.isArray(papers) ? papers : [];
 
   // Get unique values for filters
-  const tracks = useMemo(() => 
-    [...new Set(safePapers.map(p => p.Tracks?.Name || 'N/A'))].sort(), 
+  const tracks = useMemo(() =>
+    [...new Set(safePapers.map(p => p.Tracks?.Name || 'N/A'))].sort(),
     [safePapers]
   );
-  const statuses = useMemo(() => 
-    [...new Set(safePapers.map(p => p.Status))].sort(), 
+  const statuses = useMemo(() =>
+    [...new Set(safePapers.map(p => p.Status))].sort(),
     [safePapers]
   );
 
@@ -405,14 +406,14 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
     return safePapers.filter(paper => {
       const lowerSearch = searchTerm.toLowerCase();
       const matchesSearch = paper.Title.toLowerCase().includes(lowerSearch) ||
-                            paper.id.toString().includes(searchTerm);
+        paper.id.toString().includes(searchTerm);
       const matchesStatus = statusFilter === 'All' || paper.Status === statusFilter;
       const matchesTrack = trackFilter === 'All' || (paper.Tracks?.Name || 'N/A') === trackFilter;
       const matchesRating = ratingFilter === 0 || (paper.avgRating || 0) >= ratingFilter;
-      
+
       return matchesSearch && matchesStatus && matchesTrack && matchesRating;
     });
-  }, [safePapers, searchTerm, statusFilter, trackFilter, ratingFilter]); 
+  }, [safePapers, searchTerm, statusFilter, trackFilter, ratingFilter]);
 
   // 2. Sort the filtered papers
   const { items: sortedPapers, requestSort, getSortIndicator } = useSortableData(
@@ -435,11 +436,9 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
 
   const handleSelectAll = () => {
     setSelectedPaperIds(prevSelected => {
-      const newSelected = new Set(prevSelected);
+      const newSelected = new Set(prevSelected.filter(p => !p.isFinal).map(r => r.ReviewerId).filter(Boolean));
       const allVisibleIds = sortedPapers.map(p => p.id);
-      
       const allVisibleSelected = allVisibleIds.every(id => newSelected.has(id));
-      
       if (allVisibleSelected) {
         allVisibleIds.forEach(id => newSelected.delete(id));
       } else {
@@ -458,7 +457,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
     onBulkDecision(Array.from(selectedPaperIds), decision);
     setSelectedPaperIds(new Set());
   };
-  
+
   // --- Checkbox state for "Select All" ---
   const allVisibleSelected = useMemo(() => {
     if (sortedPapers.length === 0) return false;
@@ -507,7 +506,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
           />
         </div>
       </div>
-      
+
       {/* --- Bulk Actions Bar --- */}
       <div className="p-4 flex flex-wrap gap-4 items-center bg-[#f9fafb] border-b border-[#e5e7eb]">
         <span className="text-sm font-medium text-[#1f2937]">
@@ -535,7 +534,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
           Clear Selection
         </button>
       </div>
-      
+
       <table className="w-full">
         <thead>
           <tr className="border-b border-t border-[#e5e7eb]">
@@ -544,7 +543,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
                 type="checkbox"
                 checked={allVisibleSelected}
                 onChange={handleSelectAll}
-                disabled={sortedPapers.length === 0}
+                disabled={sortedPapers.length === 0 || sortedPapers.every(p => p.isFinal)}
                 className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]/50"
               />
             </th>
@@ -580,17 +579,17 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
         <tbody>
           {sortedPapers.length > 0 ? (
             sortedPapers.map((paper, index) => (
-              <tr 
-                key={paper.id} 
-                className={`border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors ${
-                  selectedPaperIds.has(paper.id) ? 'bg-green-50' : ''
-                }`}
+              <tr
+                key={paper.id}
+                className={`border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors ${selectedPaperIds.has(paper.id) ? 'bg-green-50' : ''
+                  }`}
               >
                 <td className="py-3 px-4 text-center">
                   <input
                     type="checkbox"
                     checked={selectedPaperIds.has(paper.id)}
                     onChange={() => handleSelectOne(paper.id)}
+                    disabled={paper.isFinal}
                     className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]/50"
                   />
                 </td>
@@ -615,7 +614,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
             <tr>
               <td colSpan="8" className="text-center text-gray-500 py-4">
                 {searchTerm || statusFilter !== 'All' || trackFilter !== 'All' || ratingFilter > 0
-                  ? 'No papers match your filters.' 
+                  ? 'No papers match your filters.'
                   : 'No papers found.'
                 }
               </td>
@@ -627,12 +626,171 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
   );
 };
 
+// --- Proceedings Tab Component ---
+const ProceedingsTab = ({ conferenceId }) => {
+  const [papers, setPapers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedPaperIds, setSelectedPaperIds] = useState(new Set());
+
+  useEffect(() => {
+    const fetchProceedingsPapers = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch("http://localhost:3001/conference/proceedings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conferenceId }),
+        });
+        if (!response.ok) throw new Error("Failed to fetch proceedings papers.");
+        const data = await response.json();
+        setPapers(data.paper || []);
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (conferenceId) {
+      fetchProceedingsPapers();
+    }
+  }, [conferenceId]);
+
+  const handleSelectOne = (id) => {
+    const newSelected = new Set(selectedPaperIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedPaperIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedPaperIds.size === papers.length) {
+      setSelectedPaperIds(new Set());
+    } else {
+      setSelectedPaperIds(new Set(papers.map(p => p.id)));
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedPaperIds.size === 0) return;
+
+    const zip = new JSZip();
+    const folder = zip.folder("proceedings");
+    const selectedPapers = papers.filter(p => selectedPaperIds.has(p.id));
+
+    // Helper to fetch blob from URL
+    const fetchBlob = async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch ${url}`);
+      return await response.blob();
+    };
+
+    let count = 0;
+    for (const paper of selectedPapers) {
+      if (paper.FinalPaperURL) {
+        try {
+          const blob = await fetchBlob(paper.FinalPaperURL);
+          // Use sequential naming: 1.pdf, 2.pdf, etc.
+          const fileName = `${count + 1}.pdf`;
+          folder.file(fileName, blob);
+          count++;
+        } catch (err) {
+          console.error(`Error downloading paper ${paper.id}:`, err);
+        }
+      }
+    }
+
+    if (count > 0) {
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, "proceedings.zip");
+    } else {
+      alert("No valid files found to download.");
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading proceedings...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-[#1f2937]">Proceedings</h3>
+        <button
+          onClick={handleBulkDownload}
+          disabled={selectedPaperIds.size === 0}
+          className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Download Selected ({selectedPaperIds.size})
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-[#f9fafb] border-b border-[#e5e7eb]">
+            <tr>
+              <th className="py-3 px-4 text-center w-12">
+                <input
+                  type="checkbox"
+                  checked={selectedPaperIds.size === papers.length && papers.length > 0}
+                  onChange={handleSelectAll}
+                  className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]/50"
+                />
+              </th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Title</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Authors</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Track</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {papers.length > 0 ? (
+              papers.map((paper) => (
+                <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50">
+                  <td className="py-3 px-4 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedPaperIds.has(paper.id)}
+                      onChange={() => handleSelectOne(paper.id)}
+                      className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]/50"
+                    />
+                  </td>
+                  <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{paper.Title}</td>
+                  <td className="py-3 px-4 text-sm text-[#6b7280]">
+                    {paper.Authors ? paper.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ") : "N/A"}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-[#6b7280]">{paper.Tracks?.Name || "N/A"}</td>
+                  <td className="py-3 px-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Ready
+                    </span>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="5" className="text-center text-gray-500 py-8">
+                  No papers found ready for proceedings.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // --- Publication & Registration Management Component ---
-const PublicationRegistrationManagement = ({ 
-  conference, 
-  allUsers, 
-  onAssignPublicationChairs, 
-  onAssignRegistrationChairs 
+const PublicationRegistrationManagement = ({
+  conference,
+  allUsers,
+  onAssignPublicationChairs,
+  onAssignRegistrationChairs
 }) => {
   const [selectedPublicationChairs, setSelectedPublicationChairs] = useState([]);
   const [selectedRegistrationChairs, setSelectedRegistrationChairs] = useState([]);
@@ -739,7 +897,7 @@ const PublicationRegistrationManagement = ({
         <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
           <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
             <h3 className="text-lg font-semibold text-[#1f2937]">Publication Chairs</h3>
-            <button 
+            <button
               onClick={() => setIsPublicationModalOpen(true)}
               className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors text-sm"
             >
@@ -766,7 +924,7 @@ const PublicationRegistrationManagement = ({
         <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
           <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
             <h3 className="text-lg font-semibold text-[#1f2937]">Registration Chairs</h3>
-            <button 
+            <button
               onClick={() => setIsRegistrationModalOpen(true)}
               className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors text-sm"
             >
@@ -792,20 +950,19 @@ const PublicationRegistrationManagement = ({
 
       {/* Modals */}
       {isPublicationModalOpen && (
-        <AssignChairModalGeneric
+        <AssignConferenceRoleModal
           title="Assign Publication Chairs"
-          selectedUsers={selectedPublicationChairs}
           allUsers={allUsers}
+          selectedUsers={selectedPublicationChairs}
           onClose={() => setIsPublicationModalOpen(false)}
           onAssign={handleAssignPublicationChairs}
         />
       )}
-
       {isRegistrationModalOpen && (
-        <AssignChairModalGeneric
+        <AssignConferenceRoleModal
           title="Assign Registration Chairs"
-          selectedUsers={selectedRegistrationChairs}
           allUsers={allUsers}
+          selectedUsers={selectedRegistrationChairs}
           onClose={() => setIsRegistrationModalOpen(false)}
           onAssign={handleAssignRegistrationChairs}
         />
@@ -814,17 +971,17 @@ const PublicationRegistrationManagement = ({
   );
 };
 
-// --- Reusable AssignChairModal Component for Publication/Registration ---
-const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAssign }) => {
+// --- Assign Conference Role Modal Component ---
+const AssignConferenceRoleModal = ({ title, allUsers, selectedUsers, onAssign, onClose }) => {
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const userMap = useMemo(() => 
-    new Map(allUsers.map(user => [user.id, user])), 
+  const userMap = useMemo(() =>
+    new Map(allUsers.map(user => [user.id, user])),
     [allUsers]
   );
-  
-  const currentSelectedUsers = useMemo(() => 
+
+  const currentSelectedUsers = useMemo(() =>
     selectedUserIds.map(id => userMap.get(id)).filter(Boolean),
     [selectedUserIds, userMap]
   );
@@ -855,7 +1012,7 @@ const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAs
 
   const availableUsers = useMemo(() => {
     const lowerSearch = searchTerm.toLowerCase();
-    return allUsers.filter(user => 
+    return allUsers.filter(user =>
       !selectedUserIds.includes(user.id) && (
         user.firstname.toLowerCase().includes(lowerSearch) ||
         user.lastname.toLowerCase().includes(lowerSearch) ||
@@ -870,7 +1027,7 @@ const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAs
         <h3 className="text-lg font-semibold text-[#1f2937] mb-4">
           {title}
         </h3>
-        
+
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[#1f2937] mb-2">Selected Chairs</label>
@@ -879,9 +1036,9 @@ const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAs
                 currentSelectedUsers.map(user => (
                   <span key={user.id} className="inline-flex items-center gap-2 px-3 py-1 bg-[#059669]/10 text-[#059669] rounded-full text-sm">
                     {user.firstname} {user.lastname}
-                    <button 
-                      type="button" 
-                      onClick={() => removeChair(user.id)} 
+                    <button
+                      type="button"
+                      onClick={() => removeChair(user.id)}
                       className="hover:bg-[#059669]/20 rounded-full p-0.5"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -910,7 +1067,7 @@ const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAs
           <div className="w-full h-60 overflow-y-auto border border-[#e5e7eb] rounded-md bg-white">
             {availableUsers.length > 0 ? (
               availableUsers.map(user => (
-                <div 
+                <div
                   key={user.id}
                   onClick={() => addChair(user.id)}
                   className="p-3 border-b border-[#e5e7eb] last:border-b-0 hover:bg-[#f3f4f6] cursor-pointer"
@@ -925,15 +1082,15 @@ const AssignChairModalGeneric = ({ title, selectedUsers, allUsers, onClose, onAs
               </p>
             )}
           </div>
-          
+
           <div className="flex gap-3 pt-4">
-            <button 
+            <button
               type="submit"
               className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90"
             >
               Save Changes
             </button>
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]"
@@ -992,7 +1149,7 @@ const AppHeader = () => {
 export default function ConferenceDetails_ChiefChair() {
   const navigate = useNavigate();
   const { hashedConId } = useParams();
-  
+
   const [conference, setConference] = useState(null);
   const [papers, setPapers] = useState([]);
   const [tracks, setTracks] = useState([]);
@@ -1000,7 +1157,7 @@ export default function ConferenceDetails_ChiefChair() {
   const [decodedConferenceId, setDecodedConferenceId] = useState(null);
 
   const [editMode, setEditMode] = useState(false);
-  const [editModeType, setEditModeType] = useState('details'); 
+  const [editModeType, setEditModeType] = useState('details');
 
   const [editFormData, setEditFormData] = useState({});
   const [partnerInput, setPartnerInput] = useState("");
@@ -1029,8 +1186,8 @@ export default function ConferenceDetails_ChiefChair() {
       if (!response.ok) throw new Error("User data fetch failed.");
       const data = await response.json();
       setAllUsers(data.users || []);
-    } catch (error) { 
-      console.error("Error fetching users:", error); 
+    } catch (error) {
+      console.error("Error fetching users:", error);
       setAllUsers([]);
     }
   };
@@ -1048,7 +1205,7 @@ export default function ConferenceDetails_ChiefChair() {
         const data = await response.json();
         setPapers(data.paper || []);
       } else {
-         throw new Error("Paper data fetch failed.");
+        throw new Error("Paper data fetch failed.");
       }
     } catch (err) {
       console.error(err);
@@ -1069,7 +1226,7 @@ export default function ConferenceDetails_ChiefChair() {
         const data = await response.json();
         setTracks(data.tracks || []);
       } else {
-         throw new Error("Track data fetch failed.");
+        throw new Error("Track data fetch failed.");
       }
     } catch (err) {
       console.error(err);
@@ -1093,13 +1250,13 @@ export default function ConferenceDetails_ChiefChair() {
     const getConference = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost:3001/get-conference-by-id`,{
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ conferenceId: conferenceId }),
+        const response = await fetch(`http://localhost:3001/get-conference-by-id`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conferenceId: conferenceId }),
         });
         if (!response.ok) throw new Error("Failed to fetch conference details.");
-        
+
         const data = await response.json();
         const conf = data.conference;
         setConference(conf);
@@ -1122,18 +1279,18 @@ export default function ConferenceDetails_ChiefChair() {
           Tracks: []
         });
         setEditMode(false);
-        
+
         fetchUsers();
         fetchPapers(conferenceId);
-        fetchTracks(conferenceId); 
-        
+        fetchTracks(conferenceId);
+
       } catch (err) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-    
+
     getConference();
   }, [hashedConId]);
 
@@ -1176,11 +1333,11 @@ export default function ConferenceDetails_ChiefChair() {
       const isConfirmed = window.confirm(
         "Please Note: This will close your conference for submission and will be transferred to Admin for 'Approval'.\n\nDo you want to proceed?"
       );
-      
+
       if (!isConfirmed) {
-        return; 
+        return;
       }
-      
+
       payload = {
         id: decodedConferenceId,
         name: editFormData.name,
@@ -1192,7 +1349,7 @@ export default function ConferenceDetails_ChiefChair() {
         status: 'Pending Approval',
       };
       endpoint = `http://localhost:3001/conference/update-details`;
-    
+
     } else if (editModeType === 'deadline') {
       payload = {
         id: decodedConferenceId,
@@ -1200,7 +1357,7 @@ export default function ConferenceDetails_ChiefChair() {
       };
       endpoint = `http://localhost:3001/conference/update-deadline`;
     }
-    
+
     try {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -1214,9 +1371,9 @@ export default function ConferenceDetails_ChiefChair() {
       }
 
       const updatedConference = await response.json();
-      
-      setConference(updatedConference); 
-      
+
+      setConference(updatedConference);
+
       const [city, country] = updatedConference.location ? updatedConference.location.split(', ') : ["", ""];
       const startsAt = new Date(updatedConference.startsAt);
       const endAt = new Date(updatedConference.endAt);
@@ -1303,13 +1460,13 @@ export default function ConferenceDetails_ChiefChair() {
         }),
       });
       if (!response.ok) {
-         const err = await response.json();
+        const err = await response.json();
         throw new Error(err.message || "Failed to create track");
       }
-      
+
       const data = await response.json();
       setTracks(data.tracks || []);
-      
+
       setNewTrackName("");
       setShowCreateTrackForm(false);
       alert('Track Created Successfully!');
@@ -1326,7 +1483,7 @@ export default function ConferenceDetails_ChiefChair() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           trackId: trackId,
-          userIds: userIds, 
+          userIds: userIds,
           conferenceId: decodedConferenceId
         }),
       });
@@ -1337,8 +1494,8 @@ export default function ConferenceDetails_ChiefChair() {
 
       const data = await response.json();
       setTracks(data.tracks || []);
-      
-      handleCloseModal(); 
+
+      handleCloseModal();
       alert(`Track chairs updated successfully!`);
     } catch (error) {
       console.error("Error assigning chairs:", error);
@@ -1354,7 +1511,7 @@ export default function ConferenceDetails_ChiefChair() {
       const response = await fetch(`http://localhost:3001/final-paper-decision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           paperId: paperId,
           decision: decision,
         }),
@@ -1376,18 +1533,18 @@ export default function ConferenceDetails_ChiefChair() {
       alert("No papers selected.");
       return;
     }
-    
+
     const promises = paperIds.map(paperId => runSingleDecisionAPI(paperId, decision));
-    
+
     try {
       const results = await Promise.allSettled(promises);
-      
+
       const successCount = results.filter(r => r.status === 'fulfilled').length;
       const failCount = results.filter(r => r.status === 'rejected').length;
-      
+
       alert(`Bulk update complete.
-Success: ${successCount}
-Failed: ${failCount}`);
+          Success: ${successCount}
+          Failed: ${failCount}`);
 
     } catch (error) {
       console.error("Bulk update failed:", error);
@@ -1410,7 +1567,7 @@ Failed: ${failCount}`);
           userIds: userIds,
         }),
       });
-      
+
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.message || "Failed to assign publication chairs");
@@ -1435,7 +1592,7 @@ Failed: ${failCount}`);
           userIds: userIds,
         }),
       });
-      
+
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.message || "Failed to assign registration chairs");
@@ -1493,13 +1650,13 @@ Failed: ${failCount}`);
                 <h2 className="text-2xl font-bold text-[#1f2937]">Conference Details</h2>
                 <div className="flex-shrink-0 flex items-center">
                   {getConferenceStatusBadge(conference.status)}
-                  
+
                   {!editMode ? (
                     <>
-                      <button onClick={handleEditDetailsClick} disabled={conference.status!="Open"} className="ml-6 px-4 py-2 rounded-md border border-[#e5e7eb] bg-[#059669] text-white hover:bg-[#059669]/90 transition-colors disabled:bg-gray-400 disabled:hover:bg-gray-400 disabled:cursor-not-allowed">
+                      <button onClick={handleEditDetailsClick} disabled={conference.status != "Open"} className="ml-6 px-4 py-2 rounded-md border border-[#e5e7eb] bg-[#059669] text-white hover:bg-[#059669]/90 transition-colors disabled:bg-gray-400 disabled:hover:bg-gray-400 disabled:cursor-not-allowed">
                         Edit Conference Details
                       </button>
-                      <button onClick={handleEditDeadlineClick} disabled={conference.status!="Open"} className="ml-2 px-4 py-2 rounded-md border border-[#e5e7eb] bg-[#059669] text-white hover:bg-[#059669]/90 transition-colors disabled:bg-gray-400 disabled:hover:bg-gray-400 disabled:cursor-not-allowed">
+                      <button onClick={handleEditDeadlineClick} disabled={conference.status != "Open"} className="ml-2 px-4 py-2 rounded-md border border-[#e5e7eb] bg-[#059669] text-white hover:bg-[#059669]/90 transition-colors disabled:bg-gray-400 disabled:hover:bg-gray-400 disabled:cursor-not-allowed">
                         Edit Submission Deadline
                       </button>
                     </>
@@ -1549,7 +1706,7 @@ Failed: ${failCount}`);
                       <p className="text-[#1f2937]">{formatDateTime(conference.deadline)}</p>
                     </div>
                   </div>
-                  
+
                   {conference.Partners && conference.Partners.length > 0 && (
                     <div className="lg:col-span-2">
                       <label className="block text-sm font-medium text-[#6b7280] mb-2">Conference Partners</label>
@@ -1580,29 +1737,29 @@ Failed: ${failCount}`);
                   <div className="space-y-6">
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Name *</label>
-                      <input 
-                        type="text" 
-                        value={editFormData.name} 
-                        onChange={(e) => handleInputChange("name", e.target.value)} 
-                        className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                      <input
+                        type="text"
+                        value={editFormData.name}
+                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">City *</label>
-                      <input 
-                        type="text" 
-                        value={editFormData.city} 
-                        onChange={(e) => handleInputChange("city", e.target.value)} 
-                        className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                      <input
+                        type="text"
+                        value={editFormData.city}
+                        onChange={(e) => handleInputChange("city", e.target.value)}
+                        className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">Country *</label>
-                      <select 
-                        value={editFormData.country} 
-                        onChange={(e) => handleInputChange("country", e.target.value)} 
+                      <select
+                        value={editFormData.country}
+                        onChange={(e) => handleInputChange("country", e.target.value)}
                         className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none appearance-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       >
@@ -1612,11 +1769,11 @@ Failed: ${failCount}`);
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Website *</label>
-                      <input 
-                        type="url" 
-                        value={editFormData.link} 
-                        onChange={(e) => handleInputChange("link", e.target.value)} 
-                        className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                      <input
+                        type="url"
+                        value={editFormData.link}
+                        onChange={(e) => handleInputChange("link", e.target.value)}
+                        className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       />
                     </div>
@@ -1624,20 +1781,20 @@ Failed: ${failCount}`);
                   <div className="space-y-6">
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">Start Date *</label>
-                      <input 
-                        type="date" 
-                        value={editFormData.startsAtDate} 
-                        onChange={(e) => handleInputChange("startsAtDate", e.target.value)} 
+                      <input
+                        type="date"
+                        value={editFormData.startsAtDate}
+                        onChange={(e) => handleInputChange("startsAtDate", e.target.value)}
                         className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[#1f2937] mb-2">End Date *</label>
-                      <input 
-                        type="date" 
-                        value={editFormData.endAtDate} 
-                        onChange={(e) => handleInputChange("endAtDate", e.target.value)} 
+                      <input
+                        type="date"
+                        value={editFormData.endAtDate}
+                        onChange={(e) => handleInputChange("endAtDate", e.target.value)}
                         className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       />
@@ -1645,42 +1802,42 @@ Failed: ${failCount}`);
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-[#1f2937] mb-2">Deadline Date *</label>
-                        <input 
-                          type="date" 
-                          value={editFormData.deadlineDate} 
-                          onChange={(e) => handleInputChange("deadlineDate", e.target.value)} 
-                          className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                        <input
+                          type="date"
+                          value={editFormData.deadlineDate}
+                          onChange={(e) => handleInputChange("deadlineDate", e.target.value)}
+                          className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                           disabled={editModeType === 'details'}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-[#1f2937] mb-2">Deadline Time *</label>
-                        <input 
-                          type="time" 
-                          value={editFormData.deadlineTime} 
-                          onChange={(e) => handleInputChange("deadlineTime", e.target.value)} 
-                          className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                        <input
+                          type="time"
+                          value={editFormData.deadlineTime}
+                          onChange={(e) => handleInputChange("deadlineTime", e.target.value)}
+                          className="w-full px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                           disabled={editModeType === 'details'}
                         />
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className={`lg:col-span-2 ${editModeType === 'deadline' ? 'opacity-50' : ''}`}>
                     <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Partners</label>
                     <div className="flex gap-2 mb-3">
-                      <input 
-                        type="text" 
-                        value={partnerInput} 
-                        onChange={(e) => setPartnerInput(e.target.value)} 
-                        onKeyPress={handleKeyPress} 
-                        placeholder="Enter partner name" 
-                        className="flex-1 px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                      <input
+                        type="text"
+                        value={partnerInput}
+                        onChange={(e) => setPartnerInput(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Enter partner name"
+                        className="flex-1 px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={editModeType === 'deadline'}
                       />
-                      <button 
-                        type="button" 
-                        onClick={addPartner} 
+                      <button
+                        type="button"
+                        onClick={addPartner}
                         className="px-6 py-3 bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 font-medium disabled:opacity-50"
                         disabled={editModeType === 'deadline'}
                       >
@@ -1692,9 +1849,9 @@ Failed: ${failCount}`);
                         {editFormData.Partners.map((p, i) => (
                           <span key={i} className="inline-flex items-center gap-2 px-3 py-1 bg-[#059669]/10 text-[#059669] rounded-full text-sm">
                             {p}
-                            <button 
-                              type="button" 
-                              onClick={() => removePartner(p)} 
+                            <button
+                              type="button"
+                              onClick={() => removePartner(p)}
                               className="hover:bg-[#059669]/20 rounded-full p-0.5 disabled:opacity-50"
                               disabled={editModeType === 'deadline'}
                             >
@@ -1709,14 +1866,14 @@ Failed: ${failCount}`);
                   <div className="lg:col-span-2 opacity-50">
                     <label className="block text-sm font-medium text-[#1f2937] mb-2">Conference Tracks</label>
                     <div className="flex gap-2 mb-3">
-                      <input 
-                        type="text" 
-                        placeholder="Tracks are managed in the 'Track Management' tab below" 
+                      <input
+                        type="text"
+                        placeholder="Tracks are managed in the 'Track Management' tab below"
                         className="flex-1 px-4 py-3 bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#059669]/50 border-[#e5e7eb] disabled:bg-gray-100 disabled:cursor-not-allowed"
                         disabled={true}
                       />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="px-6 py-3 bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 font-medium disabled:opacity-50"
                         disabled={true}
                       >
@@ -1728,8 +1885,8 @@ Failed: ${failCount}`);
                         {editFormData.Tracks.map((track, i) => (
                           <span key={track.id || `new-${i}`} className="inline-flex items-center gap-2 px-3 py-1 bg-[#059669]/10 text-[#059669] rounded-full text-sm">
                             {track.Name}
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               className="hover:bg-[#059669]/20 rounded-full p-0.5 disabled:opacity-50"
                               disabled={true}
                             >
@@ -1744,40 +1901,44 @@ Failed: ${failCount}`);
               )}
             </div>
           </div>
-
-          {/* --- TABBED MANAGEMENT SECTION --- */}
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
             <div className="border-b border-[#e5e7eb]">
               <nav className="-mb-px flex space-x-8">
                 <button
                   onClick={() => setActiveTab("tracks")}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === "tracks"
-                      ? "border-[#059669] text-[#059669]"
-                      : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
-                  }`}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "tracks"
+                    ? "border-[#059669] text-[#059669]"
+                    : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                    }`}
                 >
                   Track Management
                 </button>
                 <button
                   onClick={() => setActiveTab("verdicts")}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === "verdicts"
-                      ? "border-[#059669] text-[#059669]"
-                      : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
-                  }`}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "verdicts"
+                    ? "border-[#059669] text-[#059669]"
+                    : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                    }`}
                 >
                   Final Verdicts (All Papers)
                 </button>
                 <button
                   onClick={() => setActiveTab("pubreg")}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === "pubreg"
-                      ? "border-[#059669] text-[#059669]"
-                      : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
-                  }`}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "pubreg"
+                    ? "border-[#059669] text-[#059669]"
+                    : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                    }`}
                 >
                   Publication & Registration
+                </button>
+                <button
+                  onClick={() => setActiveTab("proceedings")}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "proceedings"
+                    ? "border-[#059669] text-[#059669]"
+                    : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+                    }`}
+                >
+                  Proceedings
                 </button>
               </nav>
             </div>
@@ -1809,7 +1970,7 @@ Failed: ${failCount}`);
                     </div>
                   </div>
 
-                  <TrackList 
+                  <TrackList
                     tracks={tracksWithPapers}
                     onAssignChairClick={handleAssignChairClick}
                     onCreateTrack={handleCreateTrack}
@@ -1819,7 +1980,7 @@ Failed: ${failCount}`);
 
               {activeTab === "verdicts" && (
                 <div className="space-y-6">
-                  <VerdictSection 
+                  <VerdictSection
                     papers={papers}
                     onBulkDecision={handleBulkDecisionRequest}
                     navigate={navigate}
@@ -1829,7 +1990,7 @@ Failed: ${failCount}`);
 
               {activeTab === "pubreg" && (
                 <div className="space-y-6">
-                  <PublicationRegistrationManagement 
+                  <PublicationRegistrationManagement
                     conference={conference}
                     allUsers={allUsers}
                     onAssignPublicationChairs={handleAssignPublicationChairs}
@@ -1837,56 +1998,66 @@ Failed: ${failCount}`);
                   />
                 </div>
               )}
+
+              {activeTab === "proceedings" && (
+                <div className="space-y-6">
+                  <ProceedingsTab conferenceId={decodedConferenceId} />
+                </div>
+              )}
             </div>
           </div>
           {/* --- END OF TABBED SECTION --- */}
 
-        </div>
-      </main>
+        </div >
+      </main >
 
       {/* --- MODALS --- */}
-      {showCreateTrackForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Create New Track</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#1f2937] mb-1">Track Name</label>
-                <input 
-                  type="text" 
-                  value={newTrackName} 
-                  onChange={(e) => setNewTrackName(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" 
-                  placeholder="Enter track name"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button 
-                  onClick={handleSaveTrack}
-                  className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90"
-                >
-                  Create Track
-                </button>
-                <button 
-                  onClick={() => setShowCreateTrackForm(false)}
-                  className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]"
-                >
-                  Cancel
-                </button>
+      {
+        showCreateTrackForm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Create New Track</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1f2937] mb-1">Track Name</label>
+                  <input
+                    type="text"
+                    value={newTrackName}
+                    onChange={(e) => setNewTrackName(e.target.value)}
+                    className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
+                    placeholder="Enter track name"
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleSaveTrack}
+                    className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90"
+                  >
+                    Create Track
+                  </button>
+                  <button
+                    onClick={() => setShowCreateTrackForm(false)}
+                    className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {isAssignModalOpen && (
-        <AssignChairModal
-          track={selectedTrackForAssignment}
-          allUsers={allUsers}
-          onClose={handleCloseModal}
-          onAssign={handleAssignChairs}
-        />
-      )}
-    </div>
+      {
+        isAssignModalOpen && (
+          <AssignChairModal
+            track={selectedTrackForAssignment}
+            allUsers={allUsers}
+            onClose={handleCloseModal}
+            onAssign={handleAssignChairs}
+          />
+        )
+      }
+    </div >
   );
 }
