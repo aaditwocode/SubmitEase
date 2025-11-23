@@ -86,6 +86,53 @@ async function uploadPdfToSupabase(fileBuffer, Filename, editpdf = false) {
   return data.publicUrl;
 }
 
+// --- HELPER FUNCTIONS FOR ROLES ---
+
+// Helper to safely get roles as an array
+const getRolesArray = (userRole) => {
+  if (Array.isArray(userRole)) return userRole;
+  if (typeof userRole === 'string') return [userRole];
+  return [];
+};
+
+// Helper to Add a Role (No Duplicates)
+const addRoleToUsers = async (userIds, roleName) => {
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } }
+  });
+
+  const updates = users.map(user => {
+    const currentRoles = getRolesArray(user.role);
+    if (!currentRoles.includes(roleName)) {
+      return prisma.user.update({
+        where: { id: user.id },
+        data: { role: [...currentRoles, roleName] }
+      });
+    }
+    return Promise.resolve();
+  });
+
+  await Promise.all(updates);
+};
+
+// Helper to Remove a Role
+const removeRoleFromUser = async (userId, roleName) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return;
+
+  const currentRoles = getRolesArray(user.role);
+  const newRoles = currentRoles.filter(r => r !== roleName);
+
+  // Optional: Ensure they at least have 'Author' if array becomes empty
+  if (newRoles.length === 0) newRoles.push("Author"); 
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: newRoles }
+  });
+};
+
+
 // --- Define the Upload Route ---
 app.post('/upload', upload.single('pdfFile'), async (req, res) => {
   if (!req.file) {
@@ -122,12 +169,14 @@ app.post('/conference/assign-publication-chairs', async (req, res) => {
     }
 
     const prismaUserConnect = userIds.map(id => ({ id: parseInt(id, 10) }));
+    const idsToUpdate = userIds.map(id => parseInt(id, 10));
 
+    // 1. Update Conference Relations
     const updatedConference = await prisma.conference.update({
       where: { id: parseInt(conferenceId, 10) },
       data: {
         PublicationChairs: {
-          set: prismaUserConnect,
+          connect: prismaUserConnect, 
         },
       },
       include: {
@@ -154,12 +203,44 @@ app.post('/conference/assign-publication-chairs', async (req, res) => {
       }
     });
 
+    // 2. Update Roles (Append "Publication Chair")
+    await addRoleToUsers(idsToUpdate, "Publication Chair");
+
     res.status(200).json({ conference: updatedConference });
   } catch (error) {
     console.error("Error assigning publication chairs:", error);
     res.status(500).json({ message: 'Failed to assign publication chairs', details: error.message });
   }
 });
+
+// Remove Publication Chair
+app.post('/conference/remove-publication-chair', async (req, res) => {
+  try {
+    const { conferenceId, userId } = req.body;
+    
+    // 1. Disconnect from Conference
+    const updatedConference = await prisma.conference.update({
+      where: { id: parseInt(conferenceId) },
+      data: {
+        PublicationChairs: {
+          disconnect: { id: parseInt(userId) }
+        }
+      },
+      include: {
+        PublicationChairs: { select: { id: true, firstname: true, lastname: true, email: true, organisation: true } }
+      }
+    });
+
+    // 2. Remove Role (Only "Publication Chair")
+    await removeRoleFromUser(parseInt(userId), "Publication Chair");
+
+    res.status(200).json({ conference: updatedConference });
+  } catch (error) {
+    console.error("Error removing publication chair:", error);
+    res.status(500).json({ message: 'Failed to remove chair', details: error.message });
+  }
+});
+
 
 // Assign Registration Chairs
 app.post('/conference/assign-registration-chairs', async (req, res) => {
@@ -171,43 +252,76 @@ app.post('/conference/assign-registration-chairs', async (req, res) => {
     }
 
     const prismaUserConnect = userIds.map(id => ({ id: parseInt(id, 10) }));
+    const idsToUpdate = userIds.map(id => parseInt(id, 10));
 
+    // 1. Update Conference Relations
     const updatedConference = await prisma.conference.update({
       where: { id: parseInt(conferenceId, 10) },
       data: {
         RegistrationChairs: {
-          set: prismaUserConnect,
-  },
-},
-  include: {
-  PublicationChairs: {
-    select: {
-      id: true,
-      firstname: true,
-      lastname: true,
-      email: true,
-      organisation: true,
-      expertise: true,
-    }
-  },
-  RegistrationChairs: {
-    select: {
-      id: true,
-      firstname: true,
-      lastname: true,
-      email: true,
-      organisation: true,
-      expertise: true,
-    }
-  }
-}
+          connect: prismaUserConnect,
+        },
+      },
+      include: {
+        PublicationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        },
+        RegistrationChairs: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+            organisation: true,
+            expertise: true,
+          }
+        }
+      }
     });
 
-res.status(200).json({ conference: updatedConference });
+    // 2. Update Roles (Append "Registration Chair")
+    await addRoleToUsers(idsToUpdate, "Registration Chair");
+
+    res.status(200).json({ conference: updatedConference });
   } catch (error) {
-  console.error("Error assigning registration chairs:", error);
-  res.status(500).json({ message: 'Failed to assign registration chairs', details: error.message });
-}
+    console.error("Error assigning registration chairs:", error);
+    res.status(500).json({ message: 'Failed to assign registration chairs', details: error.message });
+  }
+});
+
+// Remove Registration Chair
+app.post('/conference/remove-registration-chair', async (req, res) => {
+  try {
+    const { conferenceId, userId } = req.body;
+    
+    // 1. Disconnect from Conference
+    const updatedConference = await prisma.conference.update({
+      where: { id: parseInt(conferenceId) },
+      data: {
+        RegistrationChairs: {
+          disconnect: { id: parseInt(userId) }
+        }
+      },
+      include: {
+        RegistrationChairs: { select: { id: true, firstname: true, lastname: true, email: true, organisation: true } }
+      }
+    });
+
+    // 2. Remove Role (Only "Registration Chair")
+    await removeRoleFromUser(parseInt(userId), "Registration Chair");
+
+    res.status(200).json({ conference: updatedConference });
+  } catch (error) {
+    console.error("Error removing registration chair:", error);
+    res.status(500).json({ message: 'Failed to remove chair', details: error.message });
+  }
 });
 
 
@@ -218,13 +332,16 @@ app.post('/users', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Ensure role is stored as an array even if provided as string
+    const roleData = Array.isArray(role) ? role : [role || "Author"];
+
     const newUser = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         firstname,
         lastname,
-        role,
+        role: roleData, // Store as array
         expertise,
         organisation,
         country
@@ -731,6 +848,7 @@ app.get('/users/emails', async (req, res) => {
         organisation: true,
         expertise: true,
         email: true,
+        role: true, // Include role to debug
       },
       cacheStrategy: { ttl: 60 },
     });
@@ -794,10 +912,14 @@ app.post('/assign-reviewers', async (req, res) => {
       assignedAt: new Date(),
     }));
 
+    // 1. Create Reviews
     await prisma.reviews.createMany({
       data: reviewData,
       skipDuplicates: true
     });
+
+    // 2. Update Roles (Append "Reviewer")
+    await addRoleToUsers(reviewerIds.map(id => parseInt(id, 10)), "Reviewer");
 
     const papers = await prisma.paper.findUnique({
       where: {
@@ -1135,6 +1257,11 @@ app.post('/conference/registeration', async (req, res) => {
       cacheStrategy: { ttl: 60 },
     });
 
+    // Update Host Role
+    if (status === "Open" && hostID) {
+      await addRoleToUsers([parseInt(hostID)], "Conference Host");
+    }
+
     res.status(201).json({ conference: newConference });
 
   } catch (error) {
@@ -1379,15 +1506,20 @@ app.post('/conference/tracks/assign-chairs', async (req, res) => {
 
   try {
     const prismaUserConnect = userIds.map(id => ({ id: id }));
+    const idsToUpdate = userIds.map(id => parseInt(id, 10));
 
+    // 1. Update Track Relations
     await prisma.tracks.update({
       where: { id: trackId },
       data: {
         Chairs: {
-          set: prismaUserConnect,
+          connect: prismaUserConnect,
         },
       },
     });
+
+    // 2. Update Roles (Append "Track Chair")
+    await addRoleToUsers(idsToUpdate, "Track Chair");
 
     const updatedTracks = await prisma.tracks.findMany({
       where: { ConferenceId: parseInt(conferenceId, 10) },
@@ -1404,6 +1536,45 @@ app.post('/conference/tracks/assign-chairs', async (req, res) => {
     res.status(500).json({ message: 'Failed to assign track chairs', details: error.message });
   }
 });
+
+// Remove Track Chair
+app.post('/conference/tracks/remove-chair', async (req, res) => {
+  const { trackId, userId, conferenceId } = req.body;
+
+  if (!trackId || !userId || !conferenceId) {
+    return res.status(400).json({ message: 'Missing required fields.' });
+  }
+
+  try {
+    // 1. Disconnect from Track
+    await prisma.tracks.update({
+      where: { id: trackId },
+      data: {
+        Chairs: {
+          disconnect: { id: parseInt(userId) }
+        },
+      },
+    });
+
+    // 2. Remove Role (Only "Track Chair")
+    await removeRoleFromUser(parseInt(userId), "Track Chair");
+
+    const updatedTracks = await prisma.tracks.findMany({
+      where: { ConferenceId: parseInt(conferenceId, 10) },
+      include: {
+        Chairs: true,
+        Paper: true,
+      },
+    });
+
+    res.status(200).json({ tracks: updatedTracks });
+
+  } catch (error) {
+    console.error("Error removing track chair:", error);
+    res.status(500).json({ message: 'Failed to remove track chair', details: error.message });
+  }
+});
+
 
 app.post('/conference/new-track', async (req, res) => {
   const { name, conferenceId } = req.body;
