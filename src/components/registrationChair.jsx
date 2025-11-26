@@ -355,7 +355,7 @@ export default function RegistrationChairPortal() {
   // --- Handlers ---
   const handleViewFile = (url) => {
     if (url) {
-      window.open(`http://localhost:3001/${url}`, "_blank");
+      window.open(url);
     }
   };
 

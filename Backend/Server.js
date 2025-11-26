@@ -1425,7 +1425,7 @@ app.post('/conference/registeration', async (req, res) => {
     });
 
     // Update Host Role
-    if (status === "Open" && hostID) {
+    if (hostID) {
       await addRoleToUsers([parseInt(hostID)], "Conference Host");
     }
 

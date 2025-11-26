@@ -562,8 +562,7 @@ export default function ManageReviews() {
     const handleAcceptConference = async (confId) => {
         try {
             // Remove from invites list optimistically
-            setConferenceInvites(prev => prev.filter(conf => conf.id !== confId));
-
+setConferenceInvites(prev => prev.filter(conf => String(conf.id) !== String(confId)));
             const response = await fetch('http://localhost:3001/accept-conference-invite', {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -597,7 +596,7 @@ export default function ManageReviews() {
     const handleDeclineConference = async (confId) => {
         try {
             // Remove from invites list optimistically
-            setConferenceInvites(prev => prev.filter(conf => conf.id !== confId));
+            setConferenceInvites(prev => prev.filter(conf => String(conf.id) !== String(confId)));
 
             const response = await fetch('http://localhost:3001/decline-conference-invite', {
                 method: "POST",
