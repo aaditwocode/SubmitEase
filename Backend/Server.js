@@ -60,13 +60,13 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 /**
  * Uploads a file to a Supabase Storage bucket and returns the public URL.
  */
-async function uploadPdfToSupabase(fileBuffer, Filename, editpdf = false) {
+async function uploadPdfToSupabase(fileBuffer, Filename,folderPath='', editpdf = false) {
   const fileName = `${Filename}`;
   const bucketName = 'SubmitEase';
-
+  const filePath = `${folderPath}/${fileName}`;
   const { error: uploadError } = await supabase.storage
     .from(bucketName)
-    .upload(fileName, fileBuffer, {
+    .upload(filePath, fileBuffer, {
       contentType: 'application/pdf',
       upsert: editpdf,
     });
@@ -77,7 +77,7 @@ async function uploadPdfToSupabase(fileBuffer, Filename, editpdf = false) {
 
   const { data } = supabase.storage
     .from(bucketName)
-    .getPublicUrl(fileName);
+    .getPublicUrl(filePath);
 
   if (!data || !data.publicUrl) {
     throw new Error('Could not retrieve public URL after upload.');
@@ -324,15 +324,89 @@ app.post('/conference/remove-registration-chair', async (req, res) => {
   }
 });
 
+app.post('/send-verification', async (req, res) => {
+  const { email, firstname } = req.body;
+
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  try {
+    // 1. Check if user already exists before sending code
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ message: "An account with this email already exists." });
+    }
+
+    // 2. Generate a random 6-digit code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 3. Hash the code so we can send it to the frontend safely
+    const salt = await bcrypt.genSalt(10);
+    const hashedCode = await bcrypt.hash(verificationCode, salt);
+
+    // 4. Send the email
+    const mailOptions = {
+      from: '"SubmitEase Security" <your-email@gmail.com>',
+      to: email,
+      subject: 'Your Verification Code',
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Hello ${firstname},</h2>
+          <p>Please use the code below to verify your email address:</p>
+          <h1 style="color: #059669; letter-spacing: 5px;">${verificationCode}</h1>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // 5. Return the hash to the frontend
+    res.status(200).json({ 
+      message: "Verification code sent.", 
+      hash: hashedCode 
+    });
+
+  } catch (error) {
+    console.error("Verification error:", error);
+    res.status(500).json({ message: "Failed to send verification email." });
+  }
+});
 
 // POST /users: Create a new user (Sign-Up) with a hashed password
 app.post('/users', async (req, res) => {
   try {
-    const { email, password, firstname, lastname, role, expertise, organisation, country, sub, msg } = req.body;
+    // Extract OTP and Hash alongside user data
+    const { 
+      otp, 
+      hash, 
+      email, 
+      password, 
+      firstname, 
+      lastname, 
+      role, 
+      expertise, 
+      organisation, 
+      country, 
+      sub, 
+      msg 
+    } = req.body;
+
+    // --- NEW: 2FA Verification Logic ---
+    if (!otp || !hash) {
+      return res.status(400).json({ message: "Verification code missing." });
+    }
+
+    // Compare the user-entered OTP with the hash sent from /send-verification
+    const isMatch = await bcrypt.compare(otp, hash);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid verification code." });
+    }
+    // -----------------------------------
+
+    // Proceed with your original logic
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Ensure role is stored as an array even if provided as string
     const roleData = Array.isArray(role) ? role : [role || "Author"];
 
     const newUser = await prisma.user.create({
@@ -341,18 +415,25 @@ app.post('/users', async (req, res) => {
         password: hashedPassword,
         firstname,
         lastname,
-        role: roleData, // Store as array
+        role: roleData,
         expertise,
         organisation,
         country
       },
       cacheStrategy: { ttl: 60 },
     });
+
     const { password: _, ...userWithoutPassword } = newUser;
+    
+    // Send your welcome email (optional, since you just verified them)
+    if (typeof sendMail === 'function') {
+        sendMail(email, sub, msg);
+    }
+    
     res.status(201).json(userWithoutPassword);
-    sendMail(email, sub, msg);
 
   } catch (error) {
+    // Error handling (User already exists check is handled in /send-verification too, but good to keep here as fallback)
     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
       return res.status(400).json({ message: 'An account with this email already exists.' });
     }
@@ -398,6 +479,80 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// --- Endpoint 1: Send Reset Code ---
+app.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // 1. Check if user exists
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Security best practice: Don't reveal if email exists or not to prevent scraping
+      // But for UI feedback we will return success regardless, or specific error if you prefer
+      return res.status(200).json({ message: "If an account exists, a code has been sent." }); 
+    }
+
+    // 2. Generate Code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 3. Hash Code
+    const salt = await bcrypt.genSalt(10);
+    const hashedCode = await bcrypt.hash(verificationCode, salt);
+
+    // 4. Send Email
+    const mailOptions = {
+      from: '"SubmitEase Security" <your-email@gmail.com>',
+      to: email,
+      subject: 'Reset Your Password',
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Password Reset Request</h2>
+          <p>Use the code below to reset your password:</p>
+          <h1 style="color: #059669; letter-spacing: 5px;">${verificationCode}</h1>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // 5. Return Hash (Frontend will send this back for verification)
+    res.status(200).json({ message: "Verification code sent.", hash: hashedCode });
+
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Failed to send email." });
+  }
+});
+
+// --- Endpoint 2: Reset Password ---
+app.post('/reset-password', async (req, res) => {
+  const { email, otp, hash, newPassword } = req.body;
+
+  try {
+    // 1. Verify OTP
+    const isMatch = await bcrypt.compare(otp, hash);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid verification code." });
+    }
+
+    // 2. Hash New Password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // 3. Update User in DB
+    await prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword },
+    });
+
+    res.status(200).json({ message: "Password updated successfully. Please sign in." });
+
+  } catch (error) {
+    console.error("Reset error:", error);
+    res.status(500).json({ message: "Failed to reset password." });
+  }
+});
 app.get('/conferences', async (req, res) => {
   try {
     const conferences = await prisma.conference.findMany({
@@ -672,9 +827,13 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
     const year = new Date(conf.startsAt).getFullYear().toString().slice(-2);
     const formattedNumber = String(nextNumber).padStart(4, '0');
     const newPaperID = `${start}_${year}_P${formattedNumber}`;
+    const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    const fileName = `${newPaperID}_${randomSuffix}`;
     let url;
+    const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_'); 
+const confName = `${safeName}_${confId}/InReview`;
     try {
-      url = await uploadPdfToSupabase(req.file.buffer, newPaperID + '.pdf');
+      url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf',confName);
     } catch (error) {
       console.error('An error occurred during upload:', error);
       return res.status(500).json({ error: error.message });
@@ -742,7 +901,15 @@ app.post('/submitpaper', upload.single('pdfFile'), async (req, res) => {
     else {
       let url;
       try {
-        url = await uploadPdfToSupabase(req.file.buffer, paperId + '.pdf', true);
+        const conf = await prisma.conference.findUnique({
+          where: { id: confId },
+          select: { name: true },
+        });
+        const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+        const fileName = `${paperId}_${randomSuffix}`;
+        const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_'); 
+        const confName = `${safeName}_${confId}/InReview`;
+        url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf', confName);
       } catch (error) {
         console.error('An error occurred during upload:', error);
         return res.status(500).json({ error: error.message });
@@ -805,7 +972,10 @@ app.post('/editpaper', upload.single('pdfFile'), async (req, res) => {
     else {
       let url;
       try {
-        url = await uploadPdfToSupabase(req.file.buffer, paperId + '.pdf', true);
+        const conf = await prisma.conference.findUnique({ where: { id: confId }, select: { name: true }});
+        const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_'); 
+        const confName = `${safeName}_${confId}/InReview`;
+        url = await uploadPdfToSupabase(req.file.buffer, paperId + '.pdf', confName);
       } catch (error) {
         console.error('An error occurred during upload:', error);
         return res.status(500).json({ error: error.message });
@@ -917,9 +1087,6 @@ app.post('/assign-reviewers', async (req, res) => {
       data: reviewData,
       skipDuplicates: true
     });
-
-    // 2. Update Roles (Append "Reviewer")
-    await addRoleToUsers(reviewerIds.map(id => parseInt(id, 10)), "Reviewer");
 
     const papers = await prisma.paper.findUnique({
       where: {
@@ -1628,6 +1795,10 @@ app.post('/conference/finalpapers', async (req, res) => {
         CopyrightURL: true,
         RegistrationURL: true,
         Completed: true,
+        isFinal: true,
+        CompletedPublication: true,
+        CompletedRegistration: true,
+
         Authors: {
           select: {
             firstname: true,
@@ -1637,7 +1808,6 @@ app.post('/conference/finalpapers', async (req, res) => {
         }
       },
     });
-    console.log("Final papers fetched:", conferencepapers);
     res.status(200).json({ paper: conferencepapers });
 
   } catch (error) {
@@ -1877,12 +2047,11 @@ app.post('/conference/invite-reviewer', async (req, res) => {
     } else {
       ids = [parseInt(reviewerIds, 10)];
     }
-
     const reviewerIdsToConnect = Array.from(new Set(ids.filter(id => !isNaN(id))));
     if (reviewerIdsToConnect.length === 0) return res.status(400).json({ message: 'No valid reviewerIds provided' });
 
     const connectArray = reviewerIdsToConnect.map(id => ({ id }));
-
+    await addRoleToUsers(reviewerIdsToConnect, "Reviewer");
     const updated = await prisma.conference.update({
       where: { id: parsedConfId },
       data: {
@@ -2216,6 +2385,106 @@ app.post('/paper/bulk-approve-registration', async (req, res) => {
     res.status(500).json({ message: 'Failed to approve papers.', details: error.message });
   }
 });
+
+
+// Middleware to handle multiple specific file fields
+const cpUpload = upload.fields([
+  { name: 'copyrightFile', maxCount: 1 },
+  { name: 'finalPaperFile', maxCount: 1 },
+  { name: 'paySlipFile', maxCount: 1 }
+]);
+
+app.post('/submitfinalfiles', cpUpload, async (req, res) => {
+  const { paperId } = req.body;
+
+  if (!paperId) {
+    return res.status(400).json({ message: 'Paper ID is required.' });
+  }
+
+  // Check if any files were uploaded
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return res.status(400).json({ message: 'No files were uploaded.' });
+  }
+
+  try {
+    // 1. Fetch the paper to get Conference details (needed for folder naming)
+    const paper = await prisma.paper.findUnique({
+      where: { id: paperId },
+      include: { Conference: true }
+    });
+
+    if (!paper) {
+      return res.status(404).json({ message: 'Paper not found.' });
+    }
+
+    // 2. Prepare Folder Path: "ConferenceName_ID/Final"
+    const safeConfName = paper.Conference.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const folderPath = `${safeConfName}_${paper.ConferenceId}/Final/${paperId}`;
+    
+    // Object to hold fields to update in Prisma
+    const updateData = {};
+    
+    // Helper to generate unique filename to avoid caching issues
+    const getFileName = (suffix) => `${paperId}_${suffix}.pdf`;
+
+    // 3. Process Final Paper
+    if (req.files['finalPaperFile']) {
+      const file = req.files['finalPaperFile'][0];
+      try {
+        const url = await uploadPdfToSupabase(file.buffer, getFileName('FinalPaper'), folderPath,true);
+        updateData.FinalPaperURL = url;
+      } catch (err) {
+        throw new Error(`Failed to upload Final Paper: ${err.message}`);
+      }
+    }
+
+    // 4. Process Copyright File
+    if (req.files['copyrightFile']) {
+      const file = req.files['copyrightFile'][0];
+      try {
+        const url = await uploadPdfToSupabase(file.buffer, getFileName('Copyright'), folderPath,true);
+        updateData.CopyrightURL = url;
+      } catch (err) {
+        throw new Error(`Failed to upload Copyright: ${err.message}`);
+      }
+    }
+
+    // 5. Process Pay Slip (Registration)
+    if (req.files['paySlipFile']) {
+      const file = req.files['paySlipFile'][0];
+      try {
+        const url = await uploadPdfToSupabase(file.buffer, getFileName('Registration'), folderPath,true);
+        updateData.RegistrationURL = url;
+      } catch (err) {
+        throw new Error(`Failed to upload Pay Slip: ${err.message}`);
+      }
+    }
+
+    // 6. Logic to determine "CompletedPublication" status
+    // If we are updating FinalPaper OR Copyright, check if both exist now
+    const hasFinal = updateData.FinalPaperURL || paper.FinalPaperURL;
+    const hasCopyright = updateData.CopyrightURL || paper.CopyrightURL;
+    const hasRegistration = updateData.RegistrationURL || paper.RegistrationURL;
+    if(hasFinal && hasCopyright && hasRegistration){
+      updateData.Completed = true;
+    }
+    // 8. Update Database
+    const updatedPaper = await prisma.paper.update({
+      where: { id: paperId },
+      data: updateData,
+    });
+
+    res.status(200).json({ 
+      message: 'Files uploaded successfully', 
+      paper: updatedPaper 
+    });
+
+  } catch (error) {
+    console.error('Final upload error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error during file upload.' });
+  }
+});
+
 
 app.get('/', (req, res) => {
   res.send('🚀 API is running and connected to Prisma Postgres!');

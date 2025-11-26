@@ -1,6 +1,6 @@
 "use client";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect,useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom"; // Import useParams
 import { useUserData } from "./UserContext";
 
@@ -366,7 +366,7 @@ export default function ViewPaper() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/uploadfinalfiles`, { // Assuming this endpoint
+      const response = await fetch(`http://localhost:3001/submitfinalfiles`, { // Assuming this endpoint
           method:'POST',
           body: formData,
       });
@@ -722,7 +722,7 @@ export default function ViewPaper() {
               {isEditable && (
                 <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload New Version (PDF)</label>
-                  <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className={fileInputStyles} />
+                  <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className={fileInputStyles}  />
                   <p className="text-xs text-gray-500 mt-1">If you select a new file, it will replace the current one when you save.</p>
                 </div>
               )}
@@ -750,6 +750,7 @@ export default function ViewPaper() {
                         type="file" 
                         onChange={(e) => handleFileChange(e, setFinalPaperFile, setFinalPaperPreview)} 
                         accept=".pdf" 
+                        disabled={paper.FinalPaperURL}
                         className={`${fileInputStyles} flex-1`} 
                       />
                       {finalPaperPreview && (
@@ -773,6 +774,7 @@ export default function ViewPaper() {
                         type="file" 
                         onChange={(e) => handleFileChange(e, setCopyrightFile, setCopyrightPreview)} 
                         accept=".pdf" 
+                        disabled={paper.CopyrightFormURL}
                         className={`${fileInputStyles} flex-1`} 
                       />
                       {/* Show button for NEWLY selected file */}
@@ -800,6 +802,7 @@ export default function ViewPaper() {
                         type="file" 
                         onChange={(e) => handleFileChange(e, setPaySlipFile, setPaySlipPreview)} 
                         accept=".pdf" 
+                        disabled={paper.PaySlipURL}
                         className={`${fileInputStyles} flex-1`} 
                       />
                       {paySlipPreview && (

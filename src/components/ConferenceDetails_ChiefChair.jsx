@@ -1207,7 +1207,7 @@ const AppHeader = () => {
 export default function ConferenceDetails_ChiefChair() {
   const navigate = useNavigate();
   const { hashedConId } = useParams();
-
+  const {user, setUser, setloginStatus} = useUserData();
   const [conference, setConference] = useState(null);
   const [papers, setPapers] = useState([]);
   const [tracks, setTracks] = useState([]);

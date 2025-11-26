@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 export default function ConferenceRegistration({ onBack }) {
   const navigate = useNavigate();
   
-  const { user } = useUserData();
+  const { user,setUser,setloginStatus } = useUserData();
 
   const [formData, setFormData] = useState({
     name: "",
