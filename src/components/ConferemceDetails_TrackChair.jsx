@@ -355,7 +355,7 @@ const Header = ({ user }) => {
       <Header user={user} />
 
       <main className="container mx-auto px-4 py-8">
-        <button onClick={() => navigate("/conference/manage")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
+        <button onClick={() => navigate("/conference/manage/trackchair")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
           &larr; Back to All Conferences
         </button>
         <div className="space-y-8">

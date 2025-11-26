@@ -547,7 +547,7 @@ export default function RegistrationChairPortal() {
       <Header user={user} />
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-        <button onClick={() => navigate("/conference/manage")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
+        <button onClick={() => navigate("/conference/manage/registrationchair")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
           &larr; Back to All Conferences
         </button>
         <div className="flex justify-between items-center">

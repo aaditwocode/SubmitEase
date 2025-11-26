@@ -236,7 +236,7 @@ const RegisteredConferenceList = ({ conferences }) => {
 
 // --- Main Component for the LIST page ---
 export default function ManageConferencesPage_TrackChair() {
-  const { user } = useUserData();
+  const { user,setUser,setloginStatus } = useUserData();
   const [conferences, setConferences] = useState([]);
 
   useEffect(() => {
