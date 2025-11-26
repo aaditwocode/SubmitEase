@@ -314,7 +314,7 @@ const TrackStatistics = ({ papers }) => {
 
 
 // --- Track List Component ---
-const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
+const TrackList = ({ tracks, onAssignChairClick, onCreateTrack, onRemoveChair }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredTracks = tracks.filter(track =>
@@ -326,15 +326,12 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
       <div className="p-4 flex justify-between items-center bg-white rounded-lg shadow">
         <input
           type="text"
-          placeholder="Search tracks by name..."
+          placeholder="Search tracks..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
         />
-        <button
-          onClick={onCreateTrack}
-          className="ml-4 px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap"
-        >
+        <button onClick={onCreateTrack} className="ml-4 px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors">
           Create New Track
         </button>
       </div>
@@ -345,41 +342,70 @@ const TrackList = ({ tracks, onAssignChairClick, onCreateTrack }) => {
             <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
               <h3 className="text-xl font-semibold text-[#1f2937]">{track.Name}</h3>
             </div>
+            
             <div className="p-4 border-b border-[#e5e7eb]">
-              <h4 className="text-sm font-medium text-[#6b7280] mb-2">Track Chairs</h4>
-              <div className="flex flex-wrap gap-2">
-                {track.Chairs && track.Chairs.length > 0 ? (
-                  track.Chairs.map(chair => (
-                    <span key={chair.id} className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                      {chair.firstname} {chair.lastname}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No track chairs assigned.</p>
-                )}
+              <div className="flex justify-between items-center mb-3">
+                 <h4 className="text-sm font-medium text-[#6b7280]">Track Chairs</h4>
+                 <button
+                    onClick={() => onAssignChairClick(track)}
+                    className="px-3 py-1 text-sm bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors"
+                  >
+                    Manage Chairs
+                  </button>
+              </div>
+             
+              {/* --- Track Chair Table --- */}
+              <div className="overflow-x-auto border border-[#e5e7eb] rounded-md">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {track.Chairs && track.Chairs.length > 0 ? (
+                      track.Chairs.map((chair) => (
+                        <tr key={chair.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {chair.firstname} {chair.lastname}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{chair.email}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{chair.organisation || '-'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button 
+                              onClick={() => onRemoveChair(track.id, chair.id)}
+                              className="text-red-600 hover:text-red-900 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">No chairs assigned to this track.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
             <TrackStatistics papers={track.Paper} />
-
-            <div className="p-4 bg-[#f9fafb] border-t border-[#e5e7eb] text-right">
-              <button
-                onClick={() => onAssignChairClick(track)}
-                className="px-4 py-2 text-sm bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors"
-              >
-                Assign Track Chairs
-              </button>
-            </div>
           </div>
         ))
       ) : (
-        <div className="text-center text-gray-500 py-10 bg-white rounded-lg shadow">
+        <div className="text-center text-gray-500 py-10">
           <p>No tracks found matching your search.</p>
         </div>
       )}
     </div>
   );
 };
+
 
 // --- Verdict Section Component ---
 const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
@@ -389,33 +415,53 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
   const [ratingFilter, setRatingFilter] = useState(0);
   const [selectedPaperIds, setSelectedPaperIds] = useState(new Set());
 
-  const safePapers = Array.isArray(papers) ? papers : [];
+  // 1. Pre-process papers to calculate Average Rating from Reviews
+  const processedPapers = useMemo(() => {
+    const rawPapers = Array.isArray(papers) ? papers : [];
+    
+    return rawPapers.map(paper => {
+      const reviews = paper.Reviews || [];
+      // Filter out reviews that might not have a score yet if necessary
+      const validReviews = reviews.filter(r => typeof r.avgScore === 'number');
+      
+      const sum = validReviews.reduce((acc, curr) => acc + curr.avgScore, 0);
+      const avg = validReviews.length > 0 ? sum / validReviews.length : 0;
 
-  // Get unique values for filters
+      return {
+        ...paper,
+        calculatedAvgRating: avg // Store calculated average here
+      };
+    });
+  }, [papers]);
+
+  // Get unique values for filters based on processed papers
   const tracks = useMemo(() =>
-    [...new Set(safePapers.map(p => p.Tracks?.Name || 'N/A'))].sort(),
-    [safePapers]
+    [...new Set(processedPapers.map(p => p.Tracks?.Name || 'N/A'))].sort(),
+    [processedPapers]
   );
   const statuses = useMemo(() =>
-    [...new Set(safePapers.map(p => p.Status))].sort(),
-    [safePapers]
+    [...new Set(processedPapers.map(p => p.Status))].sort(),
+    [processedPapers]
   );
 
-  // 1. Filter papers based on search and filters
+  // 2. Filter papers based on search and filters
   const filteredPapers = useMemo(() => {
-    return safePapers.filter(paper => {
+    return processedPapers.filter(paper => {
       const lowerSearch = searchTerm.toLowerCase();
       const matchesSearch = paper.Title.toLowerCase().includes(lowerSearch) ||
         paper.id.toString().includes(searchTerm);
       const matchesStatus = statusFilter === 'All' || paper.Status === statusFilter;
       const matchesTrack = trackFilter === 'All' || (paper.Tracks?.Name || 'N/A') === trackFilter;
-      const matchesRating = ratingFilter === 0 || (paper.avgRating || 0) >= ratingFilter;
+      
+      // Use the calculated average for filtering
+      const matchesRating = ratingFilter === 0 || paper.calculatedAvgRating >= ratingFilter;
 
       return matchesSearch && matchesStatus && matchesTrack && matchesRating;
     });
-  }, [safePapers, searchTerm, statusFilter, trackFilter, ratingFilter]);
+  }, [processedPapers, searchTerm, statusFilter, trackFilter, ratingFilter]);
 
-  // 2. Sort the filtered papers
+  // 3. Sort the filtered papers (Requires useSortableData hook, assumed to be imported or available)
+  // Note: key 'calculatedAvgRating' is used for sorting now
   const { items: sortedPapers, requestSort, getSortIndicator } = useSortableData(
     filteredPapers,
     { key: 'id', direction: 'ascending' }
@@ -436,13 +482,23 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
 
   const handleSelectAll = () => {
     setSelectedPaperIds(prevSelected => {
-      const newSelected = new Set(prevSelected.filter(p => !p.isFinal).map(r => r.ReviewerId).filter(Boolean));
       const allVisibleIds = sortedPapers.map(p => p.id);
-      const allVisibleSelected = allVisibleIds.every(id => newSelected.has(id));
+      
+      // Check if all currently visible papers are selected
+      const allVisibleSelected = allVisibleIds.every(id => prevSelected.has(id));
+      
+      const newSelected = new Set(prevSelected);
+      
       if (allVisibleSelected) {
+        // Deselect all visible
         allVisibleIds.forEach(id => newSelected.delete(id));
       } else {
-        allVisibleIds.forEach(id => newSelected.add(id));
+        // Select all visible (filtering out final papers if needed, logic preserved)
+        // Assuming we only select non-final papers or all depending on requirements.
+        // Based on previous code:
+        sortedPapers.forEach(p => {
+            if(!p.isFinal) newSelected.add(p.id); 
+        });
       }
       return newSelected;
     });
@@ -461,12 +517,16 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
   // --- Checkbox state for "Select All" ---
   const allVisibleSelected = useMemo(() => {
     if (sortedPapers.length === 0) return false;
-    return sortedPapers.every(p => selectedPaperIds.has(p.id));
+    // Only check selectable papers (e.g., those not final, if that's the logic)
+    const selectablePapers = sortedPapers.filter(p => !p.isFinal);
+    if (selectablePapers.length === 0) return false;
+    return selectablePapers.every(p => selectedPaperIds.has(p.id));
   }, [sortedPapers, selectedPaperIds]);
 
 
   const selectClasses = "px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white text-sm";
   const inputClasses = "px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white text-sm";
+  
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       {/* --- Filter Bar --- */}
@@ -543,6 +603,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
                 type="checkbox"
                 checked={allVisibleSelected}
                 onChange={handleSelectAll}
+                // Disable if no papers or all visible papers are final (and thus not selectable for decision)
                 disabled={sortedPapers.length === 0 || sortedPapers.every(p => p.isFinal)}
                 className="rounded border-gray-300 text-[#059669] focus:ring-[#059669]/50"
               />
@@ -569,8 +630,9 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
               </button>
             </th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">
-              <button onClick={() => requestSort('avgRating')} className="flex items-center gap-1 hover:text-[#1f2937]">
-                Avg Rating {getSortIndicator('avgRating')}
+              {/* Changed Sort Key to calculatedAvgRating */}
+              <button onClick={() => requestSort('calculatedAvgRating')} className="flex items-center gap-1 hover:text-[#1f2937]">
+                Avg Rating {getSortIndicator('calculatedAvgRating')}
               </button>
             </th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
@@ -599,7 +661,8 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
                 <td className="py-3 px-4 text-sm text-[#1f2937]">{paper.Tracks?.Name || 'N/A'}</td>
                 <td className="py-3 px-4">{getStatusBadge(paper.Status)}</td>
                 <td className="py-3 px-4 text-sm text-[#1f2937]">
-                  {paper.avgRating ? paper.avgRating.toFixed(1) : 'N/A'}
+                  {/* Display the calculated average */}
+                  {paper.calculatedAvgRating > 0 ? paper.calculatedAvgRating.toFixed(1) : 'N/A'}
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex justify">
@@ -626,7 +689,7 @@ const VerdictSection = ({ papers, onBulkDecision, navigate }) => {
   );
 };
 
-// --- Proceedings Tab Component ---
+
 const ProceedingsTab = ({ conferenceId }) => {
   const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -658,6 +721,13 @@ const ProceedingsTab = ({ conferenceId }) => {
     }
   }, [conferenceId]);
 
+  // Helper to fetch blob from URL
+  const fetchBlob = async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch ${url}`);
+    return await response.blob();
+  };
+
   const handleSelectOne = (id) => {
     const newSelected = new Set(selectedPaperIds);
     if (newSelected.has(id)) {
@@ -676,6 +746,7 @@ const ProceedingsTab = ({ conferenceId }) => {
     }
   };
 
+  // --- Bulk Download (Flat list: 1.pdf, 2.pdf...) ---
   const handleBulkDownload = async () => {
     if (selectedPaperIds.size === 0) return;
 
@@ -683,19 +754,12 @@ const ProceedingsTab = ({ conferenceId }) => {
     const folder = zip.folder("proceedings");
     const selectedPapers = papers.filter(p => selectedPaperIds.has(p.id));
 
-    // Helper to fetch blob from URL
-    const fetchBlob = async (url) => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Failed to fetch ${url}`);
-      return await response.blob();
-    };
-
     let count = 0;
     for (const paper of selectedPapers) {
-      if (paper.FinalPaperURL) {
+      if (paper.URL) {
         try {
-          const blob = await fetchBlob(paper.FinalPaperURL);
-          // Use sequential naming: 1.pdf, 2.pdf, etc.
+          const blob = await fetchBlob(paper.URL);
+          // Simple sequential naming
           const fileName = `${count + 1}.pdf`;
           folder.file(fileName, blob);
           count++;
@@ -707,7 +771,56 @@ const ProceedingsTab = ({ conferenceId }) => {
 
     if (count > 0) {
       const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, "proceedings.zip");
+      saveAs(content, "proceedings_all.zip");
+    }
+  };
+
+  // --- UPDATED: Track-wise Download (Folders by Track, reset counter per folder) ---
+  const handleTrackDownload = async () => {
+    if (selectedPaperIds.size === 0) return;
+
+    const zip = new JSZip();
+    const selectedPapers = papers.filter(p => selectedPaperIds.has(p.id));
+
+    // Object to keep track of file counts per track name
+    // Example: { "AI_Track": 2, "Cybersecurity": 5 }
+    const trackCounts = {}; 
+    let globalCount = 0; // To check if we downloaded anything at all
+
+    for (const paper of selectedPapers) {
+      if (paper.URL) {
+        try {
+          const blob = await fetchBlob(paper.URL);
+          
+          // Get Track Name
+          const trackName = paper.Tracks?.Name || "General_Track";
+          // Sanitize Track Name for folder creation
+          const safeTrackName = trackName.replace(/[^a-z0-9 _-]/gi, '_');
+
+          // Initialize counter for this specific track if it doesn't exist
+          if (!trackCounts[safeTrackName]) {
+            trackCounts[safeTrackName] = 0;
+          }
+          
+          // Increment counter for this track
+          trackCounts[safeTrackName]++;
+          
+          // Name file: 1.pdf, 2.pdf... inside that specific folder
+          const fileName = `${trackCounts[safeTrackName]}.pdf`;
+          
+          // Add to zip: Folder(Track) -> 1.pdf
+          zip.folder(safeTrackName).file(fileName, blob);
+          
+          globalCount++;
+        } catch (err) {
+          console.error(`Error downloading paper ${paper.id}:`, err);
+        }
+      }
+    }
+
+    if (globalCount > 0) {
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, "proceedings_by_track.zip");
     } else {
       alert("No valid files found to download.");
     }
@@ -720,13 +833,24 @@ const ProceedingsTab = ({ conferenceId }) => {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-[#1f2937]">Proceedings</h3>
-        <button
-          onClick={handleBulkDownload}
-          disabled={selectedPaperIds.size === 0}
-          className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Download Selected ({selectedPaperIds.size})
-        </button>
+        
+        <div className="flex gap-2">
+            <button
+                onClick={handleTrackDownload}
+                disabled={selectedPaperIds.size === 0}
+                className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+                Download Track-wise
+            </button>
+
+            <button
+                onClick={handleBulkDownload}
+                disabled={selectedPaperIds.size === 0}
+                className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+                Download Selected ({selectedPaperIds.size})
+            </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
@@ -790,14 +914,15 @@ const PublicationRegistrationManagement = ({
   conference,
   allUsers,
   onAssignPublicationChairs,
-  onAssignRegistrationChairs
+  onAssignRegistrationChairs,
+  onRemovePublicationChair,
+  onRemoveRegistrationChair
 }) => {
   const [selectedPublicationChairs, setSelectedPublicationChairs] = useState([]);
   const [selectedRegistrationChairs, setSelectedRegistrationChairs] = useState([]);
-  const [isPublicationModalOpen, setIsPublicationModalOpen] = useState(false);
-  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+  const [isPubModalOpen, setIsPubModalOpen] = useState(false);
+  const [isRegModalOpen, setIsRegModalOpen] = useState(false);
 
-  // Initialize chairs from conference data
   useEffect(() => {
     if (conference?.PublicationChairs) {
       setSelectedPublicationChairs(conference.PublicationChairs);
@@ -807,166 +932,99 @@ const PublicationRegistrationManagement = ({
     }
   }, [conference]);
 
-  const handleAssignPublicationChairs = (userIds) => {
-    onAssignPublicationChairs(userIds);
-    setIsPublicationModalOpen(false);
-  };
-
-  const handleAssignRegistrationChairs = (userIds) => {
-    onAssignRegistrationChairs(userIds);
-    setIsRegistrationModalOpen(false);
-  };
-
-  // Mock data for statistics (replace with actual data from props)
-  const publicationStats = {
-    totalPapers: 156,
-    acceptedPapers: 89,
-    publishedPapers: 67,
-    pendingPublication: 22
-  };
-
-  const registrationStats = {
-    totalSubmissions: 234,
-    completedRegistrations: 189,
-    pendingRegistrations: 45,
-    confirmedAttendees: 167
-  };
+  
 
   return (
     <div className="space-y-6">
-      {/* Statistics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Publication Statistics */}
-        <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
-          <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb]">
-            <h3 className="text-lg font-semibold text-[#1f2937]">Publication Statistics</h3>
-          </div>
-          <div className="p-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-[#6b7280]">Total Papers</h3>
-                <p className="text-2xl font-bold text-[#1f2937]">{publicationStats.totalPapers}</p>
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-green-700">Accepted Papers</h3>
-                <p className="text-2xl font-bold text-green-700">{publicationStats.acceptedPapers}</p>
-              </div>
-              <div className="bg-[#059669]/10 border border-[#059669]/20 rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-[#059669]">Published</h3>
-                <p className="text-2xl font-bold text-[#059669]">{publicationStats.publishedPapers}</p>
-              </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-yellow-700">Pending Publication</h3>
-                <p className="text-2xl font-bold text-yellow-700">{publicationStats.pendingPublication}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Registration Statistics */}
-        <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
-          <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb]">
-            <h3 className="text-lg font-semibold text-[#1f2937]">Registration Statistics</h3>
-          </div>
-          <div className="p-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-[#6b7280]">Total Submissions</h3>
-                <p className="text-2xl font-bold text-[#1f2937]">{registrationStats.totalSubmissions}</p>
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-green-700">Completed Registrations</h3>
-                <p className="text-2xl font-bold text-green-700">{registrationStats.completedRegistrations}</p>
-              </div>
-              <div className="bg-[#059669]/10 border border-[#059669]/20 rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-[#059669]">Confirmed Attendees</h3>
-                <p className="text-2xl font-bold text-[#059669]">{registrationStats.confirmedAttendees}</p>
-              </div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                <h3 className="text-sm font-medium text-yellow-700">Pending Registrations</h3>
-                <p className="text-2xl font-bold text-yellow-700">{registrationStats.pendingRegistrations}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Chairs Assignment Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Publication Chairs Card */}
+      {/* Chairs Assignment Section - Vertical Stack */}
+      <div className="grid grid-cols-1 gap-6">
+        
+        {/* Publication Chairs */}
         <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
           <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
             <h3 className="text-lg font-semibold text-[#1f2937]">Publication Chairs</h3>
-            <button
-              onClick={() => setIsPublicationModalOpen(true)}
-              className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors text-sm"
+            <button 
+              onClick={() => setIsPubModalOpen(true)} 
+              className="px-4 py-2 bg-[#059669] text-white rounded-md text-sm hover:bg-[#059669]/90 transition-colors"
             >
               Assign Publication Chairs
             </button>
           </div>
-          <div className="p-4">
-            <h4 className="text-sm font-medium text-[#6b7280] mb-2">Assigned Chairs</h4>
-            <div className="flex flex-wrap gap-2">
-              {selectedPublicationChairs && selectedPublicationChairs.length > 0 ? (
-                selectedPublicationChairs.map(chair => (
-                  <span key={chair.id} className="px-3 py-1 bg-[#059669]/10 text-[#059669] text-sm font-medium rounded-full">
-                    {chair.firstname} {chair.lastname}
-                  </span>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">No publication chairs assigned.</p>
-              )}
-            </div>
+          <div className="p-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-md">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {selectedPublicationChairs.length > 0 ? (
+                  selectedPublicationChairs.map(chair => (
+                    <tr key={chair.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{chair.firstname} {chair.lastname}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{chair.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{chair.organisation || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onClick={() => onRemovePublicationChair(chair.id)} className="text-red-600 hover:text-red-900 hover:underline">Remove</button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">No publication chairs assigned.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Registration Chairs Card */}
+        {/* Registration Chairs */}
         <div className="bg-white rounded-lg shadow border border-[#e5e7eb] overflow-hidden">
           <div className="p-4 bg-[#f9fafb] border-b border-[#e5e7eb] flex justify-between items-center">
             <h3 className="text-lg font-semibold text-[#1f2937]">Registration Chairs</h3>
-            <button
-              onClick={() => setIsRegistrationModalOpen(true)}
-              className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors text-sm"
+            <button 
+              onClick={() => setIsRegModalOpen(true)} 
+              className="px-4 py-2 bg-[#059669] text-white rounded-md text-sm hover:bg-[#059669]/90 transition-colors"
             >
               Assign Registration Chairs
             </button>
           </div>
-          <div className="p-4">
-            <h4 className="text-sm font-medium text-[#6b7280] mb-2">Assigned Chairs</h4>
-            <div className="flex flex-wrap gap-2">
-              {selectedRegistrationChairs && selectedRegistrationChairs.length > 0 ? (
-                selectedRegistrationChairs.map(chair => (
-                  <span key={chair.id} className="px-3 py-1 bg-[#059669]/10 text-[#059669] text-sm font-medium rounded-full">
-                    {chair.firstname} {chair.lastname}
-                  </span>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">No registration chairs assigned.</p>
-              )}
-            </div>
+          <div className="p-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-md">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {selectedRegistrationChairs.length > 0 ? (
+                  selectedRegistrationChairs.map(chair => (
+                    <tr key={chair.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{chair.firstname} {chair.lastname}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{chair.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{chair.organisation || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onClick={() => onRemoveRegistrationChair(chair.id)} className="text-red-600 hover:text-red-900 hover:underline">Remove</button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">No registration chairs assigned.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
+
       </div>
 
-      {/* Modals */}
-      {isPublicationModalOpen && (
-        <AssignConferenceRoleModal
-          title="Assign Publication Chairs"
-          allUsers={allUsers}
-          selectedUsers={selectedPublicationChairs}
-          onClose={() => setIsPublicationModalOpen(false)}
-          onAssign={handleAssignPublicationChairs}
-        />
-      )}
-      {isRegistrationModalOpen && (
-        <AssignConferenceRoleModal
-          title="Assign Registration Chairs"
-          allUsers={allUsers}
-          selectedUsers={selectedRegistrationChairs}
-          onClose={() => setIsRegistrationModalOpen(false)}
-          onAssign={handleAssignRegistrationChairs}
-        />
-      )}
+      {isPubModalOpen && <AssignChairModal track={{ id: null, Name: 'Publication Chairs' }} allUsers={allUsers} onClose={() => setIsPubModalOpen(false)} onAssign={(_, ids) => { onAssignPublicationChairs(ids); setIsPubModalOpen(false); }} />}
+      {isRegModalOpen && <AssignChairModal track={{ id: null, Name: 'Registration Chairs' }} allUsers={allUsers} onClose={() => setIsRegModalOpen(false)} onAssign={(_, ids) => { onAssignRegistrationChairs(ids); setIsRegModalOpen(false); }} />}
     </div>
   );
 };
@@ -1582,6 +1640,22 @@ export default function ConferenceDetails_ChiefChair() {
     }
   };
 
+  const handleRemovePublicationChair = async (userId) => {
+    if (!window.confirm("Remove this Publication Chair?")) return;
+    try {
+      const res = await fetch('http://localhost:3001/conference/remove-publication-chair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conferenceId: decodedConferenceId, userId })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        // Update conference state to remove the chair from the list
+        setConference(d.conference);
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const handleAssignRegistrationChairs = async (userIds) => {
     try {
       const response = await fetch(`http://localhost:3001/conference/assign-registration-chairs`, {
@@ -1607,6 +1681,21 @@ export default function ConferenceDetails_ChiefChair() {
     }
   };
 
+  const handleRemoveRegistrationChair = async (userId) => {
+    if (!window.confirm("Remove this Registration Chair?")) return;
+    try {
+      const res = await fetch('http://localhost:3001/conference/remove-registration-chair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conferenceId: decodedConferenceId, userId })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        // Update conference state to remove the chair from the list
+        setConference(d.conference);
+      }
+    } catch (e) { console.error(e); }
+  };
   // ---
   // --- RENDER LOGIC ---
   // ---
@@ -1635,9 +1724,133 @@ export default function ConferenceDetails_ChiefChair() {
     );
   }
 
+  const Header = ({ user }) => {
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const navigate = useNavigate();
+  
+    // 1. Configuration: Maps DB Role Strings -> Frontend Routes
+    const ROLE_CONFIG = {
+      "Author": { label: "Author", path: "/conference" },
+      "Conference Host": { label: "Conference Host", path: "/conference/manage/chiefchair" },
+      "Reviewer": { label: "Reviewer", path: "/ManageReviews" },
+      "Track Chair": { label: "Track Chair", path: "/conference/manage/trackchair" },
+      "Publication Chair": { label: "Publication Chair", path: "/conference/manage/publicationchair" },
+      "Registration Chair": { label: "Registration Chair", path: "/conference/manage/registrationchair" }
+    };
+  
+    // 2. Filter options based on the current user's roles
+    const availablePortals = useMemo(() => {
+      if (!user || !user.role || !Array.isArray(user.role)) return [];
+      return user.role
+        .map(roleString => ROLE_CONFIG[roleString])
+        .filter(Boolean);
+    }, [user]);
+  
+    const handleLogout = () => {
+      setUser(null);
+      setloginStatus(false);
+      navigate("/home");
+    };
+  
+    return (
+      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          
+          {/* Left Side: Logo & Register Tab */}
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
+              </div>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+            </div>
+  
+            {/* Clean Navbar - Only Register remains */}
+            <nav className="hidden items-center md:flex">
+              <button 
+                onClick={() => navigate('/conference/registration')}
+                className="text-sm font-medium text-[#6b7280] transition-colors hover:text-[#059669] hover:bg-green-50 px-3 py-2 rounded-md"
+              >
+                Register a Conference
+              </button>
+            </nav>
+          </div>
+  
+          {/* Right Side: Actions */}
+          <div className="flex items-center gap-3">
+            
+            {/* 1. Dynamic "Switch Portal" Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+                className="group flex items-center gap-2 rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6] transition-colors bg-white"
+              >
+                Switch Portal
+                <svg 
+                  className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} 
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+  
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
+  
+                  {/* Divider if we have dynamic roles */}
+                  {availablePortals.length > 0 && (
+                    <div className="border-gray-100 my-1"></div>
+                  )}
+  
+                  {/* Dynamic Links based on User Roles */}
+                  {availablePortals.length > 0 && (
+                    <>
+                      <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Your Roles
+                      </h6>
+                      {availablePortals.map((option, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            navigate(option.path);
+                            setIsDropdownOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+  
+            {/* 2. Return to Dashboard */}
+            <button 
+              onClick={() => navigate('/dashboard')}
+              className="hidden sm:block rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90"
+            >
+              Return To Dashboard
+            </button>
+  
+            {/* 3. Logout */}
+            <button 
+              onClick={handleLogout} 
+              className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#ffffff]">
-      <AppHeader />
+      <Header user={user} />
       <main className="container mx-auto px-4 py-8">
         <button onClick={() => navigate("/conference/manage")} className="mb-4 text-[#059669] hover:text-[#047857] font-medium">
           &larr; Back to All Conferences
@@ -1995,6 +2208,8 @@ export default function ConferenceDetails_ChiefChair() {
                     allUsers={allUsers}
                     onAssignPublicationChairs={handleAssignPublicationChairs}
                     onAssignRegistrationChairs={handleAssignRegistrationChairs}
+                    onRemovePublicationChair={handleRemovePublicationChair}
+                    onRemoveRegistrationChair={handleRemoveRegistrationChair}
                   />
                 </div>
               )}

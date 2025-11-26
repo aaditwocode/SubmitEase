@@ -6,7 +6,10 @@ import DashBoardPage from './components/DashBoardPage';
 import ConferencePortal from './components/ConferencePortal';
 import { UserProvider } from './components/UserContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import ManageConferences from './components/ManageConferences';
+import ManageConferencesPage_ChiefChair from './components/ManageConferences_ChiefChair';
+import ManageConferencesPage_TrackChair from './components/ManageConferences_TrackChair';
+import ManageConferencesPage_PublicationChair from './components/ManageConferences_PublicationChair';
+import ManageConferencesPage_RegistrationChair from './components/ManageConferences_RegistrationChair';
 import ConferenceRegistration from './components/ConferenceRegistration';
 import ViewPaper from './components/ViewPaper';
 import PaperDecision from './components/PaperDecision';
@@ -93,10 +96,34 @@ function App() {
             }
           />
           <Route
-            path="/conference/manage"
+            path="/conference/manage/chiefchair"
             element={
               <ProtectedRoute>
-                <ManageConferences />
+                <ManageConferencesPage_ChiefChair />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/conference/manage/trackchair'
+            element={
+              <ProtectedRoute>
+                <ManageConferencesPage_TrackChair />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/conference/manage/publicationchair'
+            element={
+              <ProtectedRoute>
+                <ManageConferencesPage_PublicationChair />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/conference/manage/registrationchair'
+            element={
+              <ProtectedRoute>
+                <ManageConferencesPage_RegistrationChair />
               </ProtectedRoute>
             }
           />

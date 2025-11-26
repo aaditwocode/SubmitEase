@@ -1270,22 +1270,172 @@ app.post('/conference/registeration', async (req, res) => {
   }
 });
 
-app.post('/conference/registered', async (req, res) => {
+app.post('/conference/registered/chiefchair', async (req, res) => {
   try {
     const { userId } = req.body;
     const parsedUserId = parseInt(userId);
 
     const conferences = await prisma.conference.findMany({
       where: {
-        OR: [
-          { hostID: parsedUserId },
+        hostID: parsedUserId ,
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+        Partners: true,
+        hostID: true,
+        // Return IDs of chairs to verify on frontend
+        PublicationChairs: {
+          select: { id: true }
+        },
+        RegistrationChairs: {
+          select: { id: true }
+        },
+        Tracks: {
+          select: {
+            id: true,
+            Name: true,
+            Chairs: {
+              select: { id: true }
+            }
+          }
+        }
+      },
+      // cacheStrategy: { ttl: 60 }, // Commented out for testing immediate role changes
+    });
+
+    if (!conferences || conferences.length === 0) {
+      return res.status(404).json({ message: 'No Available Conferences.' });
+    }
+
+    res.status(200).json({ conference: conferences });
+
+  } catch (error) {
+    console.error("Error fetching registered conferences:", error);
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+app.post('/conference/registered/trackchair', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const parsedUserId = parseInt(userId);
+
+    const conferences = await prisma.conference.findMany({
+      where: {
           // Check if user is a Chair of ANY track in this conference
-          { Tracks: { some: { Chairs: { some: { id: parsedUserId } } } } },
+          Tracks: { some: { Chairs: { some: { id: parsedUserId } } } } ,
+          
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+        Partners: true,
+        hostID: true,
+        // Return IDs of chairs to verify on frontend
+        PublicationChairs: {
+          select: { id: true }
+        },
+        RegistrationChairs: {
+          select: { id: true }
+        },
+        Tracks: {
+          select: {
+            id: true,
+            Name: true,
+            Chairs: {
+              select: { id: true }
+            }
+          }
+        }
+      },
+      // cacheStrategy: { ttl: 60 }, // Commented out for testing immediate role changes
+    });
+
+    if (!conferences || conferences.length === 0) {
+      return res.status(404).json({ message: 'No Available Conferences.' });
+    }
+
+    res.status(200).json({ conference: conferences });
+
+  } catch (error) {
+    console.error("Error fetching registered conferences:", error);
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+app.post('/conference/registered/publicationchair', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const parsedUserId = parseInt(userId);
+
+    const conferences = await prisma.conference.findMany({
+      where: {
           // Check if user is a Publication Chair
-          { PublicationChairs: { some: { id: parsedUserId } } },
+           PublicationChairs: { some: { id: parsedUserId } } ,
+      },
+      select: {
+        id: true,
+        name: true,
+        location: true,
+        startsAt: true,
+        endAt: true,
+        deadline: true,
+        link: true,
+        status: true,
+        Partners: true,
+        hostID: true,
+        // Return IDs of chairs to verify on frontend
+        PublicationChairs: {
+          select: { id: true }
+        },
+        RegistrationChairs: {
+          select: { id: true }
+        },
+        Tracks: {
+          select: {
+            id: true,
+            Name: true,
+            Chairs: {
+              select: { id: true }
+            }
+          }
+        }
+      },
+      // cacheStrategy: { ttl: 60 }, // Commented out for testing immediate role changes
+    });
+
+    if (!conferences || conferences.length === 0) {
+      return res.status(404).json({ message: 'No Available Conferences.' });
+    }
+
+    res.status(200).json({ conference: conferences });
+
+  } catch (error) {
+    console.error("Error fetching registered conferences:", error);
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+app.post('/conference/registered/registrationchair', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const parsedUserId = parseInt(userId);
+
+    const conferences = await prisma.conference.findMany({
+      where: {
           // Check if user is a Registration Chair
-          { RegistrationChairs: { some: { id: parsedUserId } } }
-        ]
+         RegistrationChairs: { some: { id: parsedUserId } }
       },
       select: {
         id: true,

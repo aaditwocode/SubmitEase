@@ -343,36 +343,132 @@ export default function ReviewPaper() {
     if (loading) return <div className="p-8 text-center">Loading paper...</div>;
     if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
     if (!paper) return <div className="p-8 text-center">Paper not found.</div>;
-
+  const Header = ({ user }) => {
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const navigate = useNavigate();
+  
+    // 1. Configuration: Maps DB Role Strings -> Frontend Routes
+    const ROLE_CONFIG = {
+      "Author": { label: "Author", path: "/conference" },
+      "Conference Host": { label: "Conference Host", path: "/conference/manage/chiefchair" },
+      "Reviewer": { label: "Reviewer", path: "/ManageReviews" },
+      "Track Chair": { label: "Track Chair", path: "/conference/manage/trackchair" },
+      "Publication Chair": { label: "Publication Chair", path: "/conference/manage/publicationchair" },
+      "Registration Chair": { label: "Registration Chair", path: "/conference/manage/registrationchair" }
+    };
+  
+    // 2. Filter options based on the current user's roles
+    const availablePortals = useMemo(() => {
+      if (!user || !user.role || !Array.isArray(user.role)) return [];
+      return user.role
+        .map(roleString => ROLE_CONFIG[roleString])
+        .filter(Boolean);
+    }, [user]);
+  
+    const handleLogout = () => {
+      setUser(null);
+      setloginStatus(false);
+      navigate("/home");
+    };
+  
+    return (
+      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          
+          {/* Left Side: Logo & Register Tab */}
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
+              </div>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+            </div>
+  
+            {/* Clean Navbar - Only Register remains */}
+            <nav className="hidden items-center md:flex">
+              <button 
+                onClick={() => navigate('/conference/registration')}
+                className="text-sm font-medium text-[#6b7280] transition-colors hover:text-[#059669] hover:bg-green-50 px-3 py-2 rounded-md"
+              >
+                Register a Conference
+              </button>
+            </nav>
+          </div>
+  
+          {/* Right Side: Actions */}
+          <div className="flex items-center gap-3">
+            
+            {/* 1. Dynamic "Switch Portal" Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+                className="group flex items-center gap-2 rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6] transition-colors bg-white"
+              >
+                Switch Portal
+                <svg 
+                  className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} 
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+  
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
+  
+                  {/* Divider if we have dynamic roles */}
+                  {availablePortals.length > 0 && (
+                    <div className="border-gray-100 my-1"></div>
+                  )}
+  
+                  {/* Dynamic Links based on User Roles */}
+                  {availablePortals.length > 0 && (
+                    <>
+                      <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Your Roles
+                      </h6>
+                      {availablePortals.map((option, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            navigate(option.path);
+                            setIsDropdownOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+  
+            {/* 2. Return to Dashboard */}
+            <button 
+              onClick={() => navigate('/dashboard')}
+              className="hidden sm:block rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90"
+            >
+              Return To Dashboard
+            </button>
+  
+            {/* 3. Logout */}
+            <button 
+              onClick={handleLogout} 
+              className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  };
     return (
         <div className="min-h-screen bg-[#ffffff]">
-            {/* Header */}
-            <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-8">
-                        <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                                <span className="text-lg font-bold text-white">S</span>
-                            </div>
-                            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
-                        </div>
-                        <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
-                            <a href="/conference/registration" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Create a Conference</a>
-                            <a href="/conference/manage" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Conferences</a>
-                            <a href="/ManageReviews" className="text-[#6b7280] transition-colors hover:text-[#1f2937]">Manage Reviews</a>
-                        </nav>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => handlePortalClick("conference")} className="rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90">
-                            Return To Conference Portal
-                        </button>
-                        <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </header>
-
+            <Header user={user} />
             {/* --- Main Content --- */}
             <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 

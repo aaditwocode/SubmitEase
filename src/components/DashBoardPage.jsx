@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect,useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
+
 export default function DashBoardPage() {
   const { user, setUser } = useUserData();
   const [activePortal, setActivePortal] = useState(null);
@@ -19,83 +20,122 @@ export default function DashBoardPage() {
     navigate(`/${portal}`);
   };
 
+  
+  const Header = ({ user }) => { // <--- Receive user object here
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const handleLogout = () => {
     console.log("[v0] Logging out user");
     setUser(null);
     navigate("/home");
   };
-  return (
-    <div className="min-h-screen bg-[#ffffff]">
-      <header className="border-b border-[#e5e7eb] bg-[#ffffff]/95 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/60">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 bg-[#059669] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">S</span>
-            </div>
-            <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
-          </div>
+  // const navigate = useNavigate();
 
-          {/* Right side - Portal buttons and logout */}
-          <div className="flex items-center space-x-4">
+  // 1. Define the Master Config: Maps DB Role Strings -> Frontend Routes
+  // Key: The exact string stored in your PostgreSQL 'role' array
+  // Value: Label and Path for the UI
+  const ROLE_CONFIG = {
+    "Author": { label: "Author", path: "/conference" },
+    "Conference Host": { label: "Conference Host", path: "/conference/manage/chiefchair" },
+    "Reviewer": { label: "Reviewer", path: "/ManageReviews" },
+    "Track Chair": { label: "Track Chair", path: "/conference/manage/trackchair" },
+    "Publication Chair": { label: "Publication Chair", path: "/conference/manage/publicationchair" },
+    "Registration Chair": { label: "Registration Chair", path: "/conference/manage/registrationchair" }
+  };
+
+  // 2. Filter options based on the current user's roles
+  const availablePortalOptions = useMemo(() => {
+    if (!user || !user.role || !Array.isArray(user.role)) return [];
+
+    // Map the user's roles to the config objects, filtering out any undefined ones
+    // (e.g. if the user has a role 'Admin' that isn't in the conference portal list)
+    return user.role
+      .map(roleString => ROLE_CONFIG[roleString])
+      .filter(Boolean); // Removes undefined entries
+  }, [user]);
+
+  const handlePortalClick = (type) => {
+    navigate(`/${type}`);
+  };
+
+
+  return (
+    <header className="border-b border-[#e5e7eb] bg-[#ffffff]/95 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/60">
+      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        {/* Left side - Logo */}
+        <div className="flex items-center space-x-2">
+          <div className="h-8 w-8 bg-[#059669] rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-lg">S</span>
+          </div>
+          <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+        </div>
+
+        {/* Right side - Portal buttons and logout */}
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => handlePortalClick("journal")}
+            className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+          >
+            Journal Portal
+          </button>
+          
+          {/* Conference Portal Dropdown */}
+          <div className="relative">
             <button
-              onClick={() => handlePortalClick("journal")}
-              className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+              disabled={availablePortalOptions.length === 0} // Disable if user has no conference roles
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center gap-2 
+                ${availablePortalOptions.length === 0 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-[#059669] hover:bg-[#059669]/90'}`
+              }
             >
-              Journal Portal
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors flex items-center gap-2"
-              >
-                Conference Portal
-                <svg className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              Conference Portal
+              {availablePortalOptions.length > 0 && (
+                <svg 
+                  className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              </button>
-
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-1 z-50">
-                  <h2 className="text-m font-semibold text-[#1f2937] mb-2 px-4 py-1">Signin As</h2>
-                  <button
-                    onClick={() => {
-                      navigate("/conference");
-                      setIsDropdownOpen(false);
-                    }}
-                    className="block w-full text-left px-4 py-1 text-sm text-[#1f2937] hover:bg-[#f3f4f6]"
-                  >
-                    Author
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigate("/conference/manage");
-                      setIsDropdownOpen(false);
-                    }}
-                    className="block w-full text-left px-4 py-1 text-sm text-[#1f2937] hover:bg-[#f3f4f6]"
-                  >
-                    Conference Host
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigate("/ManageReviews");
-                      setIsDropdownOpen(false);
-                    }}
-                    className="block w-full text-left px-4 py-1 text-sm text-[#1f2937] hover:bg-[#f3f4f6]"
-                  >
-                    Reviewer
-                  </button>
-                </div>
               )}
-            </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-lg hover:bg-[#f3f4f6] transition-colors"
-            >
-              Logout
             </button>
+
+            {/* Only show dropdown if open AND there are options */}
+            {isDropdownOpen && availablePortalOptions.length > 0 && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
+                <h2 className="text-xs font-bold text-[#9ca3af] uppercase tracking-wider mb-2 px-4 py-1">
+                  Sign in as
+                </h2>
+                
+                {availablePortalOptions.map((option, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      // navigate(option.path);
+                      navigate(option.path);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669] transition-colors"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          <button onClick={handleLogout} className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium transition-colors hover:bg-[#f3f4f6]">Logout</button>
         </div>
-      </header>
+      </div>
+    </header>
+  );
+};
+  return (
+    <div className="min-h-screen bg-[#ffffff]">
+      <Header user={user}/>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <section className="mb-12">
