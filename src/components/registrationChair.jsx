@@ -162,11 +162,6 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile, onBulkApprove }) 
                 Authors {getSortIndicator('authors')}
               </button>
             </th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">
-              <button onClick={() => requestSort('correspondent')} className={headerBtnClass}>
-                Correspondent {getSortIndicator('correspondent')}
-              </button>
-            </th>
             
             {/* File Column */}
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280]">Registration Slip</th>
@@ -204,7 +199,6 @@ const PaperList = ({ papers, onRemind, onSendBack, onViewFile, onBulkApprove }) 
                   </div>
                 </td>
                 <td className="py-3 px-4 text-sm text-[#6b7280] truncate max-w-[150px]" title={paper.authors}>{paper.authors}</td>
-                <td className="py-3 px-4 text-sm text-[#6b7280] truncate max-w-[150px]" title={paper.correspondent}>{paper.correspondent}</td>
                 
                 {/* Registration Slip Column */}
                 <td className="py-3 px-4">
