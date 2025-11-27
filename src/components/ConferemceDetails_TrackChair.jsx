@@ -100,6 +100,9 @@ const PaperList = ({ papers }) => {
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("Title")}>
               Name {sortBy === "Title" && (sortOrder === "asc" ? "↑" : "↓")}
             </th>
+            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
+              Track
+            </th>
             <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("submittedAt")}>
               Submitted On {sortBy === "submittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
             </th>
@@ -121,6 +124,7 @@ const PaperList = ({ papers }) => {
                     <p className="text-xs text-[#6b7280]">{paper.Conference?.name}</p>
                   </div>
                 </td>
+                <td className="py-3 px-4 text-sm text-[#1f2937]">{paper.Tracks.Name || "N/A"}</td>
                 <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(paper.submittedAt)}</td>
                 <td className="py-3 px-4">
                   <div className="flex flex-wrap gap-1">

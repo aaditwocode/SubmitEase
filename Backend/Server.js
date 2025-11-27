@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import 'dotenv/config';
 import { parse } from 'path';
+import cron from 'node-cron';
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 
@@ -1687,6 +1688,24 @@ app.post('/conference/papers', async (req, res) => {
             lastname: true,
             email: true
           }
+        },
+        Reviews: {
+          select: {
+            id: true,
+            ReviewerId: true,
+            Comment: true,
+            Recommendation: true,
+            submittedAt: true,
+            Status: true,
+            scoreOriginality: true,
+            scoreClarity: true,
+            scoreSoundness: true,
+            scoreSignificance: true,
+            scoreRelevance: true,
+            avgScore: true,
+            isBlind: true,
+            assignedAt: true,
+          },
         }
       },
     });
@@ -2485,6 +2504,49 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
   }
 });
 
+// --- The Logic to Close Conferences ---
+const closeExpiredConferences = async () => {
+  try {
+    const currentTime = new Date();
+
+    // updateMany allows us to update multiple records in one database query
+    const result = await prisma.conference.updateMany({
+      where: {
+        deadline: {
+          lt: currentTime, // 'lt' means Less Than (deadline is in the past)
+        },
+        status: {
+          not: 'Closed', // Only update if it's not already Closed 
+        },
+      },
+      data: {
+        status: 'Closed',
+      },
+    });
+
+    if (result.count > 0) {
+      console.log(`[Auto-Scheduler] Successfully closed ${result.count} expired conferences at ${currentTime.toISOString()}`);
+    }
+  } catch (error) {
+    console.error('[Auto-Scheduler] Error closing conferences:', error);
+  }
+};
+
+// --- Schedule the Job ---
+cron.schedule('0 0 * * *', () => {
+  console.log('Running scheduled check for expired conferences...');
+  closeExpiredConferences();
+});
+
+
+app.post('/force-close-expired', async (req, res) => {
+  try {
+    await closeExpiredConferences();
+    res.status(200).json({ message: "Expired conference check completed." });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.get('/', (req, res) => {
   res.send('🚀 API is running and connected to Prisma Postgres!');
