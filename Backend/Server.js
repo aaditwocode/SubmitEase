@@ -2532,6 +2532,231 @@ const closeExpiredConferences = async () => {
   }
 };
 
+app.post('/journal/registration', async (req, res) => {
+  try {
+    const { name, link, Publication, hostID } = req.body;
+
+    // 1. Validate Required Fields
+    // Note: status is optional as it defaults to "Pending Approval" if not sent, 
+    // but your frontend sends it, so we can accept it.
+    if (!name || !link || !Publication || !hostID) {
+      return res.status(400).json({ message: 'Missing required journal fields' });
+    }
+
+    // 2. Create Entry in Database
+    const newJournal = await prisma.journal.create({
+      data: {
+        name,
+        link,
+        status: "Pending Approval",
+        Publication,
+        hostID: parseInt(hostID), // Ensure hostID is an integer
+      },
+    });
+
+    // 3. Update User Role 
+    // Adds "Journal Host" role to the user so they can access management portals
+    if (hostID) {
+      await addRoleToUsers([parseInt(hostID)], "Journal Host");
+    }
+
+    res.status(201).json({ journal: newJournal });
+
+  } catch (error) {
+    console.error('Journal registration failed:', error);
+    res.status(500).json({ message: 'Could not create journal', details: error.message });
+  }
+});
+
+app.get('/journals', async (req, res) => {
+  try {
+    const journals = await prisma.journal.findMany({
+      where: {
+        status: "Open"
+      },
+      select: {
+        id: true,
+        name: true,
+        link: true,
+        Publication: true,
+      },
+      cacheStrategy: { ttl: 60 },
+    });
+    if (!journals || journals.length === 0) {
+      return res.status(404).json({ message: 'No Available Journals.' });
+    }
+
+    res.status(200).json({ journal: journals });
+
+  } catch (error) {
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+app.get('/journal/papers', async (req, res) => {
+  const { authorId } = req.query;
+
+  // 1. Validate Input
+  if (!authorId) {
+    return res.status(400).json({ message: 'The authorId query parameter is required.' });
+  }
+  const parsedAuthorId = parseInt(authorId, 10);
+  if (isNaN(parsedAuthorId)) {
+    return res.status(400).json({ message: 'The authorId must be a valid integer.' });
+  }
+
+  try {
+    // 2. Query JournalPapers
+    const papers = await prisma.journalPapers.findMany({
+      where: {
+        Authors: {
+          some: {
+            id: parsedAuthorId,
+          },
+        },
+      },
+      select: {
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        URL: true,
+        AuthorOrder: true,
+        submittedAt: true,
+        
+        // Relation: Get Journal Details
+        Journal: {
+          select: {
+            id: true,
+            name: true,
+            Publication: true,
+          },
+        },
+        
+        // Optional: Get Co-Authors details for display
+        Authors: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true
+          }
+        }
+      },
+      // cacheStrategy: { ttl: 60 }, // Uncomment if using Prisma Accelerate
+    });
+
+    if (!papers || papers.length === 0) {
+      return res.status(404).json({ message: 'No journal papers found for this author.' });
+    }
+
+    res.status(200).json({ papers: papers });
+
+  } catch (error) {
+    console.error('Error fetching journal papers:', error);
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+  }
+});
+
+app.post('/journal/savepaper', upload.single('pdfFile'), async (req, res) => {
+  // 1. Extract Journal-specific fields
+  const { title, journalId: jid, abstract } = req.body;
+  const journalId = parseInt(jid, 10);
+  
+  // Parse arrays (Authors & Keywords)
+  const keywords = JSON.parse(req.body.keywords || '[]');
+  const authorIds = JSON.parse(req.body.authorIds || '[]');
+  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file was uploaded.' });
+  }
+
+  try {
+    // 2. Fetch Journal Details (Needed for ID generation & Folder naming)
+    const journal = await prisma.journal.findUnique({
+      where: { id: journalId },
+      select: { name: true }
+    });
+
+    if (!journal) {
+      return res.status(404).json({ error: 'Journal not found.' });
+    }
+
+    const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
+
+    // 3. Generate Custom Paper ID (Format: ABBR_YEAR_JPxxxx)
+    const lastPaper = await prisma.journalPapers.findFirst({
+      where: { JournalId: journalId },
+      orderBy: { id: 'desc' },
+      select: { id: true }
+    });
+
+    let nextNumber = 1;
+    if (lastPaper && lastPaper.id) {
+      // Split by '_JP' to find the increment number
+      const parts = lastPaper.id.split('_JP');
+      if (parts.length > 1) {
+        nextNumber = parseInt(parts[1], 10) + 1;
+      }
+    }
+
+    const abbreviation = createAbbreviation(journal.name); // Ensure this helper exists
+    const currentYear = new Date().getFullYear(); 
+    const formattedNumber = String(nextNumber).padStart(4, '0');
+    
+    // ID Example: JCS_2024_JP0001 (JP = Journal Paper)
+    const newPaperID = `${abbreviation}_${currentYear}_JP${formattedNumber}`;
+
+    // 4. Upload PDF to Supabase (Journal Specific Folder)
+    const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    const fileName = `${newPaperID}_${randomSuffix}`;
+    const safeJournalName = journal.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const storagePath = `Journals/${safeJournalName}_${journalId}/InReview`;
+
+    let url;
+    try {
+      url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf', storagePath);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return res.status(500).json({ error: 'Failed to upload PDF: ' + error.message });
+    }
+
+    // 5. Save to Database (using JournalPapers model)
+    const newPaper = await prisma.journalPapers.create({
+      data: {
+        id: newPaperID,
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        AuthorOrder: authorIdsInt, // Stores order array
+        URL: url,
+        Status: 'Pending Submission',
+        submittedAt: new Date(),
+        
+        // Link to Journal
+        Journal: {
+          connect: { id: journalId },
+        },
+        
+        // Link Authors
+        Authors: {
+          connect: authorConnects,
+        },
+      },
+    });
+
+    res.status(201).json({ paper: newPaper });
+
+  } catch (error) {
+    console.error('Failed to save journal paper:', error);
+    if (error.code === 'P2025') {
+      return res.status(400).json({ message: 'Invalid author or journal ID.' });
+    }
+    res.status(500).json({ message: 'Could not create paper', details: error.message });
+  }
+});
 // --- Schedule the Job ---
 cron.schedule('0 0 * * *', () => {
   console.log('Running scheduled check for expired conferences...');

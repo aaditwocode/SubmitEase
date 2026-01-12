@@ -15,12 +15,14 @@ import ViewPaper from './components/ViewPaper';
 import PaperDecision from './components/PaperDecision';
 import ReviewPaper from './components/ReviewPaper';
 import ManageReviews from './components/ManageReviews';
-import JournalPortal from './components/JournalPortal';
 
 import RegistrationChairPortal from './components/registrationChair';
 import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
 import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackChair';
 import PublicationChairPortal from './components/PublicationChair';
+
+import JournalPortal from './components/JournalPortal';
+import JournalRegistration from './components/JournalRegistration';
 function App() {
   return (
     <UserProvider>
@@ -143,7 +145,18 @@ function App() {
             path="/conference/manage/registration/:hashedConId"
             element={<RegistrationChairPortal />}
           />
+
+          <Route
+            path="/journal/registration"
+            element={
+              <ProtectedRoute>
+                <JournalRegistration />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
+
+        
       </BrowserRouter>
     </UserProvider>
   );

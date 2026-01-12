@@ -25,6 +25,11 @@ model User {
   ChairedTracks        Tracks[]     @relation("TrackChairs")
   PublicationChairs    Conference[] @relation("PublicationChairs")
   RegistrationChairs   Conference[] @relation("RegistrationChairs")
+
+  JournalRole    String[]
+  hostedJournals Journal[]        @relation("HostToJournal")
+  JournalPapers  JournalPapers[]  @relation("JournalAuthors")
+  JournalReviews JournalReviews[]
 }
 
 model Conference {
@@ -48,28 +53,28 @@ model Conference {
 }
 
 model Paper {
-  id              String      @id
-  Title           String
-  ConferenceId    Int
-  Conference      Conference? @relation(fields: [ConferenceId], references: [id])
-  Authors         User[]
-  URL             String
-  Abstract        String
-  Keywords        String[]
-  isFinal         Boolean     @default(false)
-  TrackId         Int?
-  Tracks          Tracks?     @relation(fields: [TrackId], references: [id])
-  Status          String
-  submittedAt     DateTime
-  AuthorOrder     Int[]
-  Reviews         Reviews[]
-  ReviewerOrder   Int[]
-  FinalPaperURL   String?
-  CopyrightURL    String?
-  RegistrationURL String?
-  Completed       Boolean     @default(false)
-  CompletedPublication Boolean @default(false)
-  CompletedRegistration Boolean @default(false)
+  id                    String      @id
+  Title                 String
+  ConferenceId          Int
+  Conference            Conference? @relation(fields: [ConferenceId], references: [id])
+  Authors               User[]
+  URL                   String
+  Abstract              String
+  Keywords              String[]
+  isFinal               Boolean     @default(false)
+  TrackId               Int?
+  Tracks                Tracks?     @relation(fields: [TrackId], references: [id])
+  Status                String
+  submittedAt           DateTime
+  AuthorOrder           Int[]
+  Reviews               Reviews[]
+  ReviewerOrder         Int[]
+  FinalPaperURL         String?
+  CopyrightURL          String?
+  RegistrationURL       String?
+  Completed             Boolean     @default(false)
+  CompletedPublication  Boolean     @default(false)
+  CompletedRegistration Boolean     @default(false)
 }
 
 model Reviews {
@@ -101,4 +106,52 @@ model Tracks {
   Conference   Conference? @relation(fields: [ConferenceId], references: [id])
   Chairs       User[]      @relation("TrackChairs")
   Paper        Paper[]
+}
+
+model JournalPapers {
+  id          String           @id
+  Title       String
+  Authors     User[]           @relation("JournalAuthors")
+  URL         String
+  Abstract    String
+  Keywords    String[]
+  Status      String
+  submittedAt DateTime
+  AuthorOrder Int[]
+  JournalId   Int
+  Journal     Journal          @relation(fields: [JournalId], references: [id])
+  Reviews     JournalReviews[]
+}
+
+model JournalReviews {
+  id                Int            @id @default(autoincrement())
+  PaperId           String
+  Paper             JournalPapers? @relation(fields: [PaperId], references: [id])
+  ReviewerId        Int
+  User              User?          @relation(fields: [ReviewerId], references: [id])
+  Comment           String
+  Recommendation    String
+  Status            String?
+  isBlind           Boolean?
+  submittedAt       DateTime?
+  assignedAt        DateTime?
+  scoreOriginality  Int?
+  scoreClarity      Int?
+  scoreSoundness    Int?
+  scoreSignificance Int?
+  scoreRelevance    Int?
+  avgScore          Float          @default(0)
+
+  @@unique([PaperId, ReviewerId])
+}
+
+model Journal {
+  id          Int             @id @default(autoincrement())
+  name        String
+  link        String
+  status      String
+  Publication String
+  hostID      Int
+  host        User?           @relation("HostToJournal", fields: [hostID], references: [id])
+  Paper       JournalPapers[]
 }
