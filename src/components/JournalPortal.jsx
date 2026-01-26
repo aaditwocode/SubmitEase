@@ -24,49 +24,11 @@ const getStatusBadge = (status) => {
   return <span className={badgeClasses}>{status}</span>;
 };
 
-const getJournalStatusBadge = (status) => {
-  let badgeClasses = "inline-block px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ";
-  switch (status) {
-    case "Open":
-    case "Active":
-      badgeClasses += "bg-[#059669]/10 text-[#059669]";
-      break;
-    default:
-      badgeClasses += "bg-red-100 text-red-700";
-      break;
-  }
-  return <span className={badgeClasses}>{status}</span>;
-};
-
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   return new Date(dateString).toLocaleDateString("en-US", {
     year: "numeric", month: "short", day: "numeric",
   });
-};
-
-// --- Pagination Control Component (Fixed: Added Definition) ---
-const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
-      <div className="flex flex-1 justify-between sm:hidden">
-        <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Previous</button>
-        <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Next</button>
-      </div>
-      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-gray-700">Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span></p>
-        </div>
-        <div>
-          <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-            <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Previous</button>
-            <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Next</button>
-          </nav>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 // --- Stats Component ---
@@ -118,10 +80,39 @@ const StatsGrid = ({ papers }) => {
 };
 
 // --- Paper List Component ---
+const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+      <div className="flex flex-1 justify-between sm:hidden">
+        <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Previous</button>
+        <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Next</button>
+      </div>
+      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-gray-700">Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span></p>
+        </div>
+        <div>
+          <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+            <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Previous</button>
+            <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">Next</button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Updated Paper List Component with Pagination ---
 const PaperList = ({ papers }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50; // Set to 50 as requested
+
   const navigate = useNavigate();
 
   const handleSort = (column) => {
@@ -132,6 +123,11 @@ const PaperList = ({ papers }) => {
       setSortOrder("asc");
     }
   };
+
+  // Reset to page 1 if search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, papers]);
 
   const sortedAndFilteredPapers = useMemo(() => {
     const processedPapers = (papers || []).map((paper) => ({
@@ -175,6 +171,13 @@ const PaperList = ({ papers }) => {
     return sorted;
   }, [papers, sortBy, sortOrder, searchTerm]);
 
+  // Pagination Logic: Slice the data
+  const totalPages = Math.ceil(sortedAndFilteredPapers.length / ITEMS_PER_PAGE);
+  const currentPapers = sortedAndFilteredPapers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   if (!papers || papers.length === 0) {
     return (
       <p className="text-center text-gray-500 py-4">No submissions match your search.</p>
@@ -182,7 +185,7 @@ const PaperList = ({ papers }) => {
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
+    <div className="bg-white rounded-lg shadow flex flex-col">
       <div className="p-4">
         <input
           type="text"
@@ -193,197 +196,64 @@ const PaperList = ({ papers }) => {
         />
       </div>
 
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-[#e5e7eb]">
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("id")}>
-              Paper ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
-            </th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("Title")}>
-              Name {sortBy === "Title" && (sortOrder === "asc" ? "↑" : "↓")}
-            </th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("submittedAt")}>
-              Submitted On {sortBy === "submittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
-            </th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
-              Keywords
-            </th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("Status")}>
-              Status {sortBy === "Status" && (sortOrder === "asc" ? "↑" : "↓")}
-            </th>
-            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedAndFilteredPapers.length > 0 ? (
-            sortedAndFilteredPapers.map((paper) => (
-              <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">
-                  {paper.id}
-                </td>
-                <td className="py-3 px-4">
-                  <div>
-                    <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
-                    <p className="text-xs text-[#6b7280]">{paper.Journal?.name}</p>
-                  </div>
-                </td>
-                <td className="py-3 px-4 text-sm text-[#1f2937]">
-                  {formatDate(paper.submittedAt)}
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex flex-wrap gap-1">
-                    {(paper.Keywords || []).map((keyword, index) => (
-                      <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  {getStatusBadge(paper.effectiveStatus)}
-                </td>
-                <td className="py-3 px-4">
-                  <button
-                    onClick={() => navigate(`/paper/${paper.id}`)}
-                    className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors"
-                  >
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="6" className="text-center text-gray-500 py-4">
-                No submissions match your search.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-// --- Journal List Component ---
-const JournalList = ({ journals, onNewSubmission }) => {
-  const [sortBy, setSortBy] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
-  const [searchTerm, setSearchTerm] = useState("");
-  
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
-
-  const handleSort = (column) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(column);
-      setSortOrder("asc");
-    }
-  };
-
-  const filteredAndSortedJournals = useMemo(() => {
-    // 1. Filter
-    const filtered = (journals || []).filter(j => {
-      const lowerSearch = searchTerm.toLowerCase();
-      
-      // FIX: Use (field || "") to safely handle nulls
-      const name = (j.name || "").toLowerCase();
-      const pub = (j.Publication || "").toLowerCase();
-      const stat = (j.status || "").toLowerCase();
-
-      return (
-        name.includes(lowerSearch) ||
-        pub.includes(lowerSearch) ||
-        stat.includes(lowerSearch)
-      );
-    });
-
-    // 2. Sort
-    const sorted = [...filtered].sort((a, b) => {
-      const aValue = (a[sortBy] || "").toString().toLowerCase();
-      const bValue = (b[sortBy] || "").toString().toLowerCase();
-
-      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [journals, sortBy, sortOrder, searchTerm]);
-
-  // 3. Pagination Slicing
-  const totalPages = Math.ceil(filteredAndSortedJournals.length / ITEMS_PER_PAGE);
-  const currentJournals = filteredAndSortedJournals.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
-
-  // Reset to page 1 if search changes
-  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
-
-  return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-4">
-        <input
-          type="text"
-          placeholder="Search journals (Name, Publisher, Status...)"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
-        />
-      </div>
-
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("name")}>
-                Journal Name {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("id")}>
+                Paper ID {sortBy === "id" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("Publication")}>
-                Publisher {sortBy === "Publication" && (sortOrder === "asc" ? "↑" : "↓")}
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("Title")}>
+                Name {sortBy === "Title" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
-              {/* Added Link Header */}
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
-                Website
-              </th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("status")}>
-                Status {sortBy === "status" && (sortOrder === "asc" ? "↑" : "↓")}
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("submittedAt")}>
+                Submitted On {sortBy === "submittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
-                Action
+                Keywords
+              </th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap" onClick={() => handleSort("Status")}>
+                Status {sortBy === "Status" && (sortOrder === "asc" ? "↑" : "↓")}
+              </th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
+                Actions
               </th>
             </tr>
           </thead>
           <tbody>
-            {currentJournals.length > 0 ? (
-              currentJournals.map((j) => (
-                <tr key={j.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">{j.name}</td>
-                  <td className="py-3 px-4 text-sm text-[#6b7280]">{j.Publication || "N/A"}</td>
-                  
-                  {/* Link Cell */}
-                  <td className="py-3 px-4 text-sm">
-                    {j.link ? (
-                      <a href={j.link} target="_blank" rel="noopener noreferrer" className="text-[#059669] hover:underline">
-                        Visit Site
-                      </a>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+            {currentPapers.length > 0 ? (
+              currentPapers.map((paper) => (
+                <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                  <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">
+                    {paper.id}
                   </td>
-                  <td className="py-3 px-4">{getJournalStatusBadge(j.status || "Open")}</td>
                   <td className="py-3 px-4">
-                    <button 
-                      onClick={() => onNewSubmission(j)}
-                      disabled={j.status === "Closed"}
-                      className="px-3 py-1 text-xs bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap disabled:opacity-50"
+                    <div>
+                      <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
+                      <p className="text-xs text-[#6b7280]">{paper.Journal?.name}</p>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-sm text-[#1f2937]">
+                    {formatDate(paper.submittedAt)}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-1">
+                      {(paper.Keywords || []).map((keyword, index) => (
+                        <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    {getStatusBadge(paper.effectiveStatus)}
+                  </td>
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => navigate(`/paper/${paper.id}`)}
+                      className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors"
                     >
-                      Submit Manuscript
+                      View
                     </button>
                   </td>
                 </tr>
@@ -391,14 +261,15 @@ const JournalList = ({ journals, onNewSubmission }) => {
             ) : (
               <tr>
                 <td colSpan="6" className="text-center text-gray-500 py-4">
-                  No journals match your search.
+                  No submissions match your search.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-      
+
+      {/* Pagination Controls added here */}
       <PaginationControls 
         currentPage={currentPage} 
         totalPages={totalPages} 
@@ -433,20 +304,18 @@ export default function JournalPortal() {
   const navigate = useNavigate();
 
   // --- Data state ---
-  const [journals, setJournals] = useState([]); 
   const [papers, setPapers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
 
   // --- UI State ---
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
-  const [activeTab, setActiveTab] = useState("available_jour"); 
+  const [activeTab, setActiveTab] = useState("all"); 
 
   // --- Form State ---
   const [title, setTitle] = useState("");
   const [abstract, setAbstract] = useState("");
   const [keywords, setKeywords] = useState("");
-  const [journalId, setJournalId] = useState(null);
-  const [journalObj, setJournalObj] = useState(null);
+  // REMOVED: Journal state
   const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
   
@@ -466,7 +335,7 @@ export default function JournalPortal() {
     navigate("/home");
   };
 
-  const newSubmission = (selectedJournal) => {
+  const newSubmission = () => {
     setTitle("");
     setAbstract("");
     setKeywords("");
@@ -475,9 +344,7 @@ export default function JournalPortal() {
     setInviteFirstName("");
     setInviteLastName("");
     setInviteEmail("");
-    
-    setJournalObj(selectedJournal);
-    setJournalId(selectedJournal.id);
+    // REMOVED: Journal setting logic
 
     if (user && user.id) {
       setAuthors([user]);
@@ -515,12 +382,12 @@ export default function JournalPortal() {
 
   const handlePaperSubmit = async (event) => {
     event.preventDefault();
-    if (!journalId || !journalObj) return alert("Journal error");
+    // REMOVED: Journal Validation
     if (!pdfFile) return alert("Please upload a PDF");
     
     const formData = new FormData();
     formData.append('title', title);
-    formData.append('journalId', journalId);
+    // REMOVED: Journal ID append
     formData.append('abstract', abstract);
     formData.append('keywords', JSON.stringify(keywords.split(',')));
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
@@ -558,10 +425,7 @@ export default function JournalPortal() {
   useEffect(() => {
     const fetchData = async () => {
         try {
-            const jourRes = await fetch("http://localhost:3001/journals");
-            const jourData = await jourRes.json();
-            setJournals(jourData.journal || []); 
-
+            // REMOVED: Journals fetch
             const userRes = await fetch('http://localhost:3001/users/emails');
             const userData = await userRes.json();
             setAllUsers(userData.users || []);
@@ -576,17 +440,10 @@ export default function JournalPortal() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const navigate = useNavigate();
   
-    // 1. Configuration: Maps DB Role Strings -> Frontend Routes
     const ROLE_CONFIG = {
       "Author": { label: "Author", path: "/journal" },
-      "Conference Host": { label: "Conference Host", path: "/conference/manage/chiefchair" },
-      "Reviewer": { label: "Reviewer", path: "/ManageReviews" },
-      "Track Chair": { label: "Track Chair", path: "/conference/manage/trackchair" },
-      "Publication Chair": { label: "Publication Chair", path: "/conference/manage/publicationchair" },
-      "Registration Chair": { label: "Registration Chair", path: "/conference/manage/registrationchair" }
     };
   
-    // 2. Filter options based on the current user's roles
     const availablePortals = useMemo(() => {
       if (!user || !user.role || !Array.isArray(user.role)) return [];
       return user.role
@@ -605,15 +462,6 @@ export default function JournalPortal() {
               </div>
               <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             </div>
-  
-            <nav className="hidden items-center md:flex">
-              <button 
-                onClick={() => navigate('/journal/registration')}
-                className="text-sm font-medium text-[#6b7280] transition-colors hover:text-[#059669] hover:bg-green-50 px-3 py-2 rounded-md"
-              >
-                Register a Journal
-              </button>
-            </nav>
           </div>
   
           <div className="flex items-center gap-3">
@@ -684,30 +532,39 @@ export default function JournalPortal() {
     <div className="min-h-screen bg-[#ffffff]">
       <Header user={user} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-3xl font-bold text-[#1f2937] mb-8">Journal Submission Portal</h2>
+        
+        {/* --- TITLE & ACTION BUTTON --- */}
+        <div className="flex justify-between items-center mb-8">
+            <h2 className="text-3xl font-bold text-[#1f2937]">Submission Portal</h2>
+            <button 
+                onClick={newSubmission}
+                className="px-4 py-2 bg-[#059669] text-white font-medium rounded-lg hover:bg-[#047857] transition-colors shadow-sm"
+            >
+                + New Submission
+            </button>
+        </div>
 
         {/* --- TABS --- */}
         <div className="border-b border-[#e5e7eb] flex flex-wrap gap-6 mb-6">
-           <TabButton id="available_jour" label="Available Journals" />
+           {/* Added "All Submissions" Tab */}
+           <TabButton id="all" label="All Submissions" count={papers.length} />
            <div className="w-px bg-gray-300 h-6 my-auto mx-2"></div> 
-           <TabButton id="pending" label="Pending Submission" count={pendingPapers.length} />
+           <TabButton id="pending" label="Pending" count={pendingPapers.length} />
            <TabButton id="under_review" label="Under Review" count={underReviewPapers.length} />
            <TabButton id="changes" label="Changes Required" count={changesRequiredPapers.length} />
-           <TabButton id="accepted" label="Accepted Papers" count={acceptedPapers.length} />
+           <TabButton id="accepted" label="Accepted" count={acceptedPapers.length} />
            <TabButton id="rejected" label="Rejected" count={rejectedPapers.length} />
         </div>
 
         {/* --- STATS DASHBOARD (Visible unless on Available Journals tab) --- */}
-        {activeTab !== "available_jour" && <StatsGrid papers={papers} />}
+        <StatsGrid papers={papers} />
 
         {/* --- CONTENT --- */}
         <div className="mt-6">
-            {activeTab === "available_jour" && (
-                <div className="space-y-8">
-                    <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-                        <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Open Journals</h3>
-                        <JournalList journals={journals} onNewSubmission={newSubmission} />
-                    </div>
+            {activeTab === "all" && (
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                    <h3 className="text-xl font-semibold text-[#1f2937] mb-4">All Manuscripts</h3>
+                    <PaperList papers={papers} />
                 </div>
             )}
 
@@ -748,7 +605,7 @@ export default function JournalPortal() {
         </div>
       </main>
 
-      {/* --- SUBMISSION MODAL (Styled Exactly like Conference) --- */}
+      {/* --- SUBMISSION MODAL --- */}
       {showSubmissionForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
@@ -765,13 +622,7 @@ export default function JournalPortal() {
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
                </div>
 
-               {/* Journal */}
-               <div>
-                 <label className="block text-sm font-medium text-[#1f2937] mb-1">Journal</label>
-                 <select value={journalId || ""} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-gray-100 cursor-not-allowed">
-                    {journalObj && <option value={journalObj.id}>{journalObj.name}</option>}
-                 </select>
-               </div>
+               {/* REMOVED JOURNAL SELECTION FIELD HERE */}
 
                {/* Abstract */}
                <div>
@@ -824,21 +675,21 @@ export default function JournalPortal() {
 
                     {showInviteForm && (
                       <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
-                         <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
-                         <div className="grid grid-cols-2 gap-3">
-                           <input type="text" value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                           <input type="text" value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                         </div>
-                         <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email Address*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                         <input type="text" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} placeholder="Organisation" className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                         <select value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb]">
-                           <option value="">Select Country</option>
-                           {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                         </select>
-                         <div className="flex gap-3">
-                           <button type="button" onClick={handleInviteAuthor} className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90">Add User</button>
-                           <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
-                         </div>
+                          <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
+                          <div className="grid grid-cols-2 gap-3">
+                            <input type="text" value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                            <input type="text" value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                          </div>
+                          <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email Address*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                          <input type="text" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} placeholder="Organisation" className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
+                          <select value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb]">
+                            <option value="">Select Country</option>
+                            {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <div className="flex gap-3">
+                            <button type="button" onClick={handleInviteAuthor} className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90">Add User</button>
+                            <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
+                          </div>
                       </div>
                     )}
                   </div>

@@ -22,7 +22,6 @@ import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackCh
 import PublicationChairPortal from './components/PublicationChair';
 
 import JournalPortal from './components/JournalPortal';
-import JournalRegistration from './components/JournalRegistration';
 function App() {
   return (
     <UserProvider>
@@ -144,15 +143,6 @@ function App() {
           <Route
             path="/conference/manage/registration/:hashedConId"
             element={<RegistrationChairPortal />}
-          />
-
-          <Route
-            path="/journal/registration"
-            element={
-              <ProtectedRoute>
-                <JournalRegistration />
-              </ProtectedRoute>
-            }
           />
         </Routes>
 
