@@ -15,6 +15,7 @@ import ViewPaper from './components/ViewPaper';
 import PaperDecision from './components/PaperDecision';
 import ReviewPaper from './components/ReviewPaper';
 import ManageReviews from './components/ManageReviews';
+import JournalEditor from './components/JournalEditor';
 
 import RegistrationChairPortal from './components/registrationChair';
 import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
@@ -144,7 +145,15 @@ function App() {
             path="/conference/manage/registration/:hashedConId"
             element={<RegistrationChairPortal />}
           />
+           <Route
+          path="/abcd"
+          element={<JournalEditor/>}
+          />
         </Routes>
+
+       
+
+
 
         
       </BrowserRouter>
