@@ -15,12 +15,12 @@ import ViewPaper from './components/ViewPaper';
 import PaperDecision from './components/PaperDecision';
 import ReviewPaper from './components/ReviewPaper';
 import ManageReviews from './components/ManageReviews';
-import JournalEditor from './components/JournalEditor';
 
 import RegistrationChairPortal from './components/registrationChair';
 import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
 import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackChair';
 import PublicationChairPortal from './components/PublicationChair';
+import EditorPortal from './components/JournalEditor';
 
 import JournalPortal from './components/JournalPortal';
 function App() {
@@ -131,23 +131,34 @@ function App() {
           />
           <Route
             path="/conference/manage/:hashedConId"
-            element={<ConferenceDetails_ChiefChair />}
+            element={
+              <ProtectedRoute>
+                <ConferenceDetails_ChiefChair />
+              </ProtectedRoute>
+            
+              }
           />
           <Route
             path="/conference/manage/trackpapers/:hashedConId"
-            element={<ConferenceDetails_TrackChair />}
+            element={
+            <ProtectedRoute>
+              <ConferenceDetails_TrackChair />
+            </ProtectedRoute>}
           />
           <Route
             path="/conference/manage/publication/:hashedConId"
-            element={<PublicationChairPortal />}
+            element={
+            <ProtectedRoute>
+              <PublicationChairPortal />
+            </ProtectedRoute>}
           />
           <Route
             path="/conference/manage/registration/:hashedConId"
-            element={<RegistrationChairPortal />}
+            element={<ProtectedRoute><RegistrationChairPortal /></ProtectedRoute>}
           />
            <Route
-          path="/abcd"
-          element={<JournalEditor/>}
+            path="/journal/editor"
+            element={<ProtectedRoute><EditorPortal /></ProtectedRoute>}
           />
         </Routes>
 
