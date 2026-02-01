@@ -9,6 +9,7 @@ import nodemailer from 'nodemailer';
 import 'dotenv/config';
 import { parse } from 'path';
 import cron from 'node-cron';
+import { Key } from 'lucide-react';
 
 const prisma = new PrismaClient().$extends(withAccelerate());
 
@@ -61,7 +62,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 /**
  * Uploads a file to a Supabase Storage bucket and returns the public URL.
  */
-async function uploadPdfToSupabase(fileBuffer, Filename,folderPath='', editpdf = false) {
+async function uploadPdfToSupabase(fileBuffer, Filename, folderPath = '', editpdf = false) {
   const fileName = `${Filename}`;
   const bucketName = 'SubmitEase';
   const filePath = `${folderPath}/${fileName}`;
@@ -125,7 +126,7 @@ const removeRoleFromUser = async (userId, roleName) => {
   const newRoles = currentRoles.filter(r => r !== roleName);
 
   // Optional: Ensure they at least have 'Author' if array becomes empty
-  if (newRoles.length === 0) newRoles.push("Author"); 
+  if (newRoles.length === 0) newRoles.push("Author");
 
   await prisma.user.update({
     where: { id: userId },
@@ -177,7 +178,7 @@ app.post('/conference/assign-publication-chairs', async (req, res) => {
       where: { id: parseInt(conferenceId, 10) },
       data: {
         PublicationChairs: {
-          connect: prismaUserConnect, 
+          connect: prismaUserConnect,
         },
       },
       include: {
@@ -218,7 +219,7 @@ app.post('/conference/assign-publication-chairs', async (req, res) => {
 app.post('/conference/remove-publication-chair', async (req, res) => {
   try {
     const { conferenceId, userId } = req.body;
-    
+
     // 1. Disconnect from Conference
     const updatedConference = await prisma.conference.update({
       where: { id: parseInt(conferenceId) },
@@ -301,7 +302,7 @@ app.post('/conference/assign-registration-chairs', async (req, res) => {
 app.post('/conference/remove-registration-chair', async (req, res) => {
   try {
     const { conferenceId, userId } = req.body;
-    
+
     // 1. Disconnect from Conference
     const updatedConference = await prisma.conference.update({
       where: { id: parseInt(conferenceId) },
@@ -362,9 +363,9 @@ app.post('/send-verification', async (req, res) => {
     await transporter.sendMail(mailOptions);
 
     // 5. Return the hash to the frontend
-    res.status(200).json({ 
-      message: "Verification code sent.", 
-      hash: hashedCode 
+    res.status(200).json({
+      message: "Verification code sent.",
+      hash: hashedCode
     });
 
   } catch (error) {
@@ -377,19 +378,19 @@ app.post('/send-verification', async (req, res) => {
 app.post('/users', async (req, res) => {
   try {
     // Extract OTP and Hash alongside user data
-    const { 
-      otp, 
-      hash, 
-      email, 
-      password, 
-      firstname, 
-      lastname, 
-      role, 
-      expertise, 
-      organisation, 
-      country, 
-      sub, 
-      msg 
+    const {
+      otp,
+      hash,
+      email,
+      password,
+      firstname,
+      lastname,
+      role,
+      expertise,
+      organisation,
+      country,
+      sub,
+      msg
     } = req.body;
 
     // --- NEW: 2FA Verification Logic ---
@@ -425,12 +426,12 @@ app.post('/users', async (req, res) => {
     });
 
     const { password: _, ...userWithoutPassword } = newUser;
-    
+
     // Send your welcome email (optional, since you just verified them)
     if (typeof sendMail === 'function') {
-        sendMail(email, sub, msg);
+      sendMail(email, sub, msg);
     }
-    
+
     res.status(201).json(userWithoutPassword);
 
   } catch (error) {
@@ -490,7 +491,7 @@ app.post('/forgot-password', async (req, res) => {
     if (!user) {
       // Security best practice: Don't reveal if email exists or not to prevent scraping
       // But for UI feedback we will return success regardless, or specific error if you prefer
-      return res.status(200).json({ message: "If an account exists, a code has been sent." }); 
+      return res.status(200).json({ message: "If an account exists, a code has been sent." });
     }
 
     // 2. Generate Code
@@ -831,10 +832,10 @@ app.post('/savepaper', upload.single('pdfFile'), async (req, res) => {
     const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     const fileName = `${newPaperID}_${randomSuffix}`;
     let url;
-    const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_'); 
-const confName = `${safeName}_${confId}/InReview`;
+    const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const confName = `${safeName}_${confId}/InReview`;
     try {
-      url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf',confName);
+      url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf', confName);
     } catch (error) {
       console.error('An error occurred during upload:', error);
       return res.status(500).json({ error: error.message });
@@ -908,7 +909,7 @@ app.post('/submitpaper', upload.single('pdfFile'), async (req, res) => {
         });
         const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
         const fileName = `${paperId}_${randomSuffix}`;
-        const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_'); 
+        const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_');
         const confName = `${safeName}_${confId}/InReview`;
         url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf', confName);
       } catch (error) {
@@ -973,8 +974,8 @@ app.post('/editpaper', upload.single('pdfFile'), async (req, res) => {
     else {
       let url;
       try {
-        const conf = await prisma.conference.findUnique({ where: { id: confId }, select: { name: true }});
-        const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_'); 
+        const conf = await prisma.conference.findUnique({ where: { id: confId }, select: { name: true } });
+        const safeName = conf.name.replace(/[^a-zA-Z0-9]/g, '_');
         const confName = `${safeName}_${confId}/InReview`;
         url = await uploadPdfToSupabase(req.file.buffer, paperId + '.pdf', confName);
       } catch (error) {
@@ -1445,7 +1446,7 @@ app.post('/conference/registered/chiefchair', async (req, res) => {
 
     const conferences = await prisma.conference.findMany({
       where: {
-        hostID: parsedUserId ,
+        hostID: parsedUserId,
       },
       select: {
         id: true,
@@ -1497,9 +1498,9 @@ app.post('/conference/registered/trackchair', async (req, res) => {
 
     const conferences = await prisma.conference.findMany({
       where: {
-          // Check if user is a Chair of ANY track in this conference
-          Tracks: { some: { Chairs: { some: { id: parsedUserId } } } } ,
-          
+        // Check if user is a Chair of ANY track in this conference
+        Tracks: { some: { Chairs: { some: { id: parsedUserId } } } },
+
       },
       select: {
         id: true,
@@ -1550,8 +1551,8 @@ app.post('/conference/registered/publicationchair', async (req, res) => {
 
     const conferences = await prisma.conference.findMany({
       where: {
-          // Check if user is a Publication Chair
-           PublicationChairs: { some: { id: parsedUserId } } ,
+        // Check if user is a Publication Chair
+        PublicationChairs: { some: { id: parsedUserId } },
       },
       select: {
         id: true,
@@ -1602,8 +1603,8 @@ app.post('/conference/registered/registrationchair', async (req, res) => {
 
     const conferences = await prisma.conference.findMany({
       where: {
-          // Check if user is a Registration Chair
-         RegistrationChairs: { some: { id: parsedUserId } }
+        // Check if user is a Registration Chair
+        RegistrationChairs: { some: { id: parsedUserId } }
       },
       select: {
         id: true,
@@ -2439,10 +2440,10 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
     // 2. Prepare Folder Path: "ConferenceName_ID/Final"
     const safeConfName = paper.Conference.name.replace(/[^a-zA-Z0-9]/g, '_');
     const folderPath = `${safeConfName}_${paper.ConferenceId}/Final/${paperId}`;
-    
+
     // Object to hold fields to update in Prisma
     const updateData = {};
-    
+
     // Helper to generate unique filename to avoid caching issues
     const getFileName = (suffix) => `${paperId}_${suffix}.pdf`;
 
@@ -2450,7 +2451,7 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
     if (req.files['finalPaperFile']) {
       const file = req.files['finalPaperFile'][0];
       try {
-        const url = await uploadPdfToSupabase(file.buffer, getFileName('FinalPaper'), folderPath,true);
+        const url = await uploadPdfToSupabase(file.buffer, getFileName('FinalPaper'), folderPath, true);
         updateData.FinalPaperURL = url;
       } catch (err) {
         throw new Error(`Failed to upload Final Paper: ${err.message}`);
@@ -2461,7 +2462,7 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
     if (req.files['copyrightFile']) {
       const file = req.files['copyrightFile'][0];
       try {
-        const url = await uploadPdfToSupabase(file.buffer, getFileName('Copyright'), folderPath,true);
+        const url = await uploadPdfToSupabase(file.buffer, getFileName('Copyright'), folderPath, true);
         updateData.CopyrightURL = url;
       } catch (err) {
         throw new Error(`Failed to upload Copyright: ${err.message}`);
@@ -2472,7 +2473,7 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
     if (req.files['paySlipFile']) {
       const file = req.files['paySlipFile'][0];
       try {
-        const url = await uploadPdfToSupabase(file.buffer, getFileName('Registration'), folderPath,true);
+        const url = await uploadPdfToSupabase(file.buffer, getFileName('Registration'), folderPath, true);
         updateData.RegistrationURL = url;
       } catch (err) {
         throw new Error(`Failed to upload Pay Slip: ${err.message}`);
@@ -2484,7 +2485,7 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
     const hasFinal = updateData.FinalPaperURL || paper.FinalPaperURL;
     const hasCopyright = updateData.CopyrightURL || paper.CopyrightURL;
     const hasRegistration = updateData.RegistrationURL || paper.RegistrationURL;
-    if(hasFinal && hasCopyright && hasRegistration){
+    if (hasFinal && hasCopyright && hasRegistration) {
       updateData.Completed = true;
     }
     // 8. Update Database
@@ -2493,9 +2494,9 @@ app.post('/submitfinalfiles', cpUpload, async (req, res) => {
       data: updateData,
     });
 
-    res.status(200).json({ 
-      message: 'Files uploaded successfully', 
-      paper: updatedPaper 
+    res.status(200).json({
+      message: 'Files uploaded successfully',
+      paper: updatedPaper
     });
 
   } catch (error) {
@@ -2592,28 +2593,20 @@ app.get('/journals', async (req, res) => {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
-
 app.get('/journal/papers', async (req, res) => {
   const { authorId } = req.query;
 
-  // 1. Validate Input
-  if (!authorId) {
-    return res.status(400).json({ message: 'The authorId query parameter is required.' });
+  if (!authorId || isNaN(parseInt(authorId, 10))) {
+    return res.status(400).json({ message: 'Valid authorId is required.' });
   }
   const parsedAuthorId = parseInt(authorId, 10);
-  if (isNaN(parsedAuthorId)) {
-    return res.status(400).json({ message: 'The authorId must be a valid integer.' });
-  }
 
   try {
-    // 2. Query JournalPapers
     const papers = await prisma.journalPapers.findMany({
       where: {
-        Authors: {
-          some: {
-            id: parsedAuthorId,
-          },
-        },
+        // 1. Filter: Belongs to Author AND is an Original Paper (not a revision)
+        Authors: { some: { id: parsedAuthorId } },
+        OriginalPaperId: null 
       },
       select: {
         id: true,
@@ -2624,139 +2617,196 @@ app.get('/journal/papers', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
-        
-        // Relation: Get Journal Details
+        // Relation: Journal Details
         Journal: {
-          select: {
-            id: true,
-            name: true,
-            Publication: true,
-          },
+          select: { id: true, name: true, Publication: true },
         },
+        // Relation: Get the LATEST revision to determine current status
+        Revisions: {
+          take: 1,
+          orderBy: { submittedAt: 'desc' },
+          select: {
+            Status: true,
+            submittedAt: true,
+            // You can add 'version' here if you added that column
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    if (!papers || papers.length === 0) {
+      return res.status(404).json({ message: 'No papers found.' });
+    }
+
+    // Optional: Flatten the structure for the frontend if needed, 
+    // or let the frontend handle the `paper.Revisions[0]?.Status` logic.
+    res.status(200).json({ papers: papers });
+
+  } catch (error) {
+    console.error('Error fetching papers:', error);
+    res.status(500).json({ message: 'Server error', details: error.message });
+  }
+});
+
+// POST: Save New Paper OR Revision
+app.post('/journal/savepaper', upload.single('pdfFile'), async (req, res) => {
+  // Extract common fields
+  const { 
+    id, // Optional: Provided by frontend logic for revisions
+    title, 
+    abstract, 
+    originalPaperId, // Critical for revisions
+    version, // Optional
+    journalId: jid 
+  } = req.body;
+
+  // Safe parsing
+  const keywords = JSON.parse(req.body.keywords || '[]');
+  const authorIds = JSON.parse(req.body.authorIds || '[]');
+  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
+  const journalId = jid ? parseInt(jid, 10) : null;
+
+  if (!req.file) return res.status(400).json({ error: 'No PDF uploaded.' });
+
+  try {
+    // 1. ID Generation Logic
+    let finalId = id;
+    
+    // If no ID provided (New Paper), generate one: JP_YEAR_XXXX
+    if (!finalId) {
+       // Only strictly required for brand new papers. 
+       // If it's a revision, your frontend logic sends the ID.
+       if (!journalId) return res.status(400).json({ error: 'Journal ID required for new papers.' });
+
+       const lastPaper = await prisma.journalPapers.findFirst({
+         where: { JournalId: journalId },
+         orderBy: { submittedAt: 'desc' } // Better to order by time for ID generation
+       });
+       
+       // Simple increment logic (you might want a more robust sequence table in prod)
+       let nextNum = 1;
+       if (lastPaper && lastPaper.id.includes('_JP')) {
+          const parts = lastPaper.id.split('_JP');
+          if (parts[1]) nextNum = parseInt(parts[1], 10) + 1;
+       }
+       const year = new Date().getFullYear();
+       finalId = `JP_${year}_${String(nextNum).padStart(4, '0')}`;
+    }
+
+    // 2. Upload to Supabase
+    // Separate folders for revisions vs originals? Or keep same 'InReview'?
+    const folder = originalPaperId ? `Journals/Revisions` : `Journals/InReview`;
+    const fileName = `${finalId}_${Date.now()}.pdf`;
+    
+    let url;
+    try {
+      url = await uploadPdfToSupabase(req.file.buffer, fileName, folder);
+    } catch (err) {
+      return res.status(500).json({ error: 'Upload failed: ' + err.message });
+    }
+
+    // 3. Save to DB
+    const newPaper = await prisma.journalPapers.create({
+      data: {
+        id: finalId,
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        Status: "Pending Submission", // Or "Under Review"
+        submittedAt: new Date(),
+        URL: url,
+        AuthorOrder: authorIdsInt,
         
-        // Optional: Get Co-Authors details for display
+        // Link Relations
+        OriginalPaperId: originalPaperId || null, // Link to parent if revision
+        
+        Authors: {
+          connect: authorIdsInt.map(id => ({ id }))
+        }
+      }
+    });
+
+    res.status(201).json({ message: 'Success', paper: newPaper });
+
+  } catch (error) {
+    console.error("Save Error:", error);
+    if (error.code === 'P2002') {
+       return res.status(409).json({ message: 'Paper ID already exists.' });
+    }
+    res.status(500).json({ message: 'Database error', details: error.message });
+  }
+});
+
+
+app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
+  const { paperId } = req.params;
+  try {
+    const papers = await prisma.journalPapers.findUnique({
+      where: {
+        id: paperId,
+      },
+      select: {
+        // --- Existing Fields ---
+        id: true,
+        Title: true,
+        Status: true,
+        Keywords: true,
+        Abstract: true,
+        URL: true,
+        AuthorOrder: true,
+        submittedAt: true,
         Authors: {
           select: {
             id: true,
             firstname: true,
             lastname: true,
-            email: true
+            email: true,
+            organisation: true,
+            expertise: true,
           }
-        }
+        },
+
+        Revisions: {
+          select: {
+            id: true,
+            Title: true,
+            Status: true,
+            submittedAt: true,
+            Keywords: true,
+            Abstract: true,
+            URL: true,
+            AuthorOrder: true,
+            Authors: {
+              select: {
+                id: true,
+                firstname: true,
+                lastname: true,
+                email: true,
+                organisation: true,
+                expertise: true,
+              }
+            },
+          },
+          orderBy: {
+            submittedAt: 'desc'
+          }
+        },
       },
-      // cacheStrategy: { ttl: 60 }, // Uncomment if using Prisma Accelerate
     });
 
-    if (!papers || papers.length === 0) {
-      return res.status(404).json({ message: 'No journal papers found for this author.' });
+    if (!papers) {
+      return res.status(404).json({ message: 'No paper found.' });
     }
 
-    res.status(200).json({ papers: papers });
+    res.status(200).json({ paper: papers });
 
   } catch (error) {
-    console.error('Error fetching journal papers:', error);
+    console.error(error);
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
 
-app.post('/journal/savepaper', upload.single('pdfFile'), async (req, res) => {
-  // 1. Extract Journal-specific fields
-  const { title, journalId: jid, abstract } = req.body;
-  const journalId = parseInt(jid, 10);
-  
-  // Parse arrays (Authors & Keywords)
-  const keywords = JSON.parse(req.body.keywords || '[]');
-  const authorIds = JSON.parse(req.body.authorIds || '[]');
-  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
-
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file was uploaded.' });
-  }
-
-  try {
-    // 2. Fetch Journal Details (Needed for ID generation & Folder naming)
-    const journal = await prisma.journal.findUnique({
-      where: { id: journalId },
-      select: { name: true }
-    });
-
-    if (!journal) {
-      return res.status(404).json({ error: 'Journal not found.' });
-    }
-
-    const authorConnects = authorIds.map(id => ({ id: parseInt(id, 10) }));
-
-    // 3. Generate Custom Paper ID (Format: ABBR_YEAR_JPxxxx)
-    const lastPaper = await prisma.journalPapers.findFirst({
-      where: { JournalId: journalId },
-      orderBy: { id: 'desc' },
-      select: { id: true }
-    });
-
-    let nextNumber = 1;
-    if (lastPaper && lastPaper.id) {
-      // Split by '_JP' to find the increment number
-      const parts = lastPaper.id.split('_JP');
-      if (parts.length > 1) {
-        nextNumber = parseInt(parts[1], 10) + 1;
-      }
-    }
-
-    const abbreviation = createAbbreviation(journal.name); // Ensure this helper exists
-    const currentYear = new Date().getFullYear(); 
-    const formattedNumber = String(nextNumber).padStart(4, '0');
-    
-    // ID Example: JCS_2024_JP0001 (JP = Journal Paper)
-    const newPaperID = `${abbreviation}_${currentYear}_JP${formattedNumber}`;
-
-    // 4. Upload PDF to Supabase (Journal Specific Folder)
-    const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    const fileName = `${newPaperID}_${randomSuffix}`;
-    const safeJournalName = journal.name.replace(/[^a-zA-Z0-9]/g, '_');
-    const storagePath = `Journals/${safeJournalName}_${journalId}/InReview`;
-
-    let url;
-    try {
-      url = await uploadPdfToSupabase(req.file.buffer, fileName + '.pdf', storagePath);
-    } catch (error) {
-      console.error('Upload failed:', error);
-      return res.status(500).json({ error: 'Failed to upload PDF: ' + error.message });
-    }
-
-    // 5. Save to Database (using JournalPapers model)
-    const newPaper = await prisma.journalPapers.create({
-      data: {
-        id: newPaperID,
-        Title: title,
-        Abstract: abstract,
-        Keywords: keywords,
-        AuthorOrder: authorIdsInt, // Stores order array
-        URL: url,
-        Status: 'Pending Submission',
-        submittedAt: new Date(),
-        
-        // Link to Journal
-        Journal: {
-          connect: { id: journalId },
-        },
-        
-        // Link Authors
-        Authors: {
-          connect: authorConnects,
-        },
-      },
-    });
-
-    res.status(201).json({ paper: newPaper });
-
-  } catch (error) {
-    console.error('Failed to save journal paper:', error);
-    if (error.code === 'P2025') {
-      return res.status(400).json({ message: 'Invalid author or journal ID.' });
-    }
-    res.status(500).json({ message: 'Could not create paper', details: error.message });
-  }
-});
 // --- Schedule the Job ---
 cron.schedule('0 0 * * *', () => {
   console.log('Running scheduled check for expired conferences...');

@@ -20,9 +20,12 @@ import RegistrationChairPortal from './components/registrationChair';
 import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
 import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackChair';
 import PublicationChairPortal from './components/PublicationChair';
-import EditorPortal from './components/JournalEditor';
 
+
+import EditorPortal from './components/JournalEditor';
 import JournalPortal from './components/JournalPortal';
+import ViewJournalPaper from './components/ViewJournalPaper';
+
 function App() {
   return (
     <UserProvider>
@@ -155,6 +158,10 @@ function App() {
           <Route
             path="/conference/manage/registration/:hashedConId"
             element={<ProtectedRoute><RegistrationChairPortal /></ProtectedRoute>}
+          />
+           <Route
+            path="/journal/paper/:paperId"
+            element={<ProtectedRoute><ViewJournalPaper /></ProtectedRoute>}
           />
            <Route
             path="/journal/editor"

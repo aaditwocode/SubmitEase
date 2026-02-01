@@ -109,18 +109,21 @@ model Tracks {
 }
 
 model JournalPapers {
-  id          String           @id
-  Title       String
-  Authors     User[]           @relation("JournalAuthors")
-  URL         String
-  Abstract    String
-  Keywords    String[]
-  Status      String
-  submittedAt DateTime
-  AuthorOrder Int[]
-  JournalId   Int
-  Journal     Journal          @relation(fields: [JournalId], references: [id])
-  Reviews     JournalReviews[]
+  id              String           @id
+  Title           String
+  Authors         User[]           @relation("JournalAuthors")
+  URL             String
+  Abstract        String
+  Keywords        String[]
+  Status          String
+  submittedAt     DateTime
+  AuthorOrder     Int[]
+  JournalId       Int
+  Journal         Journal          @relation(fields: [JournalId], references: [id])
+  Reviews         JournalReviews[]
+  OriginalPaperId String?
+  OriginalPaper   JournalPapers?   @relation("PaperHistory", fields: [OriginalPaperId], references: [id], onDelete: SetNull)
+  Revisions       JournalPapers[]  @relation("PaperHistory")
 }
 
 model JournalReviews {

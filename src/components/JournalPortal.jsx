@@ -9,13 +9,13 @@ const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
   const s = status ? status.toLowerCase() : "";
   
-  if (s.includes("accept")) {
+  if (s==="accepted") {
     badgeClasses += "bg-green-100 text-green-700";
-  } else if (s.includes("reject")) {
+  } else if (s==="rejected") {
     badgeClasses += "bg-red-100 text-red-700";
-  } else if (s.includes("revision") || s.includes("changes")) {
-    badgeClasses += "bg-yellow-100 text-yellow-700";
-  } else if (s.includes("pending")) {
+  } else if (s==="revision required") {
+    badgeClasses += "bg-orange-100 text-orange-700";
+  } else if (s==="pending submission") {
     badgeClasses += "bg-red-100 text-red-700";
   } else {
     // Under Review
@@ -34,20 +34,13 @@ const formatDate = (dateString) => {
 // --- Stats Component ---
 const StatsGrid = ({ papers }) => {
   const total = papers.length;
-  const accepted = papers.filter(p => p.isFinal && p.Status === "Accepted").length;
-  const rejected = papers.filter(p => p.isFinal && p.Status === "Rejected").length;
+  const accepted = papers.filter(p => p.Status === "Accepted").length;
+  const rejected = papers.filter(p => p.Status === "Rejected").length;
   const pending = papers.filter(p => p.Status === "Pending Submission").length;
   
-  const changesRequired = papers.filter(p => 
-    p.Status?.includes("Change") || p.Status?.includes("Revision")
-  ).length;
+  const changesRequired = papers.filter(p => p.Status === "Revision Required").length;
 
-  const underReview = papers.filter(p => 
-    !p.isFinal && 
-    p.Status !== "Pending Submission" &&
-    !p.Status?.includes("Change") && 
-    !p.Status?.includes("Revision")
-  ).length;
+  const underReview = papers.filter(p => p.Status === "Under Review").length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
@@ -132,10 +125,7 @@ const PaperList = ({ papers }) => {
   const sortedAndFilteredPapers = useMemo(() => {
     const processedPapers = (papers || []).map((paper) => ({
       ...paper,
-      effectiveStatus:
-        !paper.isFinal && paper.Status !== "Pending Submission"
-          ? "Under Review"
-          : paper.Status,
+      effectiveStatus:paper.Status
     }));
 
     const filtered = processedPapers.filter((paper) => {
@@ -250,7 +240,7 @@ const PaperList = ({ papers }) => {
                   </td>
                   <td className="py-3 px-4">
                     <button
-                      onClick={() => navigate(`/paper/${paper.id}`)}
+                      onClick={() => navigate(`/journal/paper/${paper.id}`)}
                       className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors"
                     >
                       View
