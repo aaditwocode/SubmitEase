@@ -34,13 +34,15 @@ const formatDate = (dateString) => {
 // --- Stats Component ---
 const StatsGrid = ({ papers }) => {
   const total = papers.length;
-  const accepted = papers.filter(p => p.Status === "Accepted").length;
-  const rejected = papers.filter(p => p.Status === "Rejected").length;
-  const pending = papers.filter(p => p.Status === "Pending Submission").length;
-  
-  const changesRequired = papers.filter(p => p.Status === "Revision Required").length;
+// 1. Helper to get the real status (prioritizing the latest revision)
+  const getStatus = (p) => p.Revisions?.[0]?.Status || p.Status;
 
-  const underReview = papers.filter(p => p.Status === "Under Review").length;
+  // 2. Apply filter using the helper
+  const accepted = papers.filter(p => getStatus(p) === "Accepted").length;
+  const rejected = papers.filter(p => getStatus(p) === "Rejected").length;
+  const pending = papers.filter(p => getStatus(p) === "Pending Submission").length;
+  const changesRequired = papers.filter(p => getStatus(p) === "Revision Required").length;
+  const underReview = papers.filter(p => getStatus(p) === "Under Review").length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
@@ -125,7 +127,7 @@ const PaperList = ({ papers }) => {
   const sortedAndFilteredPapers = useMemo(() => {
     const processedPapers = (papers || []).map((paper) => ({
       ...paper,
-      effectiveStatus:paper.Status
+      effectiveStatus:paper.Revisions[0].Status? paper.Revisions[0].Status : paper.Status,
     }));
 
     const filtered = processedPapers.filter((paper) => {
@@ -493,11 +495,14 @@ export default function JournalPortal() {
   };
 
   // --- Derived Paper Lists ---
-  const pendingPapers = papers.filter(p => p.Status === "Pending Submission");
-  const underReviewPapers = papers.filter(p => p.Status === "Under Review");
-  const changesRequiredPapers = papers.filter(p => p.Status === "Revision Required");
-  const acceptedPapers = papers.filter(p => p.isFinal && p.Status === "Accepted");
-  const rejectedPapers = papers.filter(p => p.isFinal && p.Status === "Rejected");
+// Calculate the "Effective Status" logic once to avoid repetition
+  const getStatus = (p) => p.Revisions?.[0]?.Status || p.Status;
+
+  const pendingPapers = papers.filter(p => getStatus(p) === "Pending Submission");
+  const underReviewPapers = papers.filter(p => getStatus(p) === "Under Review");
+  const changesRequiredPapers = papers.filter(p => getStatus(p) === "Revision Required");
+  const acceptedPapers = papers.filter(p => getStatus(p) === "Accepted");
+  const rejectedPapers = papers.filter(p => getStatus(p) === "Rejected");
 
   // --- Helper to render Tab Button ---
   const TabButton = ({ id, label, count }) => (
@@ -539,11 +544,11 @@ export default function JournalPortal() {
            {/* Added "All Submissions" Tab */}
            <TabButton id="all" label="All Submissions" count={papers.length} />
            <div className="w-px bg-gray-300 h-6 my-auto mx-2"></div> 
-           <TabButton id="pending" label="Pending" count={pendingPapers.length} />
+           <TabButton id="pending" label="Pending Submission" count={pendingPapers.length} />
            <TabButton id="under_review" label="Under Review" count={underReviewPapers.length} />
-           <TabButton id="changes" label="Changes Required" count={changesRequiredPapers.length} />
-           <TabButton id="accepted" label="Accepted" count={acceptedPapers.length} />
-           <TabButton id="rejected" label="Rejected" count={rejectedPapers.length} />
+           <TabButton id="changes" label="Revision Required" count={changesRequiredPapers.length} />
+           <TabButton id="accepted" label="Accepted Papers" count={acceptedPapers.length} />
+           <TabButton id="rejected" label="Rejected Papers" count={rejectedPapers.length} />
         </div>
 
         {/* --- STATS DASHBOARD (Visible unless on Available Journals tab) --- */}

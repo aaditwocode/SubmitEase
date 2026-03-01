@@ -2617,10 +2617,6 @@ app.get('/journal/papers', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
-        // Relation: Journal Details
-        Journal: {
-          select: { id: true, name: true, Publication: true },
-        },
         // Relation: Get the LATEST revision to determine current status
         Revisions: {
           take: 1,
@@ -2696,7 +2692,7 @@ app.post('/journal/savepaper', upload.single('pdfFile'), async (req, res) => {
 
     // 2. Upload to Supabase
     // Separate folders for revisions vs originals? Or keep same 'InReview'?
-    const folder = originalPaperId ? `Journals/Revisions` : `Journals/InReview`;
+    const folder = originalPaperId ? `Journals/${originalPaperId}` : `Journals/${finalId}`;
     const fileName = `${finalId}_${Date.now()}.pdf`;
     
     let url;
@@ -2756,6 +2752,7 @@ app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
         URL: true,
         AuthorOrder: true,
         submittedAt: true,
+        OriginalPaperId: true,
         Authors: {
           select: {
             id: true,

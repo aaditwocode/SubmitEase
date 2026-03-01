@@ -118,8 +118,6 @@ model JournalPapers {
   Status          String
   submittedAt     DateTime
   AuthorOrder     Int[]
-  JournalId       Int
-  Journal         Journal          @relation(fields: [JournalId], references: [id])
   Reviews         JournalReviews[]
   OriginalPaperId String?
   OriginalPaper   JournalPapers?   @relation("PaperHistory", fields: [OriginalPaperId], references: [id], onDelete: SetNull)
@@ -149,12 +147,11 @@ model JournalReviews {
 }
 
 model Journal {
-  id          Int             @id @default(autoincrement())
+  id          Int    @id @default(autoincrement())
   name        String
   link        String
   status      String
   Publication String
   hostID      Int
-  host        User?           @relation("HostToJournal", fields: [hostID], references: [id])
-  Paper       JournalPapers[]
+  host        User?  @relation("HostToJournal", fields: [hostID], references: [id])
 }

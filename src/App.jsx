@@ -25,6 +25,7 @@ import PublicationChairPortal from './components/PublicationChair';
 import EditorPortal from './components/JournalEditor';
 import JournalPortal from './components/JournalPortal';
 import ViewJournalPaper from './components/ViewJournalPaper';
+import ViewRevisionPaper from './components/ViewRevisionPaper';
 
 function App() {
   return (
@@ -166,6 +167,10 @@ function App() {
            <Route
             path="/journal/editor"
             element={<ProtectedRoute><EditorPortal /></ProtectedRoute>}
+          />
+          <Route
+            path="/journal/revision/:paperId"
+            element={<ProtectedRoute><ViewRevisionPaper /></ProtectedRoute>}
           />
         </Routes>
 

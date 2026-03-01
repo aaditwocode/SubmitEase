@@ -43,7 +43,7 @@ const getStatusBadge = (status) => {
     return <span className={badgeClasses}>{status}</span>;
 };
 
-export default function ViewJournalPaper() {
+export default function ViewRevisionPaper() {
     const { user, setUser, loginStatus, setloginStatus } = useUserData();
     const navigate = useNavigate();
     const { paperId } = useParams();
@@ -75,14 +75,6 @@ export default function ViewJournalPaper() {
     const [inviteOrg, setInviteOrg] = useState("");
     const [inviteCountry, setInviteCountry] = useState("");
 
-    // --- REVISION STATE ---
-    const [showRevisionForm, setShowRevisionForm] = useState(false);
-    const [revTitle, setRevTitle] = useState("");
-    const [revAbstract, setRevAbstract] = useState("");
-    const [revKeywords, setRevKeywords] = useState("");
-    const [revAuthors, setRevAuthors] = useState([]);
-    const [revPdfFile, setRevPdfFile] = useState(null);
-
     // --- 1. Main Data Fetching ---
     useEffect(() => {
         if (!paperId) {
@@ -97,7 +89,7 @@ export default function ViewJournalPaper() {
                 if (!response.ok) throw new Error("Failed to fetch paper details.");
                 const data = await response.json();
                 setPaper(data.paper);
-
+                console.log("Fetched Paper Data:", data.paper);
                 const editable = data.paper.Status === 'Pending Submission';
                 setIsEditable(editable);
 
@@ -105,10 +97,6 @@ export default function ViewJournalPaper() {
                 setAbstract(data.paper.Abstract);
                 setKeywords(data.paper.Keywords.join(', '));
 
-                // Pre-fill Revision Form
-                setRevTitle(data.paper.Title);
-                setRevAbstract(data.paper.Abstract);
-                setRevKeywords(data.paper.Keywords.join(', '));
                 // Sort authors
                 const fetchedAuthors = data.paper.Authors || [];
                 const authorOrder = data.paper.AuthorOrder;
@@ -121,7 +109,6 @@ export default function ViewJournalPaper() {
                     sortedAuthors = [...sortedAuthors, ...authorsNotInOrder];
                 }
                 setAuthors(sortedAuthors);
-                setRevAuthors(sortedAuthors);
 
             } catch (err) {
                 setError(err.message);
@@ -156,21 +143,10 @@ export default function ViewJournalPaper() {
         setAuthors(prev => prev.filter((_, i) => i !== idx));
     };
 
-    const addRevAuthorById = (userId) => {
-        const userObj = allUsers.find(u => u.id === parseInt(userId, 10));
-        if (userObj && !revAuthors.some(a => a.id === userObj.id)) setRevAuthors(prev => [...prev, userObj]);
-    };
-    const handleRevRemoveAuthor = (idx) => {
-        if (revAuthors.length <= 1) return alert('At least one author is required.');
-        setRevAuthors(prev => prev.filter((_, i) => i !== idx));
-    };
-
     const onDragEnd = (result) => {
         if (!result.destination) return;
         if (result.source.droppableId === "authors-droppable") {
             setAuthors(reorder(authors, result.source.index, result.destination.index));
-        } else if (result.source.droppableId === "rev-authors-droppable") {
-            setRevAuthors(reorder(revAuthors, result.source.index, result.destination.index));
         }
     };
 
@@ -186,17 +162,10 @@ export default function ViewJournalPaper() {
             if (!response.ok) throw new Error("Failed to invite.");
             const newUser = await response.json();
             
-            // UPDATED LOGIC: Check where to add the user
-            if (showRevisionForm) {
-                setRevAuthors(prev => [...prev, newUser]);
-            } else {
-                setAuthors(prev => [...prev, newUser]);
-            }
-            
+            setAuthors(prev => [...prev, newUser]);
             setAllUsers(prev => [...prev, newUser]);
             setShowInviteForm(false);
             setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteOrg(""); setInviteCountry("");
-            // alert(`User ${newUser.email} invited.`);
         } catch (error) { alert(`Error: ${error.message}`); }
     };
 
@@ -245,35 +214,6 @@ export default function ViewJournalPaper() {
         navigate('/journal');
     };
 
-    const handleRevisionSubmit = async (e) => {
-        e.preventDefault();
-        if (!revPdfFile) return alert("Upload PDF.");
-
-        const formData = new FormData();
-        const rootId = paper.originalPaperId || paper.id;
-        let nextVersion = 1;
-        if (paper.revisions && paper.revisions.length > 0) nextVersion = paper.revisions.length + 1;
-        else if (paper.version) nextVersion = paper.version + 1;
-        
-        const customPaperId = `${rootId}_R${nextVersion}`;
-
-        formData.append('id', customPaperId);
-        formData.append('originalPaperId', rootId);
-        formData.append('title', revTitle);
-        formData.append('abstract', revAbstract);
-        formData.append('keywords', JSON.stringify(revKeywords.split(',').map(k => k.trim()).filter(Boolean)));
-        formData.append('authorIds', JSON.stringify(revAuthors.map(a => a.id)));
-        formData.append('pdfFile', revPdfFile);
-
-        try {
-            const response = await fetch(`http://localhost:3001/journal/savepaper`, { method: 'POST', body: formData });
-            if (!response.ok) throw new Error('Failed to submit revision.');
-            alert(`Revision submitted!`);
-            setShowRevisionForm(false);
-            window.location.reload(); 
-        } catch (error) { alert(`Error: ${error.message}`); }
-    };
-
     if (loading) return <div className="p-8 text-center">Loading...</div>;
     if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
     if (!paper) return <div className="p-8 text-center">Paper not found.</div>;
@@ -281,12 +221,6 @@ export default function ViewJournalPaper() {
     const displayPdfUrl = paper.FinalPaperURL || paper.URL;
     const cacheBustKey = new Date(paper.updatedAt || paper.submittedAt).getTime();
     
-    // Logic for Revision Section
-    const latestRevision = (paper.revisions && paper.revisions.length > 0) ? paper.revisions[0] : null;
-    const currentStatus = latestRevision ? latestRevision.Status : paper.Status;
-    const canSubmitRevision = currentStatus === "Revision Required";
-    const showRevisionSection = (paper.revisions && paper.revisions.length > 0) || canSubmitRevision;
-
     const handleLogout = () => {
         setUser(null);
         setloginStatus(false);
@@ -366,6 +300,12 @@ export default function ViewJournalPaper() {
                 <div className="grid grid-cols-1 lg:grid-cols-6 gap-8">
                     {/* Left: Metadata */}
                     <div className="lg:col-span-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full space-y-4 h-full">
+                        <button 
+                            onClick={() => navigate('/journal/paper/'+paper.OriginalPaperId)} 
+                            className="text-[#059669] text-sm font-medium hover:underline mb-2 flex items-center gap-1"
+                        >
+                            ← Back to Main Paper
+                        </button>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold text-[#1f2937]">Paper Details</h3>
                             {getStatusBadge(paper.Status)}
@@ -438,7 +378,7 @@ export default function ViewJournalPaper() {
                                     <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
                                         <button onClick={handleUpdatePaper} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
                                         <button onClick={handleSubmitForReview} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit</button>
-                                        <button onClick={() => navigate('/journal')} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
+                                        <button onClick={() => navigate('/journal/paper/'+paper.OriginalPaperId)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
                                     </div>
                                 </>
                             )}
@@ -461,140 +401,7 @@ export default function ViewJournalPaper() {
                         <iframe src={`${displayPdfUrl}?v=${cacheBustKey}`} className="border rounded-md flex-grow" width="100%" height="100%" />
                     </div>
                 </div>
-
-                {/* --- REVISION HISTORY TABLE --- */}
-                {showRevisionSection && (
-                    <div className="bg-white rounded-lg shadow flex flex-col mt-8">
-                        <div className="p-4 border-b border-[#e5e7eb] flex justify-between items-center">
-                             <h3 className="text-lg font-semibold text-[#1f2937]">Revision History</h3>
-                             {canSubmitRevision && (
-                                <button onClick={() => setShowRevisionForm(true)} className="px-4 py-2 bg-[#059669] text-white rounded-md text-sm font-medium hover:bg-[#059669]/90">
-                                    Submit New Revision
-                                </button>
-                             )}
-                        </div>
-                        
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-[#e5e7eb]">
-                                        <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Paper ID</th>
-                                        <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Submitted On</th>
-                                        <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Status</th>
-                                        <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {paper.Revisions && paper.Revisions.length > 0 ? (
-                                        paper.Revisions.map((rev, index) => (
-                                            <tr key={rev.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                                                <td className="py-3 px-4 text-sm text-[#1f2937]">{rev.id}</td>
-                                                <td className="py-3 px-4 text-sm text-[#1f2937]">{new Date(rev.submittedAt).toLocaleDateString()}</td>
-                                                <td className="py-3 px-4">{getStatusBadge(rev.Status)}</td>
-                                                
-                                                <td className="py-3 px-4">
-                                                    <button 
-                                                        onClick={() => window.open(`/journal/revision/${rev.id}`, '_blank')}
-                                                        className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors"
-                                                    >
-                                                        View
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="5" className="text-center text-gray-500 py-4">No revisions submitted yet.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
             </main>
-
-            {/* --- REVISION SUBMISSION MODAL --- */}
-            {showRevisionForm && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
-                    <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-[#1f2937]">Submit Revised Manuscript</h3>
-                            <button onClick={() => setShowRevisionForm(false)} className="text-[#6b7280] hover:text-[#1f2937]">✕</button>
-                        </div>
-                        
-                        <div className="bg-[#059669]/10 border border-[#059669]/20 text-[#059669] px-4 py-3 rounded text-sm mb-4">
-                            You are submitting a revision for <strong>{paper.Title}</strong>.
-                        </div>
-                        <form className="space-y-4" onSubmit={handleRevisionSubmit}>
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label><input type="text" value={revTitle} onChange={(e) => setRevTitle(e.target.value)} required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" /></div>
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label><textarea value={revAbstract} onChange={(e) => setRevAbstract(e.target.value)} required rows={4} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" /></div>
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords</label><input type="text" value={revKeywords} onChange={(e) => setRevKeywords(e.target.value)} required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" /></div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors</label>
-                                <div className="space-y-2">
-                                    <DragDropContext onDragEnd={onDragEnd}>
-                                        <Droppable droppableId="rev-authors-droppable">
-                                            {(provided) => (
-                                                <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
-                                                    {revAuthors.map((author, index) => (
-                                                        <Draggable key={author.id} draggableId={`rev-${author.id}`} index={index}>
-                                                            {(prov) => (
-                                                                <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
-                                                                    <div {...prov.dragHandleProps} className="cursor-grab text-[#6b7280]">☰</div>
-                                                                    <div className="flex-1"><CompactAuthorCard author={author} /></div>
-                                                                    <button type="button" onClick={() => handleRevRemoveAuthor(index)} className="text-red-600 text-sm border border-red-200 px-2 py-1 rounded hover:bg-red-50">Remove</button>
-                                                                </div>
-                                                            )}
-                                                        </Draggable>
-                                                    ))}
-                                                    {provided.placeholder}
-                                                </div>
-                                            )}
-                                        </Droppable>
-                                    </DragDropContext>
-
-                                    {/* --- Invite Button + Select in Revision Modal --- */}
-                                    {!showInviteForm && (
-                                        <div className="flex gap-2 items-center mt-2">
-                                            <select onChange={(e) => { addRevAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                                                <option value="">+ Add existing user as author</option>
-                                                {allUsers.filter(u => !revAuthors.some(a => a.id === u.id)).map(u => <option key={u.id} value={u.id}>{u.email}</option>)}
-                                            </select>
-                                            <button type="button" onClick={() => setShowInviteForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
-                                        </div>
-                                    )}
-
-                                    {/* --- Invite Form in Revision Modal --- */}
-                                    {showInviteForm && (
-                                        <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
-                                            <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <input type="text" value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                                <input type="text" value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                            </div>
-                                            <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email Address*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                            <input type="text" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} placeholder="Organisation" className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                            <select value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                                                <option value="">Select Country</option>
-                                                {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                                            </select>
-                                            <div className="flex gap-3">
-                                                <button type="button" onClick={handleInviteAuthor} className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90">Add User</button>
-                                                <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Upload Revised Manuscript (PDF)</label><input type="file" onChange={(e) => setRevPdfFile(e.target.files[0])} accept=".pdf" required className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" /></div>
-                            <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6"><button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit Revision</button><button type="button" onClick={() => setShowRevisionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button></div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
