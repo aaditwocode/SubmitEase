@@ -27,6 +27,9 @@ import JournalPortal from './components/JournalPortal';
 import ViewJournalPaper from './components/ViewJournalPaper';
 import ViewRevisionPaper from './components/ViewRevisionPaper';
 
+
+import JournalManageReviews from './components/JournalManageReviews';
+import JournalReviewPaper from './components/JournalReviewPaper';
 function App() {
   return (
     <UserProvider>
@@ -172,8 +175,15 @@ function App() {
             path="/journal/revision/:paperId"
             element={<ProtectedRoute><ViewRevisionPaper /></ProtectedRoute>}
           />
+          <Route
+            path="/journal/ManageReviews"
+            element={<ProtectedRoute><JournalManageReviews /></ProtectedRoute>}
+          />
+          <Route
+            path="/journal/ReviewPaper"
+            element={<ProtectedRoute><JournalReviewPaper /></ProtectedRoute>}
+          />
         </Routes>
-
        
 
 

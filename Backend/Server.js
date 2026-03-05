@@ -1365,6 +1365,146 @@ app.post('/reviewInvitationResponse', async (req, res) => {
   }
 });
 
+// ==================== JOURNAL-SPECIFIC ENDPOINTS ====================
+
+app.post('/journal/get-your-reviews', async (req, res) => {
+  const { reviewerId } = req.body;
+  try {
+    const parsedId = parseInt(reviewerId, 10);
+    if (isNaN(parsedId)) return res.status(400).json({ message: 'Invalid reviewerId.' });
+
+    // 1) Fetch Journal Reviews only
+    const journalReviews = await prisma.journalReviews.findMany({
+      where: { ReviewerId: parsedId },
+      select: {
+        id: true,
+        Comment: true,
+        Recommendation: true,
+        submittedAt: true,
+        Status: true,
+        isBlind: true,
+        scoreOriginality: true,
+        scoreClarity: true,
+        scoreSoundness: true,
+        scoreSignificance: true,
+        scoreRelevance: true,
+        avgScore: true,
+        assignedAt: true,
+        Paper: {
+          select: {
+            id: true,
+            Title: true,
+            Abstract: true,
+            Authors: { select: { id: true, firstname: true, lastname: true, organisation: true, expertise: true } },
+            submittedAt: true,
+            URL: true,
+          }
+        }
+      }
+    });
+
+    if (!journalReviews || journalReviews.length === 0) {
+      return res.status(404).json({ message: 'No journal reviews available.' });
+    }
+
+    // Map journal reviews to add Journal information
+    const reviewsWithJournal = journalReviews.map(r => ({
+      ...r,
+      Paper: {
+        ...r.Paper,
+        Journal: { id: null, name: 'Journal' }
+      }
+    }));
+
+    res.status(200).json({ reviews: reviewsWithJournal });
+  } catch (error) {
+    console.error('Failed to fetch journal reviews:', error);
+    res.status(500).json({ message: "Failed to fetch journal reviews.", details: error.message });
+  }
+});
+
+app.post('/journal/get-review', async (req, res) => {
+  const { paperId, reviewerId } = req.body;
+  try {
+    const review = await prisma.journalReviews.findUnique({
+      where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(reviewerId, 10) } }
+    });
+
+    if (!review) return res.status(404).json({ message: 'No journal review found.' });
+
+    res.status(200).json(review);
+  } catch (error) {
+    console.error('Failed to fetch journal review:', error);
+    res.status(500).json({ message: "Failed to fetch journal review." });
+  }
+});
+
+app.post('/journal/save-review', async (req, res) => {
+  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance } = req.body;
+
+  try {
+    const updatedJournal = await prisma.journalReviews.update({
+      where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(reviewerId, 10) } },
+      data: {
+        Recommendation,
+        Comment,
+        scoreOriginality,
+        scoreClarity,
+        scoreSoundness,
+        scoreSignificance,
+        scoreRelevance,
+      }
+    });
+    return res.status(201).json(updatedJournal);
+  } catch (err) {
+    console.error('Failed to save journal review:', err);
+    return res.status(500).json({ message: "Failed to save journal review." });
+  }
+});
+
+app.post('/journal/submit-review', async (req, res) => {
+  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance } = req.body;
+  const avgScore = (scoreOriginality + scoreClarity + scoreSoundness + scoreSignificance + scoreRelevance) / 5.0;
+  try {
+    const updatedJournal = await prisma.journalReviews.update({
+      where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(reviewerId, 10) } },
+      data: {
+        Recommendation,
+        Comment,
+        submittedAt: new Date(),
+        Status: "Submitted",
+        scoreOriginality,
+        scoreClarity,
+        scoreSoundness,
+        scoreSignificance,
+        scoreRelevance,
+        avgScore,
+      }
+    });
+    return res.status(201).json(updatedJournal);
+  } catch (err) {
+    console.error('Failed to submit journal review:', err);
+    return res.status(500).json({ message: "Failed to submit journal review." });
+  }
+});
+
+app.post('/journal/reviewInvitationResponse', async (req, res) => {
+  const { reviewId, response } = req.body;
+
+  try {
+    const updatedJournalReview = await prisma.journalReviews.update({
+      where: { id: reviewId },
+      data: { Status: response, assignedAt: new Date() }
+    });
+    return res.status(201).json(updatedJournalReview);
+  } catch (err) {
+    console.error('Failed to update journal review invitation response:', err);
+    return res.status(500).json({ message: "Failed to update journal review invitation response." });
+  }
+});
+
+// ==================== END JOURNAL-SPECIFIC ENDPOINTS ====================
+
 app.post('/paper-decision', async (req, res) => {
   try {
     const { paperId, status, total } = req.body;
@@ -2789,6 +2929,34 @@ app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
             submittedAt: 'desc'
           }
         },
+        Reviews: {
+          select: {
+            id: true,
+            ReviewerId: true,
+            Comment: true,
+            Recommendation: true,
+            submittedAt: true,
+            Status: true,
+            scoreOriginality: true,
+            scoreClarity: true,
+            scoreSoundness: true,
+            scoreSignificance: true,
+            scoreRelevance: true,
+            avgScore: true,
+            isBlind: true,
+            assignedAt: true,
+            User: {
+              select: {
+                id: true,
+                firstname: true,
+                lastname: true,
+                email: true,
+                organisation: true,
+                expertise: true,
+              }
+            }
+          },
+        }
       },
     });
 
