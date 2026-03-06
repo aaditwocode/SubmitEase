@@ -9,13 +9,13 @@ const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
   const s = status ? status.toLowerCase() : "";
   
-  if (s==="accepted") {
+  if (s.includes("accepted")) {
     badgeClasses += "bg-green-100 text-green-700";
-  } else if (s==="rejected") {
+  } else if (s.includes("rejected") || s.includes("declined")) {
     badgeClasses += "bg-red-100 text-red-700";
-  } else if (s==="revision required") {
+  } else if (s.includes("revision required") || s.includes("sent back")) {
     badgeClasses += "bg-orange-100 text-orange-700";
-  } else if (s==="pending submission") {
+  } else if (s.includes("pending")) {
     badgeClasses += "bg-red-100 text-red-700";
   } else {
     // Under Review
@@ -31,18 +31,37 @@ const formatDate = (dateString) => {
   });
 };
 
+// --- CORE LOGIC: Determine which tab a paper belongs to ---
+const getTabCategory = (paper) => {
+  const revs = paper.Revisions || [];
+  
+  if (revs.length > 0) {
+    // If it has revisions, route based on the LATEST revision's status
+    const revStatus = revs[0].Status;
+    if (revStatus === "Accepted") return "Accepted"; 
+    if (revStatus === "Rejected" || revStatus === "Declined") return "Declined Revisions";
+    if (revStatus === "Pending Submission") return "Pending Revision Submission";
+    if (revStatus === "Under Review") return "Revisions Under Review";
+    return revStatus; 
+  }
+  
+  // If no revisions, route based on the base paper's status
+  return paper.Status; 
+};
+
+
 // --- Stats Component ---
 const StatsGrid = ({ papers }) => {
   const total = papers.length;
-// 1. Helper to get the real status (prioritizing the latest revision)
-  const getStatus = (p) => p.Revisions?.[0]?.Status || p.Status;
 
-  // 2. Apply filter using the helper
-  const accepted = papers.filter(p => getStatus(p) === "Accepted").length;
-  const rejected = papers.filter(p => getStatus(p) === "Rejected").length;
-  const pending = papers.filter(p => getStatus(p) === "Pending Submission").length;
-  const changesRequired = papers.filter(p => getStatus(p) === "Revision Required").length;
-  const underReview = papers.filter(p => getStatus(p) === "Under Review").length;
+  const accepted = papers.filter(p => getTabCategory(p) === "Accepted").length;
+  const rejected = papers.filter(p => getTabCategory(p) === "Rejected").length;
+  const pending = papers.filter(p => getTabCategory(p) === "Pending Submission").length;
+  const underReview = papers.filter(p => getTabCategory(p) === "Under Review").length;
+  
+  const revisions = papers.filter(p => 
+    ["Revision Required", "Pending Revision Submission", "Revisions Under Review", "Declined Revisions"].includes(getTabCategory(p))
+  ).length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
@@ -59,8 +78,8 @@ const StatsGrid = ({ papers }) => {
         <p className="text-3xl font-bold text-[#f59e0b]">{underReview}</p>
       </div>
       <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
-        <h3 className="text-sm font-medium text-[#6b7280]">Changes Required</h3>
-        <p className="text-3xl font-bold text-[#f59e0b]">{changesRequired}</p>
+        <h3 className="text-sm font-medium text-[#6b7280]">Revisions</h3>
+        <p className="text-3xl font-bold text-[#f59e0b]">{revisions}</p>
       </div>
       <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-5">
         <h3 className="text-sm font-medium text-[#6b7280]">Rejected</h3>
@@ -98,15 +117,14 @@ const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
-// --- Updated Paper List Component with Pagination ---
-const PaperList = ({ papers }) => {
+// --- Updated Paper List Component with Dual Status Support ---
+const PaperList = ({ papers, isRevisionTab }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [searchTerm, setSearchTerm] = useState("");
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 50; // Set to 50 as requested
+  const ITEMS_PER_PAGE = 50; 
 
   const navigate = useNavigate();
 
@@ -119,7 +137,6 @@ const PaperList = ({ papers }) => {
     }
   };
 
-  // Reset to page 1 if search/filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, papers]);
@@ -127,7 +144,7 @@ const PaperList = ({ papers }) => {
   const sortedAndFilteredPapers = useMemo(() => {
     const processedPapers = (papers || []).map((paper) => ({
       ...paper,
-      effectiveStatus:paper.Revisions[0].Status? paper.Revisions[0].Status : paper.Status,
+      effectiveStatus: paper.Revisions?.[0]?.Status || paper.Status, 
     }));
 
     const filtered = processedPapers.filter((paper) => {
@@ -163,7 +180,6 @@ const PaperList = ({ papers }) => {
     return sorted;
   }, [papers, sortBy, sortOrder, searchTerm]);
 
-  // Pagination Logic: Slice the data
   const totalPages = Math.ceil(sortedAndFilteredPapers.length / ITEMS_PER_PAGE);
   const currentPapers = sortedAndFilteredPapers.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -238,7 +254,20 @@ const PaperList = ({ papers }) => {
                     </div>
                   </td>
                   <td className="py-3 px-4">
-                    {getStatusBadge(paper.effectiveStatus)}
+                    {/* DUAL STATUS DISPLAY LOGIC */}
+                    {paper.Revisions && paper.Revisions.length > 0 && !isRevisionTab ? (
+                        <div className="flex items-center gap-3">
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full leading-tight bg-orange-100 text-orange-700 whitespace-nowrap">
+                                Revised Paper
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] uppercase font-bold text-gray-400">Status: </span>
+                                {getStatusBadge(paper.Revisions[0].Status)}
+                            </div>
+                        </div>
+                    ) : (
+                        getStatusBadge(paper.effectiveStatus)
+                    )}
                   </td>
                   <td className="py-3 px-4">
                     <button
@@ -261,7 +290,6 @@ const PaperList = ({ papers }) => {
         </table>
       </div>
 
-      {/* Pagination Controls added here */}
       <PaginationControls 
         currentPage={currentPage} 
         totalPages={totalPages} 
@@ -295,21 +323,21 @@ export default function JournalPortal() {
   const { user, setUser, setloginStatus } = useUserData();
   const navigate = useNavigate();
 
-  // --- Data state ---
   const [papers, setPapers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
 
   // --- UI State ---
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
   const [activeTab, setActiveTab] = useState("all"); 
+  const [activeSubTab, setActiveSubTab] = useState("rev_required"); 
 
   // --- Form State ---
   const [title, setTitle] = useState("");
   const [abstract, setAbstract] = useState("");
   const [keywords, setKeywords] = useState("");
-  // REMOVED: Journal state
   const [authors, setAuthors] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
+  const [additionalFiles, setAdditionalFiles] = useState([]); 
   
   // --- Invite Form State ---
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -320,7 +348,6 @@ export default function JournalPortal() {
   const [inviteCountry, setInviteCountry] = useState("");
   const countries = ["United States", "India", "Germany", "France", "Japan", "China", "Brazil"]; 
 
-  // --- Handlers ---
   const handleLogout = () => {
     setUser(null);
     setloginStatus(false);
@@ -332,16 +359,16 @@ export default function JournalPortal() {
     setAbstract("");
     setKeywords("");
     setPdfFile(null);
+    setAdditionalFiles([]);
     setShowInviteForm(false);
     setInviteFirstName("");
     setInviteLastName("");
     setInviteEmail("");
-    // REMOVED: Journal setting logic
 
     if (user && user.id) {
       setAuthors([user]);
     } else {
-        setAuthors([]);
+      setAuthors([]);
     }
     setShowSubmissionForm(true);
   };
@@ -372,18 +399,34 @@ export default function JournalPortal() {
     setShowInviteForm(false);
   };
 
+  const handleAddAdditionalFile = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAdditionalFiles(prev => [...prev, file]);
+      e.target.value = null; 
+    }
+  };
+
+  const handleRemoveAdditionalFile = (indexToRemove) => {
+    setAdditionalFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
   const handlePaperSubmit = async (event) => {
     event.preventDefault();
-    // REMOVED: Journal Validation
     if (!pdfFile) return alert("Please upload a PDF");
     
     const formData = new FormData();
     formData.append('title', title);
-    // REMOVED: Journal ID append
     formData.append('abstract', abstract);
     formData.append('keywords', JSON.stringify(keywords.split(',')));
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('pdfFile', pdfFile);
+
+    if (additionalFiles && additionalFiles.length > 0) {
+      additionalFiles.forEach((file) => {
+        formData.append('additionalFiles', file); 
+      });
+    }
 
     try {
       const response = await fetch('http://localhost:3001/journal/savepaper', {
@@ -391,19 +434,18 @@ export default function JournalPortal() {
         body: formData,
       });
       if (response.ok) {
-        alert('Manuscript Submitted Successfully!');
+        alert('Paper Saved Successfully!');
         setShowSubmissionForm(false);
         getPapers(); 
       } else {
-        alert("Failed to submit paper");
+        alert("Failed to save paper");
       }
     } catch (error) {
       console.error(error);
-      alert("Error submitting paper");
+      alert("Error saving paper");
     }
   };
 
-  // --- Data Fetching ---
   const getPapers = async () => {
     if (user?.id) {
       try {
@@ -417,7 +459,6 @@ export default function JournalPortal() {
   useEffect(() => {
     const fetchData = async () => {
         try {
-            // REMOVED: Journals fetch
             const userRes = await fetch('http://localhost:3001/users/emails');
             const userData = await userRes.json();
             setAllUsers(userData.users || []);
@@ -427,7 +468,6 @@ export default function JournalPortal() {
     getPapers();
   }, [user]);
 
-  // --- Header Component ---
   const Header = ({ user }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const navigate = useNavigate();
@@ -446,7 +486,6 @@ export default function JournalPortal() {
     return (
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
@@ -494,21 +533,25 @@ export default function JournalPortal() {
     );
   };
 
-  // --- Derived Paper Lists ---
-// Calculate the "Effective Status" logic once to avoid repetition
-  const getStatus = (p) => p.Revisions?.[0]?.Status || p.Status;
+  // --- Derived Paper Lists by Tab Category ---
+  const pendingPapers = papers.filter(p => getTabCategory(p) === "Pending Submission");
+  const sentBackPapers = papers.filter(p => getTabCategory(p) === "Sent Back To Author");
+  const underReviewPapers = papers.filter(p => getTabCategory(p) === "Under Review");
+  const acceptedPapers = papers.filter(p => getTabCategory(p) === "Accepted");
+  const rejectedPapers = papers.filter(p => getTabCategory(p) === "Rejected");
 
-  const pendingPapers = papers.filter(p => getStatus(p) === "Pending Submission");
-  const underReviewPapers = papers.filter(p => getStatus(p) === "Under Review");
-  const changesRequiredPapers = papers.filter(p => getStatus(p) === "Revision Required");
-  const acceptedPapers = papers.filter(p => getStatus(p) === "Accepted");
-  const rejectedPapers = papers.filter(p => getStatus(p) === "Rejected");
+  // Revisions Sub-Tabs
+  const revRequiredPapers = papers.filter(p => getTabCategory(p) === "Revision Required");
+  const revPendingPapers = papers.filter(p => getTabCategory(p) === "Pending Revision Submission");
+  const revUnderReviewPapers = papers.filter(p => getTabCategory(p) === "Revisions Under Review");
+  const revDeclinedPapers = papers.filter(p => getTabCategory(p) === "Declined Revisions");
+  
+  const allRevisionsPapers = [...revRequiredPapers, ...revPendingPapers, ...revUnderReviewPapers, ...revDeclinedPapers];
 
-  // --- Helper to render Tab Button ---
   const TabButton = ({ id, label, count }) => (
     <button
         onClick={() => setActiveTab(id)}
-        className={`pb-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+        className={`pb-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
             activeTab === id 
             ? "border-[#059669] text-[#059669]" 
             : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
@@ -523,12 +566,29 @@ export default function JournalPortal() {
     </button>
   );
 
+  const SubTabButton = ({ id, label, count }) => (
+    <button
+        onClick={() => setActiveSubTab(id)}
+        className={`pb-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+            activeSubTab === id 
+            ? "border-[#059669] text-[#059669]" 
+            : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+        }`}
+    >
+        {label}
+        {count !== undefined && count > 0 && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeSubTab === id ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                {count}
+            </span>
+        )}
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-[#ffffff]">
       <Header user={user} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* --- TITLE & ACTION BUTTON --- */}
         <div className="flex justify-between items-center mb-8">
             <h2 className="text-3xl font-bold text-[#1f2937]">Submission Portal</h2>
             <button 
@@ -539,62 +599,101 @@ export default function JournalPortal() {
             </button>
         </div>
 
-        {/* --- TABS --- */}
+        {/* MAIN TABS */}
         <div className="border-b border-[#e5e7eb] flex flex-wrap gap-6 mb-6">
-           {/* Added "All Submissions" Tab */}
            <TabButton id="all" label="All Submissions" count={papers.length} />
            <div className="w-px bg-gray-300 h-6 my-auto mx-2"></div> 
            <TabButton id="pending" label="Pending Submission" count={pendingPapers.length} />
+           <TabButton id="sent_back" label="Sent Back To Author" count={sentBackPapers.length} />
            <TabButton id="under_review" label="Under Review" count={underReviewPapers.length} />
-           <TabButton id="changes" label="Revision Required" count={changesRequiredPapers.length} />
-           <TabButton id="accepted" label="Accepted Papers" count={acceptedPapers.length} />
-           <TabButton id="rejected" label="Rejected Papers" count={rejectedPapers.length} />
+           <TabButton id="revisions" label="Revisions" count={allRevisionsPapers.length} />
+           <TabButton id="accepted" label="Accepted" count={acceptedPapers.length} />
+           <TabButton id="rejected" label="Rejected" count={rejectedPapers.length} />
         </div>
 
-        {/* --- STATS DASHBOARD (Visible unless on Available Journals tab) --- */}
+        {/* SUB TABS */}
+        {activeTab === "revisions" && (
+            <div className="border-b border-[#e5e7eb] flex flex-wrap gap-6 mb-6 ml-4">
+               <SubTabButton id="rev_required" label="Revision Required" count={revRequiredPapers.length} />
+               <SubTabButton id="rev_pending" label="Pending Revision Submission" count={revPendingPapers.length} />
+               <SubTabButton id="rev_under_review" label="Revisions Under Review" count={revUnderReviewPapers.length} />
+               <SubTabButton id="rev_declined" label="Declined Revisions" count={revDeclinedPapers.length} />
+            </div>
+        )}
+
         <StatsGrid papers={papers} />
 
-        {/* --- CONTENT --- */}
+        {/* DYNAMIC LISTS */}
         <div className="mt-6">
             {activeTab === "all" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">All Manuscripts</h3>
-                    <PaperList papers={papers} />
+                    {/* Pass isRevisionTab as false because this is the 'All' tab */}
+                    <PaperList papers={papers} isRevisionTab={false} />
                 </div>
             )}
 
             {activeTab === "pending" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Drafts & Pending</h3>
-                     <PaperList papers={pendingPapers} />
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Drafts & Pending Submissions</h3>
+                     <PaperList papers={pendingPapers} isRevisionTab={false} />
+                </div>
+            )}
+
+            {activeTab === "sent_back" && (
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Sent Back To Author</h3>
+                     <PaperList papers={sentBackPapers} isRevisionTab={false} />
                 </div>
             )}
 
             {activeTab === "under_review" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Papers Under Review</h3>
-                     <PaperList papers={underReviewPapers} />
+                     <PaperList papers={underReviewPapers} isRevisionTab={false} />
                 </div>
             )}
 
-            {activeTab === "changes" && (
+            {/* Revision Sub-Tabs Views - Pass isRevisionTab as TRUE */}
+            {activeTab === "revisions" && activeSubTab === "rev_required" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Revisions Required</h3>
-                     <PaperList papers={changesRequiredPapers} />
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Revision Required</h3>
+                     <PaperList papers={revRequiredPapers} isRevisionTab={true} />
+                </div>
+            )}
+            
+            {activeTab === "revisions" && activeSubTab === "rev_pending" && (
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Pending Revision Submission</h3>
+                     <PaperList papers={revPendingPapers} isRevisionTab={true} />
+                </div>
+            )}
+            
+            {activeTab === "revisions" && activeSubTab === "rev_under_review" && (
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Revisions Under Review</h3>
+                     <PaperList papers={revUnderReviewPapers} isRevisionTab={true} />
+                </div>
+            )}
+            
+            {activeTab === "revisions" && activeSubTab === "rev_declined" && (
+                <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Declined Revisions</h3>
+                     <PaperList papers={revDeclinedPapers} isRevisionTab={true} />
                 </div>
             )}
 
             {activeTab === "accepted" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
-                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Published / Accepted</h3>
-                     <PaperList papers={acceptedPapers} />
+                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Published / Accepted Papers</h3>
+                     <PaperList papers={acceptedPapers} isRevisionTab={false} />
                 </div>
             )}
 
             {activeTab === "rejected" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Rejected Submissions</h3>
-                     <PaperList papers={rejectedPapers} />
+                     <PaperList papers={rejectedPapers} isRevisionTab={false} />
                 </div>
             )}
         </div>
@@ -610,30 +709,24 @@ export default function JournalPortal() {
              </div>
 
              <form className="space-y-4" onSubmit={handlePaperSubmit}>
-               {/* Title */}
                <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label>
                   <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
                </div>
 
-               {/* REMOVED JOURNAL SELECTION FIELD HERE */}
-
-               {/* Abstract */}
                <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label>
                   <textarea value={abstract} onChange={(e) => setAbstract(e.target.value)} required rows={4}
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
                </div>
 
-               {/* Keywords */}
                <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords (comma-separated)</label>
                   <input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} required
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
                </div>
 
-               {/* Authors */}
                <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors (drag to reorder)</label>
                   <div className="space-y-2">
@@ -690,17 +783,51 @@ export default function JournalPortal() {
                   </div>
                </div>
 
-               {/* File Upload */}
                <div>
                   <label className="block text-sm font-medium text-[#1f2937] mb-1">Upload Manuscript (PDF)</label>
                   <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" required 
                     className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
                </div>
 
-               {/* Buttons */}
+               {pdfFile && (
+                 <div className="pt-4 mt-2 border-t border-[#e5e7eb] transition-all duration-300 ease-in-out">
+                    <label className="block text-sm font-medium text-[#1f2937] mb-1">Add Additional Documents (Merge Order)</label>
+                    <p className="text-xs text-[#6b7280] mb-3">Please upload supporting documents one by one in the exact order you want them merged with the main paper.</p>
+                    
+                    {additionalFiles.length > 0 && (
+                      <div className="mb-4 space-y-2">
+                        {additionalFiles.map((file, i) => (
+                          <div key={i} className="flex items-center justify-between p-2 text-sm border border-[#e5e7eb] rounded-md bg-white shadow-sm">
+                            <span className="font-medium text-[#1f2937] truncate flex-1">
+                              <span className="text-[#059669] mr-2 font-bold">{i + 1}.</span> {file.name}
+                            </span>
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveAdditionalFile(i)} 
+                              className="ml-3 px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input 
+                      type="file" 
+                      onChange={handleAddAdditionalFile}
+                      className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#3b82f6]/10 file:text-[#3b82f6] hover:file:bg-[#3b82f6]/20 cursor-pointer" 
+                    />
+                 </div>
+               )}
+
                <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
-                 <button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit Manuscript</button>
-                 <button type="button" onClick={() => setShowSubmissionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
+                 <button type="submit" disabled={!pdfFile} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Compile And Save Paper
+                 </button>
+                 <button type="button" onClick={() => setShowSubmissionForm(false)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">
+                    Cancel
+                 </button>
                </div>
              </form>
           </div>

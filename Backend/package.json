@@ -19,7 +19,8 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.6",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "prisma": "^6.19.0",

@@ -10,7 +10,7 @@ import 'dotenv/config';
 import { parse } from 'path';
 import cron from 'node-cron';
 import { Key } from 'lucide-react';
-
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 const prisma = new PrismaClient().$extends(withAccelerate());
 
 const app = express();
@@ -2673,66 +2673,8 @@ const closeExpiredConferences = async () => {
   }
 };
 
-app.post('/journal/registration', async (req, res) => {
-  try {
-    const { name, link, Publication, hostID } = req.body;
 
-    // 1. Validate Required Fields
-    // Note: status is optional as it defaults to "Pending Approval" if not sent, 
-    // but your frontend sends it, so we can accept it.
-    if (!name || !link || !Publication || !hostID) {
-      return res.status(400).json({ message: 'Missing required journal fields' });
-    }
 
-    // 2. Create Entry in Database
-    const newJournal = await prisma.journal.create({
-      data: {
-        name,
-        link,
-        status: "Pending Approval",
-        Publication,
-        hostID: parseInt(hostID), // Ensure hostID is an integer
-      },
-    });
-
-    // 3. Update User Role 
-    // Adds "Journal Host" role to the user so they can access management portals
-    if (hostID) {
-      await addRoleToUsers([parseInt(hostID)], "Journal Host");
-    }
-
-    res.status(201).json({ journal: newJournal });
-
-  } catch (error) {
-    console.error('Journal registration failed:', error);
-    res.status(500).json({ message: 'Could not create journal', details: error.message });
-  }
-});
-
-app.get('/journals', async (req, res) => {
-  try {
-    const journals = await prisma.journal.findMany({
-      where: {
-        status: "Open"
-      },
-      select: {
-        id: true,
-        name: true,
-        link: true,
-        Publication: true,
-      },
-      cacheStrategy: { ttl: 60 },
-    });
-    if (!journals || journals.length === 0) {
-      return res.status(404).json({ message: 'No Available Journals.' });
-    }
-
-    res.status(200).json({ journal: journals });
-
-  } catch (error) {
-    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
-  }
-});
 app.get('/journal/papers', async (req, res) => {
   const { authorId } = req.query;
 
@@ -2785,78 +2727,166 @@ app.get('/journal/papers', async (req, res) => {
   }
 });
 
+// Helper function to handle text wrapping on the PDF cover page
+const drawWrappedText = (page, text, x, y, maxWidth, font, fontSize) => {
+  if (!text) return y;
+  const words = text.split(' ');
+  let line = '';
+  let currentY = y;
+
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line + words[i] + ' ';
+    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+    
+    if (testWidth > maxWidth && i > 0) {
+      page.drawText(line, { x, y: currentY, size: fontSize, font, color: rgb(0, 0, 0) });
+      line = words[i] + ' ';
+      currentY -= (fontSize + 4); // Move down for the next line
+    } else {
+      line = testLine;
+    }
+  }
+  page.drawText(line, { x, y: currentY, size: fontSize, font, color: rgb(0, 0, 0) });
+  return currentY - (fontSize + 10); // Return the next available Y position
+};
+
 // POST: Save New Paper OR Revision
-app.post('/journal/savepaper', upload.single('pdfFile'), async (req, res) => {
+// CHANGED: Use upload.fields to accept the main pdf and the array of additional documents
+app.post('/journal/savepaper', upload.fields([
+  { name: 'pdfFile', maxCount: 1 }, 
+  { name: 'additionalFiles' } // Can accept multiple files
+]), async (req, res) => {
+  
   // Extract common fields
   const { 
-    id, // Optional: Provided by frontend logic for revisions
+    id, 
     title, 
     abstract, 
-    originalPaperId, // Critical for revisions
-    version, // Optional
-    journalId: jid 
+    originalPaperId, 
   } = req.body;
 
   // Safe parsing
   const keywords = JSON.parse(req.body.keywords || '[]');
   const authorIds = JSON.parse(req.body.authorIds || '[]');
-  const authorIdsInt = authorIds.map(id => parseInt(id, 10));
-  const journalId = jid ? parseInt(jid, 10) : null;
+  const authorIdsInt = authorIds.map(aId => parseInt(aId, 10));
 
-  if (!req.file) return res.status(400).json({ error: 'No PDF uploaded.' });
+  // Extract files from the new Multer structure
+  const pdfFile = req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
+  const additionalFiles = req.files['additionalFiles'] || [];
+
+  if (!pdfFile) return res.status(400).json({ error: 'No PDF uploaded.' });
 
   try {
     // 1. ID Generation Logic
     let finalId = id;
     
-    // If no ID provided (New Paper), generate one: JP_YEAR_XXXX
     if (!finalId) {
-       // Only strictly required for brand new papers. 
-       // If it's a revision, your frontend logic sends the ID.
-       if (!journalId) return res.status(400).json({ error: 'Journal ID required for new papers.' });
-
+       // Just find the latest paper in the whole database
        const lastPaper = await prisma.journalPapers.findFirst({
-         where: { JournalId: journalId },
-         orderBy: { submittedAt: 'desc' } // Better to order by time for ID generation
+         orderBy: { id: 'desc' } 
        });
        
-       // Simple increment logic (you might want a more robust sequence table in prod)
        let nextNum = 1;
-       if (lastPaper && lastPaper.id.includes('_JP')) {
-          const parts = lastPaper.id.split('_JP');
-          if (parts[1]) nextNum = parseInt(parts[1], 10) + 1;
+       
+       // Correctly parse an ID like "JP_2026_0001"
+       if (lastPaper && lastPaper.id && lastPaper.id.startsWith('JP_')) {
+          const parts = lastPaper.id.split('_'); // Splits into ["JP", "2026", "0001"]
+          
+          if (parts.length === 3) {
+             const lastSequence = parts[2]; // Grabs the "0001" part
+             nextNum = parseInt(lastSequence, 10) + 1;
+          }
        }
+       
        const year = new Date().getFullYear();
        finalId = `JP_${year}_${String(nextNum).padStart(4, '0')}`;
     }
 
-    // 2. Upload to Supabase
-    // Separate folders for revisions vs originals? Or keep same 'InReview'?
+    // 2. Fetch Author Names for the Cover Page
+    // Assuming your user table is 'user', adjust if it's named differently in Prisma
+    const authorsData = await prisma.user.findMany({
+      where: { id: { in: authorIdsInt } },
+      select: { id: true, firstname: true, lastname: true }
+    });
+    
+    // Sort to match the order provided by the frontend
+    const authorNamesString = authorIdsInt.map(aId => {
+      const author = authorsData.find(a => a.id === aId);
+      return author ? `${author.firstname} ${author.lastname}` : `Author ${aId}`;
+    }).join(', ');
+
+    // 3. CREATE AND MERGE PDFS
+    const mergedPdf = await PDFDocument.create();
+    
+    // A. Generate Cover Page
+    const coverPage = mergedPdf.addPage();
+    const { width, height } = coverPage.getSize();
+    const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
+    const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
+    
+    let currentY = height - 50;
+    const margin = 50;
+    const maxWidth = width - (margin * 2);
+
+    coverPage.drawText('Submission Overview', { x: margin, y: currentY, size: 20, font: boldFont });
+    currentY -= 40;
+    
+    currentY = drawWrappedText(coverPage, `Paper ID: ${finalId}`, margin, currentY, maxWidth, boldFont, 12);
+    currentY = drawWrappedText(coverPage, `Title: ${title}`, margin, currentY, maxWidth, font, 12);
+    currentY = drawWrappedText(coverPage, `Authors: ${authorNamesString}`, margin, currentY, maxWidth, font, 12);
+    currentY = drawWrappedText(coverPage, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
+    
+    currentY -= 10;
+    coverPage.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
+    currentY -= 20;
+    drawWrappedText(coverPage, abstract, margin, currentY, maxWidth, font, 11);
+
+    // B. Merge Main Paper
+    const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
+    const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+    mainPages.forEach((page) => mergedPdf.addPage(page));
+
+    // C. Merge Additional Documents in Order
+    for (const addFile of additionalFiles) {
+      try {
+        const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+        const extraPages = await mergedPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+        extraPages.forEach((page) => mergedPdf.addPage(page));
+      } catch (fileErr) {
+        console.warn(`Could not merge file ${addFile.originalname}: it might not be a valid PDF.`);
+        // Decide if you want to throw here or just skip invalid non-PDF files
+      }
+    }
+
+    // Save the final merged document to a buffer
+    const mergedPdfBytes = await mergedPdf.save();
+    const finalBuffer = Buffer.from(mergedPdfBytes);
+
+    // 4. Upload to Supabase
+     const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
     const folder = originalPaperId ? `Journals/${originalPaperId}` : `Journals/${finalId}`;
-    const fileName = `${finalId}_${Date.now()}.pdf`;
+    const fileName = `${finalId}_${randomSuffix}.pdf`;
     
     let url;
     try {
-      url = await uploadPdfToSupabase(req.file.buffer, fileName, folder);
+      // Pass the newly created finalBuffer instead of req.file.buffer
+      url = await uploadPdfToSupabase(finalBuffer, fileName, folder);
     } catch (err) {
       return res.status(500).json({ error: 'Upload failed: ' + err.message });
     }
 
-    // 3. Save to DB
+    // 5. Save to DB
     const newPaper = await prisma.journalPapers.create({
       data: {
         id: finalId,
         Title: title,
         Abstract: abstract,
         Keywords: keywords,
-        Status: "Pending Submission", // Or "Under Review"
+        Status: "Pending Submission",
         submittedAt: new Date(),
         URL: url,
         AuthorOrder: authorIdsInt,
-        
-        // Link Relations
-        OriginalPaperId: originalPaperId || null, // Link to parent if revision
-        
+        OriginalPaperId: originalPaperId || null,
         Authors: {
           connect: authorIdsInt.map(id => ({ id }))
         }
@@ -2873,6 +2903,218 @@ app.post('/journal/savepaper', upload.single('pdfFile'), async (req, res) => {
     res.status(500).json({ message: 'Database error', details: error.message });
   }
 });
+
+// POST: Edit Existing Paper (Saves as Draft)
+app.post('/journal/editpaper', upload.fields([
+  { name: 'pdfFile', maxCount: 1 }, 
+  { name: 'additionalFiles' }
+]), async (req, res) => {
+  
+  const { paperId, title, abstract } = req.body;
+
+  if (!paperId) return res.status(400).json({ error: 'Paper ID is required for editing.' });
+
+  // Safe parsing
+  const keywords = JSON.parse(req.body.keywords || '[]');
+  const authorIds = JSON.parse(req.body.authorIds || '[]');
+  const authorIdsInt = authorIds.map(aId => parseInt(aId, 10));
+
+  // Extract files
+  const pdfFile = req.files && req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
+  const additionalFiles = req.files && req.files['additionalFiles'] ? req.files['additionalFiles'] : [];
+
+  try {
+    let updatedUrl = undefined;
+
+    // ONLY regenerate and upload PDF if a new main file is provided
+    if (pdfFile) {
+      const authorsData = await prisma.user.findMany({
+        where: { id: { in: authorIdsInt } },
+        select: { id: true, firstname: true, lastname: true }
+      });
+      
+      const authorNamesString = authorIdsInt.map(aId => {
+        const author = authorsData.find(a => a.id === aId);
+        return author ? `${author.firstname} ${author.lastname}` : `Author ${aId}`;
+      }).join(', ');
+
+      const mergedPdf = await PDFDocument.create();
+      
+      // A. Generate Cover Page
+      const coverPage = mergedPdf.addPage();
+      const { width, height } = coverPage.getSize();
+      const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
+      const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
+      
+      let currentY = height - 50;
+      const margin = 50;
+      const maxWidth = width - (margin * 2);
+
+      coverPage.drawText('Submission Overview', { x: margin, y: currentY, size: 20, font: boldFont });
+      currentY -= 40;
+      
+      currentY = drawWrappedText(coverPage, `Paper ID: ${paperId}`, margin, currentY, maxWidth, boldFont, 12);
+      currentY = drawWrappedText(coverPage, `Title: ${title}`, margin, currentY, maxWidth, font, 12);
+      currentY = drawWrappedText(coverPage, `Authors: ${authorNamesString}`, margin, currentY, maxWidth, font, 12);
+      currentY = drawWrappedText(coverPage, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
+      
+      currentY -= 10;
+      coverPage.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
+      currentY -= 20;
+      drawWrappedText(coverPage, abstract, margin, currentY, maxWidth, font, 11);
+
+      // B. Merge Main Paper
+      const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
+      const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach((page) => mergedPdf.addPage(page));
+
+      // C. Merge Additional Documents
+      for (const addFile of additionalFiles) {
+        try {
+          const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+          const extraPages = await mergedPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+          extraPages.forEach((page) => mergedPdf.addPage(page));
+        } catch (fileErr) {
+          console.warn(`Could not merge file ${addFile.originalname}.`);
+        }
+      }
+
+      const mergedPdfBytes = await mergedPdf.save();
+      const finalBuffer = Buffer.from(mergedPdfBytes);
+
+      // D. Upload to Supabase
+      const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const folder = `Journals/${paperId}`;
+      const fileName = `${paperId}_${randomSuffix}.pdf`;
+      
+      updatedUrl = await uploadPdfToSupabase(finalBuffer, fileName, folder);
+    }
+
+    // Update DB entry
+    const updatedPaper = await prisma.journalPapers.update({
+      where: { id: paperId },
+      data: {
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        AuthorOrder: authorIdsInt,
+        // Using `set` replaces the existing relations with this exact new array
+        Authors: { set: authorIdsInt.map(id => ({ id })) },
+        ...(updatedUrl && { URL: updatedUrl }), // Only update URL field if a new URL was generated
+      },
+      include: { Authors: true } // Return authors for frontend state sync
+    });
+
+    res.status(200).json({ message: 'Paper updated successfully', paper: updatedPaper });
+
+  } catch (error) {
+    console.error("Edit Error:", error);
+    res.status(500).json({ message: 'Database error', details: error.message });
+  }
+});
+
+// POST: Submit Paper for Review (Locks editing)
+app.post('/journal/submitpaper', upload.fields([
+  { name: 'pdfFile', maxCount: 1 }, 
+  { name: 'additionalFiles' }
+]), async (req, res) => {
+  
+  const { paperId, title, abstract } = req.body;
+
+  if (!paperId) return res.status(400).json({ error: 'Paper ID is required for submission.' });
+
+  const keywords = JSON.parse(req.body.keywords || '[]');
+  const authorIds = JSON.parse(req.body.authorIds || '[]');
+  const authorIdsInt = authorIds.map(aId => parseInt(aId, 10));
+
+  const pdfFile = req.files && req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
+  const additionalFiles = req.files && req.files['additionalFiles'] ? req.files['additionalFiles'] : [];
+
+  try {
+    let updatedUrl = undefined;
+
+    if (pdfFile) {
+      const authorsData = await prisma.user.findMany({
+        where: { id: { in: authorIdsInt } },
+        select: { id: true, firstname: true, lastname: true }
+      });
+      
+      const authorNamesString = authorIdsInt.map(aId => {
+        const author = authorsData.find(a => a.id === aId);
+        return author ? `${author.firstname} ${author.lastname}` : `Author ${aId}`;
+      }).join(', ');
+
+      const mergedPdf = await PDFDocument.create();
+      
+      const coverPage = mergedPdf.addPage();
+      const { width, height } = coverPage.getSize();
+      const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
+      const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
+      
+      let currentY = height - 50;
+      const margin = 50;
+      const maxWidth = width - (margin * 2);
+
+      coverPage.drawText('Submission Overview', { x: margin, y: currentY, size: 20, font: boldFont });
+      currentY -= 40;
+      
+      currentY = drawWrappedText(coverPage, `Paper ID: ${paperId}`, margin, currentY, maxWidth, boldFont, 12);
+      currentY = drawWrappedText(coverPage, `Title: ${title}`, margin, currentY, maxWidth, font, 12);
+      currentY = drawWrappedText(coverPage, `Authors: ${authorNamesString}`, margin, currentY, maxWidth, font, 12);
+      currentY = drawWrappedText(coverPage, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
+      
+      currentY -= 10;
+      coverPage.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
+      currentY -= 20;
+      drawWrappedText(coverPage, abstract, margin, currentY, maxWidth, font, 11);
+
+      const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
+      const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach((page) => mergedPdf.addPage(page));
+
+      for (const addFile of additionalFiles) {
+        try {
+          const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+          const extraPages = await mergedPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+          extraPages.forEach((page) => mergedPdf.addPage(page));
+        } catch (fileErr) {
+          console.warn(`Could not merge file ${addFile.originalname}.`);
+        }
+      }
+
+      const mergedPdfBytes = await mergedPdf.save();
+      const finalBuffer = Buffer.from(mergedPdfBytes);
+
+      const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const folder = `Journals/${paperId}`;
+      const fileName = `${paperId}_${randomSuffix}.pdf`;
+      
+      updatedUrl = await uploadPdfToSupabase(finalBuffer, fileName, folder);
+    }
+
+    // Update DB entry and CHANGE STATUS
+    const updatedPaper = await prisma.journalPapers.update({
+      where: { id: paperId },
+      data: {
+        Title: title,
+        Abstract: abstract,
+        Keywords: keywords,
+        AuthorOrder: authorIdsInt,
+        Authors: { set: authorIdsInt.map(id => ({ id })) },
+        ...(updatedUrl && { URL: updatedUrl }),
+        Status: "Under Review", // Locks the paper from further editing
+      },
+      include: { Authors: true }
+    });
+
+    res.status(200).json({ message: 'Paper submitted for review', paper: updatedPaper });
+
+  } catch (error) {
+    console.error("Submit Error:", error);
+    res.status(500).json({ message: 'Database error', details: error.message });
+  }
+});
+
 
 
 app.get('/journal/getpaperbyid/:paperId', async (req, res) => {

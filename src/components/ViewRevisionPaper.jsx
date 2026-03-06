@@ -31,9 +31,9 @@ const getStatusBadge = (status) => {
 
     if (s.includes("accept")) {
         badgeClasses += "bg-green-100 text-green-700";
-    } else if (s.includes("reject")) {
+    } else if (s.includes("reject") || s.includes("declined")) {
         badgeClasses += "bg-red-100 text-red-700";
-    } else if (s==="revision required") {
+    } else if (s==="revision required" || s.includes("sent back")) {
         badgeClasses += "bg-orange-100 text-orange-700";
     } else if (s.includes("pending")) {
         badgeClasses += "bg-red-100 text-red-700";
@@ -65,7 +65,12 @@ export default function ViewRevisionPaper() {
     const [abstract, setAbstract] = useState("");
     const [keywords, setKeywords] = useState("");
     const [authors, setAuthors] = useState([]);
+    
+    // --- File Upload State ---
     const [pdfFile, setPdfFile] = useState(null);
+    const [responseSheetFile, setResponseSheetFile] = useState(null); // Response to Reviewers
+    const [previousPaperFile, setPreviousPaperFile] = useState(null); // NEW: Previous/Marked-up Paper
+    const [additionalFiles, setAdditionalFiles] = useState([]); 
 
     // --- Invite Form State ---
     const [showInviteForm, setShowInviteForm] = useState(false);
@@ -89,7 +94,6 @@ export default function ViewRevisionPaper() {
                 if (!response.ok) throw new Error("Failed to fetch paper details.");
                 const data = await response.json();
                 setPaper(data.paper);
-                console.log("Fetched Paper Data:", data.paper);
                 const editable = data.paper.Status === 'Pending Submission';
                 setIsEditable(editable);
 
@@ -169,6 +173,19 @@ export default function ViewRevisionPaper() {
         } catch (error) { alert(`Error: ${error.message}`); }
     };
 
+    // --- Additional Files Handlers ---
+    const handleAddAdditionalFile = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setAdditionalFiles(prev => [...prev, file]);
+            e.target.value = null; 
+        }
+    };
+    const handleRemoveAdditionalFile = (indexToRemove) => {
+        setAdditionalFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+    };
+
+    // --- Submission Logics ---
     const handleUpdatePaper = async (e) => {
         e.preventDefault();
         const formData = new FormData();
@@ -177,7 +194,25 @@ export default function ViewRevisionPaper() {
         formData.append('abstract', abstract);
         formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
         formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
+        
         if (pdfFile) formData.append('pdfFile', pdfFile);
+
+        // Append Response Sheet FIRST
+        if (responseSheetFile) {
+            formData.append('additionalFiles', responseSheetFile);
+        }
+
+        // Append Previous Paper SECOND
+        if (previousPaperFile) {
+            formData.append('additionalFiles', previousPaperFile);
+        }
+
+        // Then append the rest of the additional documents
+        if (additionalFiles && additionalFiles.length > 0) {
+            additionalFiles.forEach((file) => {
+                formData.append('additionalFiles', file); 
+            });
+        }
 
         try {
             const response = await fetch(`http://localhost:3001/journal/editpaper`, { method: 'POST', body: formData });
@@ -186,22 +221,43 @@ export default function ViewRevisionPaper() {
             setPaper(data.paper);
             setAuthors(data.paper.Authors || []);
             setKeywords(data.paper.Keywords.join(', '));
-            alert('Paper saved!');
+            alert('Draft saved!');
+            
+            // Clear files out
             setPdfFile(null);
+            setResponseSheetFile(null);
+            setPreviousPaperFile(null);
+            setAdditionalFiles([]); 
         } catch (error) { alert(`Error: ${error.message}`); }
         navigate('/journal');
     };
 
     const handleSubmitForReview = async (e) => {
         e.preventDefault();
-        if (!window.confirm("Submit paper?")) return;
+        
+        if (!pdfFile && !paper.URL) {
+            return alert("Please upload the Revised Manuscript (PDF) before submitting.");
+        }
+
+        if (!window.confirm("Submit revision for review? Once submitted, you cannot edit this version.")) return;
+        
         const formData = new FormData();
         formData.append('paperId', paperId);
         formData.append('title', title);
         formData.append('abstract', abstract);
         formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
         formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
+        
         if (pdfFile) formData.append('pdfFile', pdfFile);
+
+        if (responseSheetFile) formData.append('additionalFiles', responseSheetFile);
+        if (previousPaperFile) formData.append('additionalFiles', previousPaperFile);
+
+        if (additionalFiles && additionalFiles.length > 0) {
+            additionalFiles.forEach((file) => {
+                formData.append('additionalFiles', file); 
+            });
+        }
 
         try {
             const response = await fetch(`http://localhost:3001/journal/submitpaper`, { method: 'POST', body: formData });
@@ -209,7 +265,12 @@ export default function ViewRevisionPaper() {
             const data = await response.json();
             setPaper(data.paper);
             setIsEditable(false);
-            alert('Submitted!');
+            
+            setPdfFile(null);
+            setResponseSheetFile(null);
+            setPreviousPaperFile(null);
+            setAdditionalFiles([]);
+            alert('Revision Submitted!');
         } catch (error) { alert(`Error: ${error.message}`); }
         navigate('/journal');
     };
@@ -226,6 +287,7 @@ export default function ViewRevisionPaper() {
         setloginStatus(false);
         navigate("/home");
     };
+    
     // Header Logic
     const Header = ({ user }) => {
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -307,7 +369,7 @@ export default function ViewRevisionPaper() {
                             ← Back to Main Paper
                         </button>
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-[#1f2937]">Paper Details</h3>
+                            <h3 className="text-lg font-semibold text-[#1f2937]">Revision Details</h3>
                             {getStatusBadge(paper.Status)}
                         </div>
                         <form className="space-y-4">
@@ -329,7 +391,7 @@ export default function ViewRevisionPaper() {
                                                                 <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
                                                                     <div {...prov.dragHandleProps} className="cursor-grab text-[#6b7280]">☰</div>
                                                                     <div className="flex-1"><CompactAuthorCard author={a} /></div>
-                                                                    <button type="button" onClick={() => handleRemoveAuthor(i)} className="text-red-600 text-sm">Remove</button>
+                                                                    <button type="button" onClick={() => handleRemoveAuthor(i)} className="text-red-600 text-sm border border-red-200 px-2 py-1 rounded hover:bg-red-50">Remove</button>
                                                                 </div>
                                                             )}
                                                         </Draggable>
@@ -374,10 +436,50 @@ export default function ViewRevisionPaper() {
                                             </div>
                                         </div>
                                     )}
-                                    <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20 mt-4" />
+                                    
+                                    {/* --- MAIN REVISED PAPER --- */}
+                                    <div className="pt-4 border-t border-[#e5e7eb] mt-4">
+                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">1. Revised Manuscript (Clean PDF)</label>
+                                        <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
+                                    </div>
+
+                                    {/* --- RESPONSE TO REVIEWERS --- */}
+                                    <div className="pt-2 mt-2">
+                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">2. Response to Reviewers (PDF)</label>
+                                        <input type="file" onChange={(e) => setResponseSheetFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#f59e0b]/10 file:text-[#f59e0b] hover:file:bg-[#f59e0b]/20" />
+                                        <p className="text-[11px] text-gray-500 mt-1">Please provide a document detailing your answers to the reviewers' comments.</p>
+                                    </div>
+
+                                    {/* --- PREVIOUS / MARKED-UP PAPER --- */}
+                                    <div className="pt-2 mt-2">
+                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">3. Previous/Marked-up Manuscript (PDF)</label>
+                                        <input type="file" onChange={(e) => setPreviousPaperFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#8b5cf6]/10 file:text-[#8b5cf6] hover:file:bg-[#8b5cf6]/20" />
+                                        <p className="text-[11px] text-gray-500 mt-1">Upload the previous version of the paper with tracked changes or highlights.</p>
+                                    </div>
+
+                                    {/* --- OTHER ADDITIONAL DOCUMENTS --- */}
+                                    <div className="pt-2 mt-2">
+                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">4. Other Additional Documents</label>
+                                        <p className="text-[11px] text-[#6b7280] mb-2">Upload any other supporting documents one by one.</p>
+                                        
+                                        {additionalFiles.length > 0 && (
+                                            <div className="mb-3 space-y-2">
+                                                {additionalFiles.map((file, i) => (
+                                                    <div key={i} className="flex items-center justify-between p-2 text-sm border border-[#e5e7eb] rounded-md bg-white shadow-sm">
+                                                        <span className="font-medium text-[#1f2937] truncate flex-1">
+                                                            <span className="text-[#3b82f6] mr-2 font-bold">{i + 1}.</span> {file.name}
+                                                        </span>
+                                                        <button type="button" onClick={() => handleRemoveAdditionalFile(i)} className="ml-3 px-2 py-1 text-[10px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors">Remove</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <input type="file" onChange={handleAddAdditionalFile} className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#3b82f6]/10 file:text-[#3b82f6] hover:file:bg-[#3b82f6]/20 cursor-pointer" />
+                                    </div>
+
                                     <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
-                                        <button onClick={handleUpdatePaper} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
-                                        <button onClick={handleSubmitForReview} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit</button>
+                                        <button onClick={handleUpdatePaper} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Draft</button>
+                                        <button onClick={handleSubmitForReview} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit Revision</button>
                                         <button onClick={() => navigate('/journal/paper/'+paper.OriginalPaperId)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
                                     </div>
                                 </>
