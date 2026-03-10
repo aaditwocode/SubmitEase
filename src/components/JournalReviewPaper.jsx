@@ -470,8 +470,8 @@ export default function JournalReviewPaper() {
     // 1. Configuration: Maps DB Role Strings -> Frontend Routes
     const ROLE_CONFIG = {
       "Author": { label: "Author", path: "/journal" },
-      "Journal Host": { label: "Journal Host", path: "/journal/editor" },
-      "Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
+      "Journal Editor": { label: "Editor", path: "/journal/editor" },
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
     };
   
     // 2. Filter options based on the current user's roles

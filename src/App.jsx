@@ -180,7 +180,7 @@ function App() {
             element={<ProtectedRoute><JournalManageReviews /></ProtectedRoute>}
           />
           <Route
-            path="/journal/ReviewPaper"
+            path="/journal/ReviewPaper/:paperId"
             element={<ProtectedRoute><JournalReviewPaper /></ProtectedRoute>}
           />
         </Routes>

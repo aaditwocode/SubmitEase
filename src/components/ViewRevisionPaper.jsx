@@ -294,8 +294,10 @@ export default function ViewRevisionPaper() {
         const navigate = useNavigate();
       
         const ROLE_CONFIG = {
-          "Author": { label: "Author", path: "/journal" },
-        };
+      "Author": { label: "Author", path: "/journal" },
+      "Journal Editor": { label: "Editor", path: "/journal/editor" },
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
+    };
       
         const availablePortals = useMemo(() => {
           if (!user || !user.role || !Array.isArray(user.role)) return [];

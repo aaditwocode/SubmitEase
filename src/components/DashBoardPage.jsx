@@ -8,6 +8,7 @@ export default function DashBoardPage() {
   const { user, setUser } = useUserData();
   const [activePortal, setActivePortal] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
   const navigate = useNavigate();
 
   const goToProfile = () => {
@@ -23,6 +24,7 @@ export default function DashBoardPage() {
   
   const Header = ({ user }) => { // <--- Receive user object here
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDropdownOpenJournal, setIsDropdownOpenJournal] = useState(false);
   const handleLogout = () => {
     console.log("[v0] Logging out user");
     setUser(null);
@@ -42,6 +44,12 @@ export default function DashBoardPage() {
     "Registration Chair": { label: "Registration Chair", path: "/conference/manage/registrationchair" }
   };
 
+  const ROLE_CONFIG_JOURNAL = {
+      "Author": { label: "Author", path: "/journal" },
+      "Journal Editor": { label: "Editor", path: "/journal/editor" },
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
+    };
+
   // 2. Filter options based on the current user's roles
   const availablePortalOptions = useMemo(() => {
     if (!user || !user.role || !Array.isArray(user.role)) return [];
@@ -50,6 +58,16 @@ export default function DashBoardPage() {
     // (e.g. if the user has a role 'Admin' that isn't in the conference portal list)
     return user.role
       .map(roleString => ROLE_CONFIG[roleString])
+      .filter(Boolean); // Removes undefined entries
+  }, [user]);
+
+  const availablePortalOptionsJournal = useMemo(() => {
+    if (!user || !user.role || !Array.isArray(user.role)) return [];
+
+    // Map the user's roles to the config objects, filtering out any undefined ones
+    // (e.g. if the user has a role 'Admin' that isn't in the conference portal list)
+    return user.role
+      .map(roleString => ROLE_CONFIG_JOURNAL[roleString])
       .filter(Boolean); // Removes undefined entries
   }, [user]);
 
@@ -71,12 +89,54 @@ export default function DashBoardPage() {
 
         {/* Right side - Portal buttons and logout */}
         <div className="flex items-center space-x-4">
-          <button
-            onClick={() => handlePortalClick("journal")}
-            className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90 transition-colors"
-          >
-            Journal Portal
-          </button>
+          {/* Journal Portal Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsDropdownOpenJournal(!isDropdownOpenJournal)}
+              onBlur={() => setTimeout(() => setIsDropdownOpenJournal(false), 200)}
+              disabled={availablePortalOptionsJournal.length === 0} // Disable if user has no journal roles
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center gap-2 
+                ${availablePortalOptionsJournal.length === 0 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-[#059669] hover:bg-[#059669]/90'}`
+              }
+            >
+              Journal Portal
+              {availablePortalOptionsJournal.length > 0 && (
+                <svg 
+                  className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpenJournal ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+            </button>
+
+            {/* Only show dropdown if open AND there are options */}
+            {isDropdownOpenJournal && availablePortalOptionsJournal.length > 0 && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
+                <h2 className="text-xs font-bold text-[#9ca3af] uppercase tracking-wider mb-2 px-4 py-1">
+                  Sign in as
+                </h2>
+                
+                {availablePortalOptionsJournal.map((option, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      // navigate(option.path);
+                      navigate(option.path);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669] transition-colors"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           
           {/* Conference Portal Dropdown */}
           <div className="relative">

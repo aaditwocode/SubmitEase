@@ -546,8 +546,9 @@ export default function EditorPortal() {
     const navigate = useNavigate();
   
     const ROLE_CONFIG = {
-      "Editor": { label: "Editor", path: "/journal/editor" },
       "Author": { label: "Author", path: "/journal" },
+      "Journal Editor": { label: "Editor", path: "/journal/editor" },
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
     };
   
     const availablePortals = useMemo(() => {

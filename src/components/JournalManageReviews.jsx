@@ -164,7 +164,7 @@ const ReviewList = ({ reviews, navigate }) => {
                                     <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(review.submittedAt)}</td>
                                     <td className="py-3 px-4">
                                         <div className="flex justify">
-                                            <button onClick={() => navigate(`/ReviewPaper/${review.Paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                                            <button onClick={() => navigate(`/journal/ReviewPaper/${review.Paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
                                                 View
                                             </button>
                                         </div>
@@ -428,7 +428,7 @@ const PendingReviewList = ({ reviews, navigate }) => {
                                 </td>
                                 <td className="py-3 px-4">
                                     <div className="flex justify-center">
-                                        <button onClick={() => navigate(`/ReviewPaper/${review.Paper.id}`)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap text-sm">
+                                        <button onClick={() => navigate(`/journal/ReviewPaper/${review.Paper.id}`)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap text-sm">
                                             Review Now
                                         </button>
                                     </div>
@@ -457,8 +457,8 @@ const Header = ({ user }) => {
   
     const ROLE_CONFIG = {
       "Author": { label: "Author", path: "/journal" },
-      "Journal Host": { label: "Journal Host", path: "/journal/editor" },
-      "Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
+      "Journal Editor": { label: "Editor", path: "/journal/editor" },
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
     };
   
     const availablePortals = useMemo(() => {
@@ -485,15 +485,6 @@ const Header = ({ user }) => {
               </div>
               <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             </div>
-  
-            <nav className="hidden items-center md:flex">
-              <button 
-                onClick={() => navigate('/journal')}
-                className="text-sm font-medium text-[#6b7280] transition-colors hover:text-[#059669] hover:bg-green-50 px-3 py-2 rounded-md"
-              >
-                Browse Journals
-              </button>
-            </nav>
           </div>
   
           <div className="flex items-center gap-3">
