@@ -1,40 +1,40 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import HomePage from './components/homePage'; // Your first page
-import SignInPage from './components/SignInPage'; // The page you want to navigate to
-import SignUpPage from './components/SignUpPage';
-import DashBoardPage from './components/DashBoardPage';
-import ConferencePortal from './components/ConferencePortal';
-import { UserProvider } from './components/UserContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import ManageConferencesPage_ChiefChair from './components/ManageConferences_ChiefChair';
-import ManageConferencesPage_TrackChair from './components/ManageConferences_TrackChair';
-import ManageConferencesPage_PublicationChair from './components/ManageConferences_PublicationChair';
-import ManageConferencesPage_RegistrationChair from './components/ManageConferences_RegistrationChair';
-import ConferenceRegistration from './components/ConferenceRegistration';
-import ViewPaper from './components/ViewPaper';
-import PaperDecision from './components/PaperDecision';
-import ReviewPaper from './components/ReviewPaper';
-import ManageReviews from './components/ManageReviews';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import HomePage from "./components/homePage"; // Your first page
+import SignInPage from "./components/SignInPage"; // The page you want to navigate to
+import SignUpPage from "./components/SignUpPage";
+import DashBoardPage from "./components/DashBoardPage";
+import ConferencePortal from "./components/ConferencePortal";
+import { UserProvider } from "./components/UserContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import ManageConferencesPage_ChiefChair from "./components/ManageConferences_ChiefChair";
+import ManageConferencesPage_TrackChair from "./components/ManageConferences_TrackChair";
+import ManageConferencesPage_PublicationChair from "./components/ManageConferences_PublicationChair";
+import ManageConferencesPage_RegistrationChair from "./components/ManageConferences_RegistrationChair";
+import ConferenceRegistration from "./components/ConferenceRegistration";
+import ViewPaper from "./components/ViewPaper";
+import PaperDecision from "./components/PaperDecision";
+import ReviewPaper from "./components/ReviewPaper";
+import ManageReviews from "./components/ManageReviews";
 
-import RegistrationChairPortal from './components/registrationChair';
-import ConferenceDetails_ChiefChair from './components/ConferenceDetails_ChiefChair';
-import ConferenceDetails_TrackChair from './components/ConferemceDetails_TrackChair';
-import PublicationChairPortal from './components/PublicationChair';
+import RegistrationChairPortal from "./components/registrationChair";
+import ConferenceDetails_ChiefChair from "./components/ConferenceDetails_ChiefChair";
+import ConferenceDetails_TrackChair from "./components/ConferemceDetails_TrackChair";
+import PublicationChairPortal from "./components/PublicationChair";
 
+import EditorPortal from "./components/JournalEditor";
+import JournalPortal from "./components/JournalPortal";
+import ViewJournalPaper from "./components/ViewJournalPaper";
+import ViewRevisionPaper from "./components/ViewRevisionPaper";
 
-import EditorPortal from './components/JournalEditor';
-import JournalPortal from './components/JournalPortal';
-import ViewJournalPaper from './components/ViewJournalPaper';
-import ViewRevisionPaper from './components/ViewRevisionPaper';
+import JournalManageReviews from "./components/JournalManageReviews";
+import JournalReviewPaper from "./components/JournalReviewPaper";
 
-
-import JournalManageReviews from './components/JournalManageReviews';
-import JournalReviewPaper from './components/JournalReviewPaper';
-
-import AdminDashboard from './components/AdminDashboard';
-import AdminConferences from './components/Admin_ConferenceManagement';
-import AdminJournal from './components/Admin_JournalManagement';
-import EIC from './components/EIC_dashboard.jsx';
+import AdminDashboard from "./components/AdminDashboard";
+import AdminConferences from "./components/Admin_ConferenceManagement";
+import AdminJournal from "./components/Admin_JournalManagement";
+import EIC from "./components/EIC_dashboard.jsx";
+import JournalEditorPaperDetails from "./components/JournalEditorPaperDetails.jsx";
+import JournalEditorRevisionDetails from "./components/JournalEditorRevisionDetails.jsx";
 function App() {
   return (
     <UserProvider>
@@ -118,7 +118,7 @@ function App() {
             }
           />
           <Route
-            path='/conference/manage/trackchair'
+            path="/conference/manage/trackchair"
             element={
               <ProtectedRoute>
                 <ManageConferencesPage_TrackChair />
@@ -126,7 +126,7 @@ function App() {
             }
           />
           <Route
-            path='/conference/manage/publicationchair'
+            path="/conference/manage/publicationchair"
             element={
               <ProtectedRoute>
                 <ManageConferencesPage_PublicationChair />
@@ -134,7 +134,7 @@ function App() {
             }
           />
           <Route
-            path='/conference/manage/registrationchair'
+            path="/conference/manage/registrationchair"
             element={
               <ProtectedRoute>
                 <ManageConferencesPage_RegistrationChair />
@@ -147,70 +147,122 @@ function App() {
               <ProtectedRoute>
                 <ConferenceDetails_ChiefChair />
               </ProtectedRoute>
-            
-              }
+            }
           />
           <Route
             path="/conference/manage/trackpapers/:hashedConId"
             element={
-            <ProtectedRoute>
-              <ConferenceDetails_TrackChair />
-            </ProtectedRoute>}
+              <ProtectedRoute>
+                <ConferenceDetails_TrackChair />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/conference/manage/publication/:hashedConId"
             element={
-            <ProtectedRoute>
-              <PublicationChairPortal />
-            </ProtectedRoute>}
+              <ProtectedRoute>
+                <PublicationChairPortal />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/conference/manage/registration/:hashedConId"
-            element={<ProtectedRoute><RegistrationChairPortal /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <RegistrationChairPortal />
+              </ProtectedRoute>
+            }
           />
-           <Route
+          <Route
             path="/journal/paper/:paperId"
-            element={<ProtectedRoute><ViewJournalPaper /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <ViewJournalPaper />
+              </ProtectedRoute>
+            }
           />
-           <Route
+          <Route
             path="/journal/editor"
-            element={<ProtectedRoute><EditorPortal /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <EditorPortal />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/journal/revision/:paperId"
-            element={<ProtectedRoute><ViewRevisionPaper /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <ViewRevisionPaper />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/journal/ManageReviews"
-            element={<ProtectedRoute><JournalManageReviews /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <JournalManageReviews />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/journal/ReviewPaper/:paperId"
-            element={<ProtectedRoute><JournalReviewPaper /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <JournalReviewPaper />
+              </ProtectedRoute>
+            }
           />
 
           <Route
             path="/admin/dashboard"
-            element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/admin/conferences"
-            element={<ProtectedRoute><AdminConferences /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <AdminConferences />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/admin/journal"
-            element={<ProtectedRoute><AdminJournal /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <AdminJournal />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/eic/dashboard"
-            element={<ProtectedRoute><EIC /></ProtectedRoute>}
+            element={
+              <ProtectedRoute>
+                <EIC />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/journal/editor/paper/:paperId"
+            element={
+              <ProtectedRoute>
+                <JournalEditorPaperDetails />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/journal/editor/revision/:paperId"
+            element={
+              <ProtectedRoute>
+                <JournalEditorRevisionDetails />
+              </ProtectedRoute>
+            }
           />
         </Routes>
-       
-      
-
-
-        
       </BrowserRouter>
     </UserProvider>
   );

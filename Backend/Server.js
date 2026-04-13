@@ -3068,6 +3068,25 @@ app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
   }
 });
 
+// --- Add this new route to Server.js ---
+app.get("/journal/getrevisionbyid/:revisionId", async (req, res) => {
+  try {
+    const { revisionId } = req.params;
+    const revision = await Revision.findOne({
+      where: { id: revisionId }
+    });
+
+    if (!revision) {
+      return res.status(404).json({ message: "Revision not found" });
+    }
+
+    res.json({ revision });
+  } catch (error) {
+    console.error("Error fetching revision:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ==================== JOURNAL-SPECIFIC ENDPOINTS ====================
 
 app.post('/journal/get-your-reviews', async (req, res) => {
