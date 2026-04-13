@@ -30,6 +30,10 @@ import ViewRevisionPaper from './components/ViewRevisionPaper';
 
 import JournalManageReviews from './components/JournalManageReviews';
 import JournalReviewPaper from './components/JournalReviewPaper';
+
+import AdminDashboard from './components/AdminDashboard';
+import AdminConferences from './components/Admin_ConferenceManagement';
+import AdminJournal from './components/Admin_JournalManagement';
 function App() {
   return (
     <UserProvider>
@@ -182,6 +186,19 @@ function App() {
           <Route
             path="/journal/ReviewPaper/:paperId"
             element={<ProtectedRoute><JournalReviewPaper /></ProtectedRoute>}
+          />
+
+          <Route
+            path="/admin/dashboard"
+            element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>}
+          />
+          <Route
+            path="/admin/conferences"
+            element={<ProtectedRoute><AdminConferences /></ProtectedRoute>}
+          />
+          <Route
+            path="/admin/journal"
+            element={<ProtectedRoute><AdminJournal /></ProtectedRoute>}
           />
         </Routes>
        

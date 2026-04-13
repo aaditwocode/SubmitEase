@@ -590,7 +590,7 @@ app.get('/conferences', async (req, res) => {
   }
 });
 
-// Get single conference by id
+// Replace your existing /get-conference-by-id endpoint with this:
 app.post('/get-conference-by-id', async (req, res) => {
   try {
     const { conferenceId } = req.body;
@@ -607,30 +607,22 @@ app.post('/get-conference-by-id', async (req, res) => {
         status: true,
         Partners: true,
         hostID: true,
+        host: {
+          select: { firstname: true, lastname: true, email: true, organisation: true }
+        },
         PublicationChairs: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true,
-            organisation: true,
-            expertise: true,
-          }
+          select: { id: true, firstname: true, lastname: true, email: true, organisation: true, expertise: true }
         },
         RegistrationChairs: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true,
-            organisation: true,
-            expertise: true,
-          }
+          select: { id: true, firstname: true, lastname: true, email: true, organisation: true, expertise: true }
         },
         Tracks: {
           select: {
             id: true,
             Name: true,
+            Chairs: {
+              select: { id: true, firstname: true, lastname: true, email: true, organisation: true }
+            }
           }
         }
       },
@@ -3213,6 +3205,392 @@ app.post('/journal/reviewInvitationResponse', async (req, res) => {
     return res.status(500).json({ message: "Failed to update journal review invitation response." });
   }
 });
+
+
+
+// ==================== GLOBAL ADMIN ENDPOINTS ====================
+
+// 1. Get Global Dashboard Statistics
+// Replace the existing /admin/global-stats endpoint in Server.js
+app.get('/admin/global-stats', async (req, res) => {
+  try {
+    const totalConferences = await prisma.conference.count();
+    const activeConferences = await prisma.conference.count({ where: { status: 'Open' } });
+    const pendingConferences = await prisma.conference.count({ where: { status: 'Pending Approval' } });
+    const closedConferences = await prisma.conference.count({ where: { status: 'Closed' } });
+    
+    const totalUsers = await prisma.user.count();
+    const totalAuthors = await prisma.user.count({ where: { role: { has: 'Author' } } });
+    const totalReviewers = await prisma.user.count({ where: { role: { has: 'Reviewer' } } });
+    
+    // FIX: Only count base manuscripts (OriginalPaperId: null) that are NOT drafts
+    const totalJournalPapers = await prisma.journalPapers.count({
+      where: { 
+        Status: { not: 'Pending Submission' },
+        OriginalPaperId: null 
+      }
+    });
+    
+    // FIX: Only count base papers that are accepted, or their LATEST revision is accepted
+    const acceptedJournalPapers = await prisma.journalPapers.count({ 
+      where: { 
+        Status: 'Accepted',
+        OriginalPaperId: null 
+      } 
+    });
+
+    const totalConferencePapers = await prisma.paper.count({
+      where: { Status: { not: 'Pending Submission' } }
+    });
+
+    // Fetch Recent Activity
+    const recentConferences = await prisma.conference.findMany({
+        take: 5,
+        orderBy: { id: 'desc' },
+        select: { id: true, name: true, status: true, startsAt: true }
+    });
+
+    const recentUsers = await prisma.user.findMany({
+        take: 5,
+        orderBy: { id: 'desc' },
+        select: { id: true, firstname: true, lastname: true, email: true, role: true }
+    });
+
+    res.status(200).json({
+      conferences: { total: totalConferences, active: activeConferences, pending: pendingConferences, closed: closedConferences },
+      users: { total: totalUsers, authors: totalAuthors, reviewers: totalReviewers },
+      papers: { journalTotal: totalJournalPapers, journalAccepted: acceptedJournalPapers, conferenceTotal: totalConferencePapers },
+      recentActivity: { conferences: recentConferences, users: recentUsers }
+    });
+  } catch (error) {
+    console.error("Global stats error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Get Conferences Awaiting Approval or Updates
+app.get('/admin/conferences/pending', async (req, res) => {
+  try {
+    const newPending = await prisma.conference.findMany({
+      where: { status: 'Pending Approval' },
+      include: { host: { select: { firstname: true, lastname: true, email: true } } }
+    });
+    
+    // Assuming 'Pending Update' is the status for old conferences needing change approvals
+    const updatePending = await prisma.conference.findMany({
+      where: { status: 'Pending Update' },
+      include: { host: { select: { firstname: true, lastname: true, email: true } } }
+    });
+
+    res.status(200).json({ newPending, updatePending });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Approve Conference
+// 3. Approve Conference (Updated with Email Notification)
+app.post('/admin/conferences/approve', async (req, res) => {
+  const { conferenceId } = req.body;
+  
+  try {
+    // 1. Update the conference status to 'Open' AND include the host to get their email
+    const updatedConference = await prisma.conference.update({
+      where: { id: parseInt(conferenceId, 10) },
+      data: { status: 'Open' },
+      include: { 
+        host: { 
+          select: { firstname: true, lastname: true, email: true } 
+        } 
+      }
+    });
+
+    // 2. Draft and send the email to the Conference Host
+    if (updatedConference.host && updatedConference.host.email) {
+      const hostName = `${updatedConference.host.firstname} ${updatedConference.host.lastname}`;
+      const subject = `Your Conference "${updatedConference.name}" has been Approved! - SubmitEase`;
+      
+      const htmlMessage = `
+        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #059669; padding: 20px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Conference Approved</h1>
+          </div>
+          <div style="padding: 24px; background-color: #f9fafb;">
+            <p style="font-size: 16px;">Dear <strong>${hostName}</strong>,</p>
+            <p style="font-size: 16px; line-height: 1.5;">We are pleased to inform you that your requested conference, <strong>${updatedConference.name}</strong>, has been officially reviewed and approved by the SubmitEase administration team.</p>
+            
+            <div style="background-color: #ffffff; padding: 15px; border-left: 4px solid #059669; margin: 20px 0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <h3 style="margin-top: 0; color: #1f2937; font-size: 16px;">Event Details</h3>
+              <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #374151;">
+                <li style="margin-bottom: 8px;"><strong>Location:</strong> ${updatedConference.location}</li>
+                <li><strong>Start Date:</strong> ${new Date(updatedConference.startsAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</li>
+              </ul>
+            </div>
+
+            <p style="font-size: 16px; line-height: 1.5;">Your conference status is now marked as <strong>Open</strong>. You may now access the Conference Portal to manage paper submissions, invite committee members, and finalize your event tracks.</p>
+            
+            <p style="font-size: 14px; color: #6b7280; margin-top: 30px; border-top: 1px solid #e5e7eb; pt-4;">
+              Best regards,<br/>
+              <strong>The SubmitEase Platform Admin</strong>
+            </p>
+          </div>
+        </div>
+      `;
+
+      // Use your existing sendMail function
+      sendMail(updatedConference.host.email, subject, htmlMessage);
+    }
+
+    res.status(200).json({ message: "Conference approved and notification email sent.", conference: updatedConference });
+  } catch (error) {
+    console.error("Error approving conference and sending email:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. Detailed Conference Statistics
+app.get('/admin/conferences/stats', async (req, res) => {
+  try {
+    const stats = await prisma.conference.findMany({
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        _count: {
+          select: { Paper: true, Tracks: true, Reviewers: true }
+        }
+      }
+    });
+    res.status(200).json({ stats });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Journal EiC Management
+app.get('/admin/journal/eic', async (req, res) => {
+  try {
+    const eic = await prisma.user.findFirst({
+      where: { JournalRole: { has: 'Editor-in-Chief' } },
+      select: { id: true, firstname: true, lastname: true, email: true, organisation: true }
+    });
+    res.status(200).json({ eic });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Journal Accepted Papers
+app.get('/admin/journal/accepted-papers', async (req, res) => {
+  try {
+    const papers = await prisma.journalPapers.findMany({
+      where: { Status: 'Accepted' },
+      select: {
+        id: true,
+        Title: true,
+        submittedAt: true,
+        URL: true,
+        Authors: { select: { firstname: true, lastname: true } }
+      }
+    });
+    res.status(200).json({ papers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. Detailed Journal Statistics
+app.get('/admin/journal/stats', async (req, res) => {
+  try {
+    // FIX: Exclude drafts AND only count base manuscripts (not revision history rows)
+    const totalPapers = await prisma.journalPapers.count({
+      where: { 
+        Status: { not: 'Pending Submission' },
+        OriginalPaperId: null
+      }
+    });
+    
+    // NOTE: If you want to count a paper as "Accepted" even if it was a revision that got accepted, 
+    // you might need a slightly more complex query or assume the base paper's status is updated to 'Accepted'.
+    // Assuming the base paper's Status reflects the final verdict:
+    const acceptedPapers = await prisma.journalPapers.count({ 
+      where: { Status: 'Accepted', OriginalPaperId: null } 
+    });
+    
+    const underReview = await prisma.journalPapers.count({ 
+      where: { Status: 'Under Review', OriginalPaperId: null } 
+    });
+    
+    const rejectedPapers = await prisma.journalPapers.count({ 
+      where: { Status: 'Rejected', OriginalPaperId: null } 
+    });
+    
+    const revisions = await prisma.journalPapers.count({ 
+      where: { Status: { contains: 'Revision' }, OriginalPaperId: null } 
+    });
+
+    const totalReviews = await prisma.journalReviews.count();
+
+    res.status(200).json({
+      papers: { 
+        total: totalPapers, 
+        accepted: acceptedPapers, 
+        underReview: underReview,
+        revisions: revisions,
+        rejected: rejectedPapers
+      },
+      reviews: { total: totalReviews }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// POST: Change Journal Editor-in-Chief
+// POST: Change Journal Editor-in-Chief (With Safety Check for Same User)
+app.post('/admin/journal/change-eic', async (req, res) => {
+  const { newEicId, newUser } = req.body;
+
+  if (!newEicId && !newUser) {
+    return res.status(400).json({ message: "Either an existing user ID or new user details are required." });
+  }
+
+  const generateRandomPassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  try {
+    // 1. Identify current EiC
+    const currentEic = await prisma.user.findFirst({
+      where: { JournalRole: { has: 'Editor-in-Chief' } }
+    });
+
+    // ==========================================
+    // 🛑 NEW SAFETY CHECK: Prevent accidental re-assignments
+    // ==========================================
+    if (currentEic) {
+      if (newEicId && currentEic.id === parseInt(newEicId, 10)) {
+        return res.status(400).json({ message: "This user is already the Editor-in-Chief. No changes made." });
+      }
+      if (newUser && currentEic.email === newUser.email) {
+        return res.status(400).json({ message: "This email belongs to the current Editor-in-Chief. No changes made." });
+      }
+    }
+
+    // 2. Remove the old EiC role and send removal email
+    if (currentEic) {
+      const updatedRoles = currentEic.JournalRole.filter(role => role !== 'Editor-in-Chief');
+      await prisma.user.update({
+        where: { id: currentEic.id },
+        data: { JournalRole: updatedRoles }
+      });
+
+      // Email Notification: Old EiC
+      const oldEicSubject = "Update regarding your Editor-in-Chief Role - SubmitEase";
+      const oldEicHtml = `
+        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #f3f4f6; padding: 20px; border-bottom: 1px solid #e5e7eb;">
+            <h2 style="margin: 0; color: #374151;">SubmitEase Journal Administration</h2>
+          </div>
+          <div style="padding: 24px;">
+            <p>Dear <strong>${currentEic.firstname} ${currentEic.lastname}</strong>,</p>
+            <p>This is an automated notification to inform you that your role as <strong>Editor-in-Chief</strong> for the SubmitEase Journal has been formally reassigned to another user by the Platform Administrator.</p>
+            <p>We thank you for your service and contributions to the editorial board. Your standard author and reviewer access remains unchanged.</p>
+            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">Best regards,<br/>The SubmitEase Platform Admin</p>
+          </div>
+        </div>
+      `;
+      sendMail(currentEic.email, oldEicSubject, oldEicHtml);
+    }
+
+    let finalNewEic;
+    let isBrandNewAccount = false;
+    const generatedPassword = generateRandomPassword();
+
+    // 3. Assign the new EiC (Existing User OR Create New User)
+    if (newEicId) {
+      finalNewEic = await prisma.user.findUnique({ where: { id: parseInt(newEicId, 10) } });
+      if (!finalNewEic) return res.status(404).json({ message: "User not found." });
+      
+      const newRoles = [...new Set([...finalNewEic.JournalRole, 'Editor-in-Chief'])];
+      finalNewEic = await prisma.user.update({
+        where: { id: finalNewEic.id },
+        data: { JournalRole: newRoles }
+      });
+
+    } else if (newUser) {
+      // Check if the invited email actually exists already
+      const existingUser = await prisma.user.findUnique({ where: { email: newUser.email } });
+      
+      if (existingUser) {
+         const newRoles = [...new Set([...existingUser.JournalRole, 'Editor-in-Chief'])];
+         finalNewEic = await prisma.user.update({
+           where: { id: existingUser.id },
+           data: { JournalRole: newRoles }
+         });
+      } else {
+         // Create a brand new user account with the generated password
+         const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+         finalNewEic = await prisma.user.create({
+           data: {
+             firstname: newUser.firstname,
+             lastname: newUser.lastname,
+             email: newUser.email,
+             password: hashedPassword,
+             organisation: newUser.organisation || "Independent",
+             country: "Not Specified",
+             role: ["Journal Editor"], 
+             JournalRole: ["Editor-in-Chief"]
+           }
+         });
+         isBrandNewAccount = true;
+      }
+    }
+
+    // 4. Email Notification: New EiC
+    const newEicSubject = "You have been appointed as Editor-in-Chief - SubmitEase";
+    
+    const credentialsBlock = isBrandNewAccount ? `
+      <div style="background-color: #f0fdf4; padding: 15px; border-left: 4px solid #059669; margin: 20px 0; border-radius: 4px;">
+        <h4 style="margin-top: 0; color: #065f46;">Your Login Credentials</h4>
+        <p style="margin-bottom: 5px;">An account has been automatically created for you.</p>
+        <strong>Email:</strong> ${finalNewEic.email}<br/>
+        <strong>Temporary Password:</strong> <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${generatedPassword}</span><br/>
+        <p style="font-size: 12px; margin-top: 10px; color: #047857;">Please log in and change your password immediately from your profile settings.</p>
+      </div>
+    ` : '';
+
+    const newEicHtml = `
+      <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #059669; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; color: #ffffff;">Welcome to the Editorial Board</h2>
+        </div>
+        <div style="padding: 24px;">
+          <p>Dear <strong>${finalNewEic.firstname} ${finalNewEic.lastname}</strong>,</p>
+          <p>You have been officially appointed as the <strong>Editor-in-Chief</strong> for the SubmitEase Journal by the Platform Administrator.</p>
+          <p>You now have full access to the EIC portal to oversee submissions, manage associate editors, and render final publication verdicts.</p>
+          ${credentialsBlock}
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">Best regards,<br/>The SubmitEase Platform Admin</p>
+        </div>
+      </div>
+    `;
+    
+    sendMail(finalNewEic.email, newEicSubject, newEicHtml);
+
+    res.status(200).json({ message: "Editor-in-Chief updated successfully and emails dispatched.", eic: finalNewEic });
+  } catch (error) {
+    console.error("Error changing EiC:", error);
+    res.status(500).json({ message: "Failed to update EiC.", details: error.message });
+  }
+});
+
+
 
 // ==================== END JOURNAL-SPECIFIC ENDPOINTS ====================
 
