@@ -34,6 +34,7 @@ import JournalReviewPaper from './components/JournalReviewPaper';
 import AdminDashboard from './components/AdminDashboard';
 import AdminConferences from './components/Admin_ConferenceManagement';
 import AdminJournal from './components/Admin_JournalManagement';
+import EIC from './components/EIC_dashboard.jsx';
 function App() {
   return (
     <UserProvider>
@@ -200,9 +201,13 @@ function App() {
             path="/admin/journal"
             element={<ProtectedRoute><AdminJournal /></ProtectedRoute>}
           />
+          <Route
+            path="/eic/dashboard"
+            element={<ProtectedRoute><EIC /></ProtectedRoute>}
+          />
         </Routes>
        
-
+      
 
 
         
