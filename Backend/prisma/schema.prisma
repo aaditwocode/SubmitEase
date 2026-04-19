@@ -27,9 +27,9 @@ model User {
   RegistrationChairs   Conference[] @relation("RegistrationChairs")
 
   JournalRole    String[]
-  hostedJournals Journal[]        @relation("HostToJournal")
   JournalPapers  JournalPapers[]  @relation("JournalAuthors")
   JournalReviews JournalReviews[]
+  JournalEditors JournalEditors[]
 }
 
 model Conference {
@@ -83,8 +83,8 @@ model Reviews {
   Paper             Paper?    @relation(fields: [PaperId], references: [id])
   ReviewerId        Int
   User              User?     @relation(fields: [ReviewerId], references: [id])
-  Comment           String
-  Recommendation    String
+  Comment           String?
+  Recommendation    String?
   Status            String?
   isBlind           Boolean?
   submittedAt       DateTime?
@@ -122,6 +122,7 @@ model JournalPapers {
   OriginalPaperId String?
   OriginalPaper   JournalPapers?   @relation("PaperHistory", fields: [OriginalPaperId], references: [id], onDelete: SetNull)
   Revisions       JournalPapers[]  @relation("PaperHistory")
+  Editors         JournalEditors[]
 }
 
 model JournalReviews {
@@ -130,8 +131,8 @@ model JournalReviews {
   Paper             JournalPapers? @relation(fields: [PaperId], references: [id])
   ReviewerId        Int
   User              User?          @relation(fields: [ReviewerId], references: [id])
-  Comment           String
-  Recommendation    String
+  Comment           String?
+  Recommendation    String?
   Status            String?
   isBlind           Boolean?
   submittedAt       DateTime?
@@ -146,12 +147,16 @@ model JournalReviews {
   @@unique([PaperId, ReviewerId])
 }
 
-model Journal {
-  id          Int    @id @default(autoincrement())
-  name        String
-  link        String
-  status      String
-  Publication String
-  hostID      Int
-  host        User?  @relation("HostToJournal", fields: [hostID], references: [id])
+model JournalEditors {
+  id             Int            @id @default(autoincrement())
+  PaperId        String
+  Paper          JournalPapers? @relation(fields: [PaperId], references: [id])
+  EditorId       Int
+  Editor           User?          @relation(fields: [EditorId], references: [id])
+  Recommendation String?
+  Status         String?
+  submittedAt    DateTime?
+  assignedAt     DateTime?      @default(now())
+
+  @@unique([PaperId, EditorId])
 }

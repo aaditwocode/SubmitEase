@@ -50,6 +50,20 @@ function sendMail(to, sub, msg) {
   });
 }
 
+const sendAutomatedEmail = async (to, subject, text) => {
+    try {
+        await transporter.sendMail({
+            from: '"SubmitEase System" <your-email@gmail.com>',
+            to,
+            subject,
+            text
+        });
+        console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject}`);
+    } catch (error) {
+        console.error(`[EMAIL FAILED] To: ${to} | Error:`, error.message);
+    }
+};
+
 // --- Initialize Supabase Client ---
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -2969,124 +2983,6 @@ app.post('/journal/submitpaper', upload.fields([
   }
 });
 
-
-
-app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
-  const { paperId } = req.params;
-  try {
-    const papers = await prisma.journalPapers.findUnique({
-      where: {
-        id: paperId,
-      },
-      select: {
-        // --- Existing Fields ---
-        id: true,
-        Title: true,
-        Status: true,
-        Keywords: true,
-        Abstract: true,
-        URL: true,
-        AuthorOrder: true,
-        submittedAt: true,
-        OriginalPaperId: true,
-        Authors: {
-          select: {
-            id: true,
-            firstname: true,
-            lastname: true,
-            email: true,
-            organisation: true,
-            expertise: true,
-          }
-        },
-
-        Revisions: {
-          select: {
-            id: true,
-            Title: true,
-            Status: true,
-            submittedAt: true,
-            Keywords: true,
-            Abstract: true,
-            URL: true,
-            AuthorOrder: true,
-            Authors: {
-              select: {
-                id: true,
-                firstname: true,
-                lastname: true,
-                email: true,
-                organisation: true,
-                expertise: true,
-              }
-            },
-          },
-          orderBy: {
-            submittedAt: 'desc'
-          }
-        },
-        Reviews: {
-          select: {
-            id: true,
-            ReviewerId: true,
-            Comment: true,
-            Recommendation: true,
-            submittedAt: true,
-            Status: true,
-            scoreOriginality: true,
-            scoreClarity: true,
-            scoreSoundness: true,
-            scoreSignificance: true,
-            scoreRelevance: true,
-            avgScore: true,
-            isBlind: true,
-            assignedAt: true,
-            User: {
-              select: {
-                id: true,
-                firstname: true,
-                lastname: true,
-                email: true,
-                organisation: true,
-                expertise: true,
-              }
-            }
-          },
-        }
-      },
-    });
-
-    if (!papers) {
-      return res.status(404).json({ message: 'No paper found.' });
-    }
-
-    res.status(200).json({ paper: papers });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
-  }
-});
-
-// --- Add this new route to Server.js ---
-app.get("/journal/getrevisionbyid/:revisionId", async (req, res) => {
-  try {
-    const { revisionId } = req.params;
-    const revision = await Revision.findOne({
-      where: { id: revisionId }
-    });
-
-    if (!revision) {
-      return res.status(404).json({ message: "Revision not found" });
-    }
-
-    res.json({ revision });
-  } catch (error) {
-    console.error("Error fetching revision:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
 // ==================== JOURNAL-SPECIFIC ENDPOINTS ====================
 
 app.post('/journal/get-your-reviews', async (req, res) => {
@@ -3390,7 +3286,7 @@ app.get('/admin/conferences/stats', async (req, res) => {
 app.get('/admin/journal/eic', async (req, res) => {
   try {
     const eic = await prisma.user.findFirst({
-      where: { JournalRole: { has: 'Editor-in-Chief' } },
+      where: { role: { has: 'Editor-in-Chief' } },
       select: { id: true, firstname: true, lastname: true, email: true, organisation: true }
     });
     res.status(200).json({ eic });
@@ -3487,7 +3383,7 @@ app.post('/admin/journal/change-eic', async (req, res) => {
   try {
     // 1. Identify current EiC
     const currentEic = await prisma.user.findFirst({
-      where: { JournalRole: { has: 'Editor-in-Chief' } }
+      where: { role: { has: 'Editor-in-Chief' } }
     });
 
     // ==========================================
@@ -3504,10 +3400,10 @@ app.post('/admin/journal/change-eic', async (req, res) => {
 
     // 2. Remove the old EiC role and send removal email
     if (currentEic) {
-      const updatedRoles = currentEic.JournalRole.filter(role => role !== 'Editor-in-Chief');
+      const updatedRoles = currentEic.role.filter(role => role !== 'Editor-in-Chief');
       await prisma.user.update({
         where: { id: currentEic.id },
-        data: { JournalRole: updatedRoles }
+        data: { role: updatedRoles }
       });
 
       // Email Notification: Old EiC
@@ -3537,10 +3433,10 @@ app.post('/admin/journal/change-eic', async (req, res) => {
       finalNewEic = await prisma.user.findUnique({ where: { id: parseInt(newEicId, 10) } });
       if (!finalNewEic) return res.status(404).json({ message: "User not found." });
       
-      const newRoles = [...new Set([...finalNewEic.JournalRole, 'Editor-in-Chief'])];
+      const newRoles = [...new Set([...finalNewEic.role, 'Editor-in-Chief'])];
       finalNewEic = await prisma.user.update({
         where: { id: finalNewEic.id },
-        data: { JournalRole: newRoles }
+        data: { role: newRoles }
       });
 
     } else if (newUser) {
@@ -3548,10 +3444,10 @@ app.post('/admin/journal/change-eic', async (req, res) => {
       const existingUser = await prisma.user.findUnique({ where: { email: newUser.email } });
       
       if (existingUser) {
-         const newRoles = [...new Set([...existingUser.JournalRole, 'Editor-in-Chief'])];
+         const newRoles = [...new Set([...existingUser.roleole, 'Editor-in-Chief'])];
          finalNewEic = await prisma.user.update({
            where: { id: existingUser.id },
-           data: { JournalRole: newRoles }
+           data: { role: newRoles }
          });
       } else {
          // Create a brand new user account with the generated password
@@ -3564,8 +3460,7 @@ app.post('/admin/journal/change-eic', async (req, res) => {
              password: hashedPassword,
              organisation: newUser.organisation || "Independent",
              country: "Not Specified",
-             role: ["Journal Editor"], 
-             JournalRole: ["Editor-in-Chief"]
+             role: ["Author","Editor-in-Chief"]
            }
          });
          isBrandNewAccount = true;
@@ -3609,6 +3504,475 @@ app.post('/admin/journal/change-eic', async (req, res) => {
   }
 });
 
+
+
+// ==================== EIC DASHBOARD ENDPOINTS ====================
+
+// 1. Fetch Dashboard Data (Papers and Available Editors)
+app.get('/api/journal/eic/dashboard-data', async (req, res) => {
+  try {
+    // Fetch all submitted papers (excluding drafts)
+    const papers = await prisma.journalPapers.findMany({
+      where: { 
+        Status: { not: 'Pending Submission' }
+      },
+      include: {
+        Authors: { select: { id: true, firstname: true, lastname: true } },
+        Editors: {
+            include: {
+                Editor: { select: { id: true, firstname: true, lastname: true } }
+            }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    // Format the papers for the frontend
+    const formattedPapers = papers.map(p => {
+      const daysSinceSubmission = (new Date() - new Date(p.submittedAt)) / (1000 * 60 * 60 * 24);
+      const isOverdue = p.Status === 'Under Review' && daysSinceSubmission > 30;
+
+      return {
+        ...p,
+        Author: p.Authors && p.Authors.length > 0 ? p.Authors[0] : { firstname: "Unknown", lastname: "Author" },
+        isOverdue: isOverdue,
+        isRevision: !!p.OriginalPaperId 
+      };
+    });
+
+    // We ONLY return the papers now. No more wasted 'editors' fetch!
+    res.status(200).json({ papers: formattedPapers });
+    
+  } catch (error) {
+    console.error("EiC Dashboard fetch error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ============================================================================
+// 1. DATA FETCHING ENDPOINTS
+// ============================================================================
+
+// GET: Fetch full paper details, authors, assignments, and revision history
+app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
+    const { paperId } = req.params;
+
+    try {
+        const paper = await prisma.journalPapers.findFirst({
+            where: { 
+                id: paperId,
+                Status: { not: 'Pending Submission' } // 1. Blocks the main paper if it's a draft
+            },
+            include: {
+                Authors: {
+                    select: { id: true, firstname: true, lastname: true, email: true, expertise: true, organisation: true }
+                },
+                Editors: {
+                    include: {
+                        Editor: { select: { id: true, firstname: true, lastname: true, email: true, expertise: true, organisation: true } }
+                    }
+                },
+                Reviews: {
+                    include: {
+                        User: { select: { id: true, firstname: true, lastname: true, email: true } }
+                    }
+                },
+                Revisions: {
+                    // 2. NEW: Filters the revision history array to block draft revisions
+                    where: {
+                        Status: { not: 'Pending Submission' } 
+                    },
+                    orderBy: { submittedAt: 'desc' }
+                }
+            }
+        });
+
+        if (!paper) {
+            return res.status(404).json({ message: "Paper not found, or it is currently a pending draft." });
+        }
+
+        res.status(200).json({ paper });
+    } catch (error) {
+        console.error("Error fetching paper:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+
+// ============================================================================
+// 2. EDITOR-IN-CHIEF (EIC) ENDPOINTS
+// ============================================================================
+
+// POST: Assign an Editor & handle optional role upgrades
+app.post('/api/journal/eic/assign-editor', async (req, res) => {
+    const { paperId, editorId, upgradeRole } = req.body;
+
+    try {
+        // 1. Database Updates
+        const assignment = await prisma.journalEditors.create({
+            data: { PaperId: paperId, EditorId: parseInt(editorId, 10), Status: 'Active' }
+        });
+
+
+        const user = await prisma.user.findUnique({ where: { id: parseInt(editorId, 10) } });
+        
+        if (upgradeRole && !user.role.includes('Journal Editor')) {
+            await prisma.user.update({
+                where: { id: parseInt(editorId, 10) },
+                data: { role: { push: 'Journal Editor' } } 
+            });
+        }
+
+        // 2. SEND EMAIL TO EDITOR
+        const emailSubject = `New Assignment: Associate Editor for Paper #${paperId}`;
+        const emailText = `Dear ${user.firstname} ${user.lastname},\n\nYou have been assigned as the Associate Editor for the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Editor Portal to assign reviewers and manage the peer-review process.\n\nBest regards,\nSubmitEase Editor-in-Chief`;
+        
+        // Fire asynchronously (don't block the response)
+        sendAutomatedEmail(user.email, emailSubject, emailText);
+
+        res.status(200).json({ message: "Editor assigned and notified successfully", assignment });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to assign editor", error: error.message });
+    }
+});
+
+// POST: Desk Reject & Email Author
+app.post('/api/journal/eic/desk-reject', async (req, res) => {
+    const { paperId, message } = req.body;
+
+    try {
+        // 1. Update Paper Status to Rejected and fetch Authors for the email
+        const updatedPaper = await prisma.journalPapers.update({
+            where: { id: paperId },
+            data: { Status: 'Rejected' }, // Desk reject is functionally a rejection
+            include: { Authors: true }
+        });
+
+        // 2. SEND EMAIL TO AUTHOR
+        if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
+            const primaryAuthor = updatedPaper.Authors[0];
+            
+            const emailSubject = `Update on your submission: Paper #${paperId}`;
+            const emailText = `Dear ${primaryAuthor.firstname} ${primaryAuthor.lastname},\n\nThank you for submitting your manuscript "${updatedPaper.Title}" to our journal.\n\nAfter an initial editorial review, we regret to inform you that your paper has been Desk Rejected and will not be sent for peer review.\n\nMessage from the Editor-in-Chief:\n"${message}"\n\nWe wish you the best in your future publications.\n\nBest regards,\nEditor-in-Chief`;
+            
+            // Fire the email function you set up previously
+            sendAutomatedEmail(primaryAuthor.email, emailSubject, emailText);
+        }
+
+        res.status(200).json({ message: "Paper desk rejected and author notified successfully" });
+    } catch (error) {
+        console.error("Desk Reject Error:", error);
+        res.status(500).json({ message: "Failed to desk reject", error: error.message });
+    }
+});
+
+// POST: Process the EIC's Final Decision and curate comments
+app.post('/api/journal/eic/final-decision', async (req, res) => {
+    const { paperId, status, commentsForAuthor } = req.body;
+
+    try {
+        // 1. Update Paper
+        const updatedPaper = await prisma.journalPapers.update({
+            where: { id: paperId },
+            data: { Status: status },
+            include: { Authors: true } // Include authors to get their email!
+        });
+
+        // 2. Compile Feedback
+        let compiledFeedback = "No additional feedback was provided.";
+        if (commentsForAuthor && commentsForAuthor.length > 0) {
+            const selectedReviews = await prisma.journalReviews.findMany({
+                where: { id: { in: commentsForAuthor } }
+            });
+            compiledFeedback = selectedReviews.map((r, i) => `Reviewer ${i+1}:\n"${r.Comment}"`).join('\n\n');
+        }
+
+        // 3. SEND EMAIL TO PRIMARY AUTHOR
+        if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
+            const primaryAuthor = updatedPaper.Authors[0];
+            
+            const emailSubject = `Decision Reached: ${status} - Paper #${paperId}`;
+            const emailText = `Dear ${primaryAuthor.firstname} ${primaryAuthor.lastname},\n\nThe peer-review process for your manuscript "${updatedPaper.Title}" is complete.\n\nDecision: ${status}\n\nEditorial Feedback / Reviewer Comments:\n${compiledFeedback}\n\nPlease log in to the SubmitEase Author Portal for next steps.\n\nBest regards,\nEditor-in-Chief`;
+            
+            sendAutomatedEmail(primaryAuthor.email, emailSubject, emailText);
+        }
+
+        res.status(200).json({ message: "Final decision logged and Author notified successfully", paper: updatedPaper });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to log final decision", error: error.message });
+    }
+});
+
+// ============================================================================
+// 3. REVIEWER MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// POST: Assign Reviewers & handle optional role upgrades
+app.post('/journal/assign-reviewers', async (req, res) => {
+    const { paperId, reviewerIds, upgradeRole } = req.body;
+
+    try {
+        const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+
+        for (const rId of reviewerIds) {
+            const existing = await prisma.journalReviews.findUnique({
+                where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(rId, 10) } }
+            });
+
+            if (!existing) {
+                await prisma.journalReviews.create({
+                    data: { PaperId: paperId, ReviewerId: parseInt(rId, 10), Status: 'Pending Invitation' }
+                });
+            }
+
+            const user = await prisma.user.findUnique({ where: { id: parseInt(rId, 10) } });
+            
+            if (upgradeRole && !user.role.includes('Journal Reviewer')) {
+                await prisma.user.update({
+                    where: { id: parseInt(rId, 10) },
+                    data: { role: { push: 'Journal Reviewer' } }
+                });
+            }
+
+            // 2. SEND EMAIL TO REVIEWER
+            // Only send if they weren't already assigned
+            if (!existing) {
+                const emailSubject = `Reviewer Invitation: Paper #${paperId}`;
+                const emailText = `Dear ${user.firstname} ${user.lastname},\n\nYou have been invited to review the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Reviewer Portal to formally Accept or Decline this invitation and access the manuscript.\n\nThank you for your expertise,\nThe Editorial Team`;
+                
+                sendAutomatedEmail(user.email, emailSubject, emailText);
+            }
+        }
+
+        res.status(200).json({ message: "Reviewers assigned and notified successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to assign reviewers", error: error.message });
+    }
+});
+// POST: Send Reminders to selected reviewers
+app.post('/journal/remind-reviewers', async (req, res) => {
+    const { paperId, reviewerIds } = req.body;
+    try {
+        // TODO: Plug in your NodeMailer logic here
+        console.log(`[SYSTEM] Sending reminder emails to Reviewer IDs: ${reviewerIds.join(', ')} for paper ${paperId}`);
+        
+        res.status(200).json({ message: "Reminders sent successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to send reminders", error: error.message });
+    }
+});
+// ============================================================================
+// ASSOCIATE EDITOR DASHBOARD ENDPOINT
+// ============================================================================
+
+// POST: Fetch all papers assigned to a specific Associate Editor
+app.post('/journal/editor/papers', async (req, res) => {
+    const { editorId } = req.body;
+
+    if (!editorId) {
+        return res.status(400).json({ message: "Editor ID is required" });
+    }
+
+    try {
+        // 1. Fetch the assignments for this specific editor
+        const assignments = await prisma.journalEditors.findMany({
+            where: { 
+                EditorId: parseInt(editorId, 10),
+                // Optional: Ensure the assignment is still active
+                // Status: 'Active' 
+            },
+            include: {
+                Paper: {
+                    include: {
+                        // Fetch the authors to display the primary author
+                        Authors: { 
+                            select: { firstname: true, lastname: true } 
+                        },
+                        // Fetch all reviews to calculate the dynamic progress stats
+                        Reviews: { 
+                            select: { Status: true } 
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Format the data to perfectly match the frontend's expected structure
+        const formattedPapers = assignments
+            .filter(assignment => assignment.Paper && assignment.Paper.Status !== 'Pending Submission') // Exclude drafts
+            .map(assignment => {
+                const p = assignment.Paper;
+                
+                // --- Dynamic Reviewer Calculations ---
+                const totalReviews = p.Reviews || [];
+                
+                // Total invited is simply the number of review records
+                const reviewersInvited = totalReviews.length;
+                
+                // Count how many accepted (usually 'Accepted', 'In Progress', 'Submitted', 'Completed')
+                const reviewersAccepted = totalReviews.filter(r => 
+                    ['Accepted', 'In Progress', 'Submitted', 'Completed'].includes(r.Status)
+                ).length;
+                
+                // Count how many actually finished their review
+                const reviewersSubmitted = totalReviews.filter(r => 
+                    ['Submitted', 'Completed'].includes(r.Status)
+                ).length;
+
+                // --- Format Return Object ---
+                return {
+                    id: p.id,
+                    Title: p.Title,
+                    Author: p.Authors && p.Authors.length > 0 ? p.Authors[0] : { firstname: "Unknown", lastname: "Author" },
+                    submittedAt: p.submittedAt,
+                    Keywords: p.Keywords || [],
+                    Status: p.Status,
+                    
+                    // Stats
+                    reviewersInvited,
+                    reviewersAccepted,
+                    reviewersSubmitted,
+                    
+                    // Derived Flags (Fallback logic since these aren't explicit booleans in your schema)
+                    isbeingtransferred: p.Status.toLowerCase().includes('transfer'), 
+                    isFinal: ['Accepted', 'Rejected'].includes(p.Status),
+                    
+                    // Placeholder for Journal Name (Update if you link JournalPapers directly to the Journal table later)
+                    Journal: { name: "SubmitEase Journal" } 
+                };
+            });
+
+        // Sort by submission date descending by default
+        formattedPapers.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+        res.status(200).json({ papers: formattedPapers });
+
+    } catch (error) {
+        console.error("Error fetching editor papers:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+
+app.post('/api/journal/editor/recommendation', async (req, res) => {
+    const { paperId, editorId, recommendation } = req.body;
+
+    try {
+        // 1. Update the Editor's assignment record with their decision
+        await prisma.journalEditors.update({
+            where: { 
+                PaperId_EditorId: { 
+                    PaperId: paperId, 
+                    EditorId: parseInt(editorId, 10) 
+                } 
+            },
+            data: { 
+                Recommendation: recommendation, 
+                Status: 'Completed' 
+            }
+        });
+
+        // 2. Change the overall paper status to alert the EIC
+        await prisma.journalPapers.update({
+            where: { id: paperId },
+            data: { Status: 'Awaiting Final Decision' }
+        });
+
+        res.status(200).json({ message: "Recommendation submitted successfully." });
+    } catch (error) {
+        console.error("Editor Recommendation Error:", error);
+        res.status(500).json({ message: "Failed to submit recommendation", error: error.message });
+    }
+});
+
+
+// ============================================================================
+// REVIEWER MANAGEMENT EXTENSION
+// ============================================================================
+
+// POST: Remove Reviewers from a paper
+app.post('/journal/remove-reviewers', async (req, res) => {
+    const { paperId, reviewerIds } = req.body;
+
+    try {
+        // Ensure reviewerIds are integers
+        const parsedIds = reviewerIds.map(id => parseInt(id, 10));
+
+        await prisma.journalReviews.deleteMany({
+            where: {
+                PaperId: paperId,
+                ReviewerId: { in: parsedIds }
+            }
+        });
+
+        res.status(200).json({ message: "Reviewers removed successfully." });
+    } catch (error) {
+        console.error("Remove Reviewers Error:", error);
+        res.status(500).json({ message: "Failed to remove reviewers", error: error.message });
+    }
+});
+
+
+// ============================================================================
+// EIC EDITOR MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// POST: Remind Assigned Editor
+app.post('/api/journal/eic/remind-editor', async (req, res) => {
+    const { paperId, editorId } = req.body;
+    try {
+        const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+        const user = await prisma.user.findUnique({ where: { id: parseInt(editorId, 10) } });
+        
+        const emailSubject = `Reminder: Pending Action Required for Paper #${paperId}`;
+        const emailText = `Dear ${user.firstname} ${user.lastname},\n\nThis is a friendly reminder regarding the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Editor Portal to review the current status and take any necessary actions (e.g., assigning reviewers or submitting a recommendation to the EIC).\n\nBest regards,\nSubmitEase Editor-in-Chief`;
+        
+        // Fire asynchronously using the transporter you set up previously
+        sendAutomatedEmail(user.email, emailSubject, emailText);
+        
+        res.status(200).json({ message: "Reminder sent successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to send reminder", error: error.message });
+    }
+});
+
+// POST: Change Assigned Editor
+app.post('/api/journal/eic/change-editor', async (req, res) => {
+    const { paperId, oldEditorId, newEditorId } = req.body;
+    try {
+        // 1. Remove the old assignment record entirely
+        await prisma.journalEditors.deleteMany({
+            where: { 
+                PaperId: paperId, 
+                EditorId: parseInt(oldEditorId, 10) 
+            }
+        });
+
+        // 2. Create the new assignment record
+        const newAssignment = await prisma.journalEditors.create({
+            data: { 
+                PaperId: paperId, 
+                EditorId: parseInt(newEditorId, 10), 
+                Status: 'Active' 
+            }
+        });
+
+        // 3. Fetch details for the email
+        const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+        const newEditor = await prisma.user.findUnique({ where: { id: parseInt(newEditorId, 10) } });
+        
+        // 4. Send Email Notification to the NEW Editor
+        const emailSubject = `New Assignment: Associate Editor for Paper #${paperId}`;
+        const emailText = `Dear ${newEditor.firstname} ${newEditor.lastname},\n\nYou have been newly assigned as the Associate Editor for the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Editor Portal to take over the management of this paper's peer-review process.\n\nBest regards,\nSubmitEase Editor-in-Chief`;
+        
+        sendAutomatedEmail(newEditor.email, emailSubject, emailText);
+        
+        res.status(200).json({ message: "Editor changed successfully", assignment: newAssignment });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to change editor", error: error.message });
+    }
+});
 
 
 // ==================== END JOURNAL-SPECIFIC ENDPOINTS ====================

@@ -737,32 +737,49 @@ export default function JournalReviewPaper() {
                                     <input
                                         type="radio"
                                         name="recommendation"
-                                        value="Strong Accept"
-                                        checked={recommendation === "Strong Accept"}
+                                        value="Accept"
+                                        checked={recommendation === "Accept"}
                                         onChange={(e) => setRecommendation(e.target.value)}
                                         disabled={submissionStatus}
                                         className="form-radio h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 disabled:cursor-not-allowed"
                                     />
                                     <span className="px-2 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-700">
-                                        Strong Accept
+                                        Accept
                                     </span>
                                 </label>
 
-                                {/* Weak Accept */}
+                                {/* Minor Revision Required */}
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
                                         type="radio"
                                         name="recommendation"
-                                        value="Weak Accept"
-                                        checked={recommendation === "Weak Accept"}
+                                        value="Minor Revision Required"
+                                        checked={recommendation === "Minor Revision Required"}
                                         onChange={(e) => setRecommendation(e.target.value)}
                                         disabled={submissionStatus}
                                         className="form-radio h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 disabled:cursor-not-allowed"
                                     />
                                     <span className="px-2 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-700">
-                                        Weak Accept
+                                        Minor Revision Required
                                     </span>
                                 </label>
+
+                                {/* Major Revision Required */}
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="recommendation"
+                                        value="Major Revision Required"
+                                        checked={recommendation === "Major Revision Required"}
+                                        onChange={(e) => setRecommendation(e.target.value)}
+                                        disabled={submissionStatus}
+                                        className="form-radio h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 disabled:cursor-not-allowed"
+                                    />
+                                    <span className="px-2 py-1 text-sm font-semibold rounded-full bg-orange-100 text-orange-700">
+                                        Major Revision Required
+                                    </span>
+                                </label>
+
 
                                 {/* Reject */}
                                 <label className="flex items-center gap-2 cursor-pointer">
