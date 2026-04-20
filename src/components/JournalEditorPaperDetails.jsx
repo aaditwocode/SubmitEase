@@ -62,7 +62,7 @@ const Header = ({ user, handleLogout }) => {
       "Author": { label: "Author", path: "/journal" },
       "Journal Editor": { label: "Editor", path: "/journal/editor" },
       "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
-      "Global Admin": { label: "Admin Portal", path: "/admin" }
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
     };
     const availablePortals = useMemo(() => {
       if (!user || !user.role || !Array.isArray(user.role)) return [];
@@ -435,7 +435,7 @@ export default function JournalEditorPaperDetails() {
 
             <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
                 <button 
-                    onClick={() => navigate(isEIC ? '/journal/eic' : '/journal/editor')} 
+                    onClick={() => navigate(isEIC ? '/eic/dashboard' : '/journal/editor')} 
                     className="mb-4 text-sm font-bold text-[#059669] hover:underline flex items-center gap-1"
                 >
                     ← Back to {isEIC ? 'EIC' : 'Editor'} Dashboard

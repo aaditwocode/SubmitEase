@@ -476,7 +476,7 @@ export default function JournalPortal() {
       "Author": { label: "Author", path: "/journal" },
       "Journal Editor": { label: "Editor", path: "/journal/editor" },
       "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
-      "Editor in Chief": { label: "EiC", path: "/eic/dashboard" },
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
 
     };
   

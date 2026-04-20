@@ -3974,6 +3974,61 @@ app.post('/api/journal/eic/change-editor', async (req, res) => {
     }
 });
 
+// GET: Fetch dynamic stats for the user dashboard
+app.get('/api/user/dashboard-stats/:userId', async (req, res) => {
+    const { userId } = req.params;
+    const id = parseInt(userId);
+
+    try {
+        // 1. Papers Published (Accepted in Journals OR Conferences)
+        const journalAccepted = await prisma.journalPapers.count({
+            where: { Authors: { some: { id: id } }, Status: 'Accepted' }
+        });
+        const confAccepted = await prisma.paper.count({
+            where: { Authors: { some: { id: id } }, Status: 'Accepted' }
+        });
+
+        // 2. UNIQUE Conferences Involved 
+        // We fetch all papers by the user and use a Set to get unique ConferenceIds
+        const userPapers = await prisma.paper.findMany({
+            where: { Authors: { some: { id: id } } },
+            select: { ConferenceId: true }
+        });
+        const uniqueConferenceCount = new Set(userPapers.map(p => p.ConferenceId)).size;
+
+        // 3. Total Submissions (Journal + Conference regardless of status)
+        const totalJournal = await prisma.journalPapers.count({
+            where: { Authors: { some: { id: id } } }
+        });
+        const totalConf = await prisma.paper.count({
+            where: { Authors: { some: { id: id } } }
+        });
+
+        // 4. Fetch Recent Activity
+        const journalActivity = await prisma.journalPapers.findMany({
+            where: { Authors: { some: { id: id } } },
+            take: 3,
+            orderBy: { submittedAt: 'desc' },
+            select: { Title: true, Status: true, submittedAt: true }
+        });
+
+        const recentActivity = journalActivity.map(item => ({
+            title: item.Title,
+            description: `Manuscript status: ${item.Status}`,
+            time: new Date(item.submittedAt).toLocaleDateString()
+        }));
+
+        res.status(200).json({
+            publishedCount: journalAccepted + confAccepted,
+            conferenceCount: uniqueConferenceCount,
+            totalSubmissions: totalJournal + totalConf,
+            recentActivity
+        });
+    } catch (error) {
+        console.error("Dashboard Stats Error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
 
 // ==================== END JOURNAL-SPECIFIC ENDPOINTS ====================
 

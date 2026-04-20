@@ -4,135 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 
-const SAMPLE_PAPERS = [
-  {
-    id: 101,
-    Title: "Optimizing Neural Networks for Edge Devices",
-    Author: { firstname: "Amit", lastname: "Sharma" },
-    submittedAt: "2025-10-15T10:00:00Z",
-    Keywords: ["AI", "Edge Computing", "Optimization"],
-    Status: "Under Review",
-    reviewersInvited: 0,
-    reviewersAccepted: 0,
-    reviewersSubmitted: 0,
-    isbeingtransferred: false,
-    isFinal: false,
-    Journal: { name: "Journal of AI Research" }
-  },
-  {
-    id: 102,
-    Title: "Sustainable Energy Harvesting in WSNs",
-    Author: { firstname: "Sarah", lastname: "Jenkins" },
-    submittedAt: "2025-10-20T14:30:00Z",
-    Keywords: ["IoT", "Wireless Sensors", "Energy"],
-    Status: "Under Review",
-    reviewersInvited: 5,
-    reviewersAccepted: 1, // Logic: <= 2 (Needs Reviewers)
-    reviewersSubmitted: 0,
-    isbeingtransferred: false,
-    isFinal: false,
-    Journal: { name: "IoT Today" }
-  },
-  {
-    id: 103,
-    Title: "Quantum Cryptography: A New Era",
-    Author: { firstname: "Raj", lastname: "Patel" },
-    submittedAt: "2025-11-01T09:15:00Z",
-    Keywords: ["Quantum", "Security", "Cryptography"],
-    Status: "Under Review",
-    reviewersInvited: 4,
-    reviewersAccepted: 2, // Logic: <= 2 (Needs Reviewers)
-    reviewersSubmitted: 1,
-    isbeingtransferred: false,
-    isFinal: false,
-    Journal: { name: "Tech Security Journal" }
-  },
-  {
-    id: 104,
-    Title: "Advancements in CRISPR Technology",
-    Author: { firstname: "Emily", lastname: "Wong" },
-    submittedAt: "2025-09-10T11:00:00Z",
-    Keywords: ["Biotech", "Genetics", "CRISPR"],
-    Status: "Under Review",
-    reviewersInvited: 6,
-    reviewersAccepted: 4, // Logic: >= 3 (Awaiting Decision)
-    reviewersSubmitted: 2, // Progress: 2/4
-    isbeingtransferred: false,
-    isFinal: false,
-    Journal: { name: "BioTech Weekly" }
-  },
-  {
-    id: 105,
-    Title: "Machine Learning in Financial Forecasting",
-    Author: { firstname: "John", lastname: "Doe" },
-    submittedAt: "2025-08-05T16:45:00Z",
-    Keywords: ["Finance", "ML", "Economics"],
-    Status: "Under Review",
-    reviewersInvited: 5,
-    reviewersAccepted: 5, // Logic: >= 3 (Awaiting Decision)
-    reviewersSubmitted: 5, // Progress: 5/5 (Ready for decision)
-    isbeingtransferred: false,
-    isFinal: false,
-    Journal: { name: "Finance & AI" }
-  },
-  {
-    id: 106,
-    Title: "Urban Planning for Smart Cities",
-    Author: { firstname: "Maria", lastname: "Garcia" },
-    submittedAt: "2025-07-20T08:00:00Z",
-    Keywords: ["Urban Planning", "Smart City", "IoT"],
-    Status: "Accepted",
-    reviewersInvited: 3,
-    reviewersAccepted: 3,
-    reviewersSubmitted: 3,
-    isbeingtransferred: false,
-    isFinal: true, // Logic: Decision Made
-    Journal: { name: "Urban Future" }
-  },
-  {
-    id: 107,
-    Title: "The Future of Blockchain in Supply Chain",
-    Author: { firstname: "David", lastname: "Kim" },
-    submittedAt: "2025-09-01T13:20:00Z",
-    Keywords: ["Blockchain", "Supply Chain", "Logistics"],
-    Status: "Rejected",
-    reviewersInvited: 3,
-    reviewersAccepted: 3,
-    reviewersSubmitted: 3,
-    isbeingtransferred: false,
-    isFinal: true, // Logic: Decision Made
-    Journal: { name: "Logistics Journal" }
-  },
-  {
-    id: 108,
-    Title: "Impact of Microplastics on Marine Life",
-    Author: { firstname: "Lisa", lastname: "Ray" },
-    submittedAt: "2025-10-05T10:10:00Z",
-    Keywords: ["Environment", "Marine Biology", "Pollution"],
-    Status: "Revision Required",
-    reviewersInvited: 4,
-    reviewersAccepted: 3,
-    reviewersSubmitted: 3,
-    isbeingtransferred: false,
-    isFinal: false, // Logic: Decision Made (Revision)
-    Journal: { name: "Nature & Science" }
-  },
-  {
-    id: 109,
-    Title: "Review of Solid State Battery Materials",
-    Author: { firstname: "Kevin", lastname: "Lee" },
-    submittedAt: "2025-11-15T09:30:00Z",
-    Keywords: ["Batteries", "Energy", "Materials"],
-    Status: "Under Review",
-    reviewersInvited: 2,
-    reviewersAccepted: 0,
-    reviewersSubmitted: 0,
-    isbeingtransferred: true, // Logic: Transfer Pending
-    isFinal: false,
-    Journal: { name: "Energy Reviews" }
-  }
-];
-
 // --- Helper Functions ---
 const getStatusBadge = (status) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
@@ -433,7 +304,7 @@ const PaperList = ({ papers, showProgress = false, isTransferView = false }) => 
                   </td>
                   <td className="py-3 px-4">
                     <button
-                      onClick={() => navigate(`/journal/paper/${paper.id}`)}
+                      onClick={() => navigate(`/journal/editor/paper/${paper.id}`)}
                       className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors"
                     >
                       View
@@ -491,7 +362,6 @@ export default function EditorPortal() {
       setPapers(data.papers || []);
     } catch (err) { 
         console.error("Error fetching papers:", err);
-        setPapers(SAMPLE_PAPERS); // Fallback to sample data
     }
   };
 
@@ -548,7 +418,8 @@ export default function EditorPortal() {
     const ROLE_CONFIG = {
       "Author": { label: "Author", path: "/journal" },
       "Journal Editor": { label: "Editor", path: "/journal/editor" },
-      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
     };
   
     const availablePortals = useMemo(() => {

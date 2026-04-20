@@ -471,7 +471,8 @@ export default function JournalReviewPaper() {
     const ROLE_CONFIG = {
       "Author": { label: "Author", path: "/journal" },
       "Journal Editor": { label: "Editor", path: "/journal/editor" },
-      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" }
+      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
     };
   
     // 2. Filter options based on the current user's roles
