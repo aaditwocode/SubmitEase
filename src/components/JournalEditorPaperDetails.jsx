@@ -116,7 +116,6 @@ export default function JournalEditorPaperDetails() {
     const [reviews, setReviews] = useState([]);
     const [reviewers, setReviewers] = useState([]);
     const [checkedReviewIds, setCheckedReviewIds] = useState(new Set());
-    const [newReviewerId, setNewReviewerId] = useState("");
 
     // Modal States
     const [viewReviewModalOpen, setViewReviewModalOpen] = useState(false);
@@ -124,16 +123,14 @@ export default function JournalEditorPaperDetails() {
 
     // Role & Decision States
     const isEIC = user?.role?.includes("Editor-in-Chief");
-    const [selectedEditorId, setSelectedEditorId] = useState("");
-    const [hostDecision, setHostDecision] = useState(""); // For EIC
-    const [editorRecommendation, setEditorRecommendation] = useState(""); // For Assigned Editor
+    const [hostDecision, setHostDecision] = useState(""); 
+    const [editorRecommendation, setEditorRecommendation] = useState(""); 
     const [selectedCommentsToAuthor, setSelectedCommentsToAuthor] = useState(new Set());
     
-    // --- Unified Upgrade/Invite Modal State ---
-    const [inviteModalOpen, setInviteModalOpen] = useState(false);
-    const [inviteType, setInviteType] = useState(""); // 'Editor' | 'Reviewer'
-    const [inviteMode, setInviteMode] = useState("existing");
-    const [inviteExistingUserId, setInviteExistingUserId] = useState("");
+    // --- Unified Directory Search Modal State ---
+    const [userModal, setUserModal] = useState({ open: false, role: '', context: '' }); // role: 'Editor'|'Reviewer', context: 'Assign'|'Change'
+    const [userModalTab, setUserModalTab] = useState('directory'); // 'directory', 'upgrade', 'new'
+    const [userSearchTerm, setUserSearchTerm] = useState('');
     const [inviteForm, setInviteForm] = useState({ firstname: "", lastname: "", email: "" });
 
     // Sorting & Searching State for Reviews
@@ -144,8 +141,6 @@ export default function JournalEditorPaperDetails() {
     // Desk Reject Modal States
     const [deskRejectModalOpen, setDeskRejectModalOpen] = useState(false);
     const [deskRejectMessage, setDeskRejectMessage] = useState("");
-
-    const [isChangingEditor, setIsChangingEditor] = useState(false);
 
     const handleLogout = () => { setUser(null); setloginStatus(false); navigate("/home"); };
 
@@ -173,32 +168,21 @@ export default function JournalEditorPaperDetails() {
     const hasAssignedEditor = paper?.Editors && paper.Editors.length > 0;
     const currentEditor = hasAssignedEditor ? paper.Editors[0] : null;
     const isAssignedEditor = currentEditor && user?.id === currentEditor.EditorId;
-    const disableReviewerActions = isEIC && hasAssignedEditor && !isAssignedEditor; // EIC acts as read-only if someone else is the editor
+    
+    const isReviewLocked = paper && ['accepted', 'rejected', 'revision'].some(status => (paper.Status || '').toLowerCase().includes(status));
+    const disableReviewerActions = isReviewLocked || (isEIC && hasAssignedEditor && !isAssignedEditor); 
     const hasEnoughReviewers = reviews.filter(r => ['Submitted', 'Completed'].includes(r.Status)).length >= 3;
 
     // --- Filter logic ---
     const availableEditors = allUsers.filter(u => u.role?.includes("Journal Editor"));
-    const eligibleReviewerUsers = allUsers.filter(u => 
-        (u.role?.includes("Journal Reviewer")) && 
-        !reviewers.some(r => r.id === u.id)
-    );
+    const eligibleReviewerUsers = allUsers.filter(u => (u.role?.includes("Journal Reviewer")) && !reviewers.some(r => r.id === u.id));
     const usersWithoutEditorRole = allUsers.filter(u => !u.role?.includes("Journal Editor"));
-    const usersWithoutReviewerRole = allUsers.filter(u => 
-        !u.role?.includes("Journal Reviewer") && !reviewers.some(r => r.id === u.id)
-    );
+    const usersWithoutReviewerRole = allUsers.filter(u => !u.role?.includes("Journal Reviewer") && !reviewers.some(r => r.id === u.id));
 
     // --- Action Handlers: EIC ---
-    const handleAssignEditor = async () => {
-        if (!selectedEditorId) return alert("Select an Editor");
-        try {
-            await fetch('http://localhost:3001/api/journal/eic/assign-editor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paperId, editorId: selectedEditorId })
-            });
-            alert("Associate Editor Assigned!");
-            window.location.reload();
-        } catch(err) { alert("Failed to assign editor"); }
+    const handleDeskReject = () => {
+        setDeskRejectMessage(""); 
+        setDeskRejectModalOpen(true);
     };
 
     const submitDeskReject = async (e) => {
@@ -229,6 +213,18 @@ export default function JournalEditorPaperDetails() {
         } catch(err) { alert("Error submitting final decision."); }
     };
 
+    const handleRemindEditor = async () => {
+        if (!window.confirm("Send a reminder email to the assigned editor?")) return;
+        try {
+            await fetch('http://localhost:3001/api/journal/eic/remind-editor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paperId, editorId: currentEditor.EditorId })
+            });
+            alert("Reminder sent successfully!");
+        } catch (err) { alert("Failed to send reminder."); }
+    };
+
     // --- Action Handlers: Assigned Editor ---
     const handleEditorSubmit = async () => {
         if (!editorRecommendation) return alert("Please select a recommendation.");
@@ -245,19 +241,6 @@ export default function JournalEditorPaperDetails() {
     };
 
     // --- Action Handlers: Reviewers ---
-    const handleAssignReviewer = async () => {
-        if (!newReviewerId) return alert("Please select a reviewer.");
-        try {
-            await fetch('http://localhost:3001/journal/assign-reviewers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paperId, reviewerIds: [parseInt(newReviewerId)] }),
-            });
-            alert("Reviewer assigned successfully!");
-            window.location.reload();
-        } catch (err) { alert("Failed to assign reviewer"); }
-    };
-
     const handleRemoveReviewers = async () => {
         const ids = Array.from(checkedReviewIds);
         if (ids.length === 0) return alert("Select at least one reviewer to remove.");
@@ -289,30 +272,64 @@ export default function JournalEditorPaperDetails() {
         } catch (err) { alert(err.message); }
     };
 
-    const handleRemindEditor = async () => {
-        if (!window.confirm("Send a reminder email to the assigned editor?")) return;
-        try {
-            await fetch('http://localhost:3001/api/journal/eic/remind-editor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paperId, editorId: currentEditor.EditorId })
-            });
-            alert("Reminder sent successfully!");
-        } catch (err) { alert("Failed to send reminder."); }
+    // --- Unified User Selection & Invitation Handler ---
+    const openUnifiedUserModal = (role, context) => {
+        setUserModal({ open: true, role, context });
+        setUserModalTab('directory');
+        setUserSearchTerm('');
+        setInviteForm({ firstname: "", lastname: "", email: "" });
     };
 
-    const handleChangeEditorSubmit = async () => {
-        if (!selectedEditorId) return alert("Select a new Editor");
-        if (!window.confirm("Are you sure you want to change the assigned editor? The current editor will be removed.")) return;
+    const handleUserSelectionSubmit = async (targetUserId, isUpgrade = false, isNewUser = false) => {
         try {
-            await fetch('http://localhost:3001/api/journal/eic/change-editor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paperId, oldEditorId: currentEditor.EditorId, newEditorId: selectedEditorId })
-            });
-            alert("Editor changed successfully!");
+            let finalUserId = targetUserId;
+
+            if (isNewUser) {
+                if (!inviteForm.email || !inviteForm.firstname || !inviteForm.lastname) return alert("Please fill all fields.");
+                const roleArray = userModal.role === "Editor" ? ["Journal Editor"] : ["Journal Reviewer"];
+                
+                const response = await fetch('http://localhost:3001/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: inviteForm.email, password: "tempPassword123", 
+                        firstname: inviteForm.firstname, lastname: inviteForm.lastname,
+                        role: roleArray, sendEmail: true
+                    }),
+                });
+                if (!response.ok) throw new Error("Failed to register new user.");
+                const newUser = await response.json();
+                finalUserId = newUser.id;
+            }
+
+            if (userModal.role === 'Journal Editor') {
+                if (userModal.context === 'Assign') {
+                    await fetch('http://localhost:3001/api/journal/eic/assign-editor', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paperId, editorId: finalUserId, upgradeRole: isUpgrade || isNewUser })
+                    });
+                    alert("Editor Assigned Successfully!");
+                } else if (userModal.context === 'Change') {
+                    if (!window.confirm("Are you sure you want to change the assigned editor? The current editor will be removed.")) return;
+                    await fetch('http://localhost:3001/api/journal/eic/change-editor', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paperId, oldEditorId: currentEditor.EditorId, newEditorId: finalUserId, upgradeRole: isUpgrade || isNewUser })
+                    });
+                    alert("Editor Changed Successfully!");
+                }
+            } else if (userModal.role === 'Journal Reviewer') {
+                await fetch('http://localhost:3001/journal/assign-reviewers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paperId, reviewerIds: [parseInt(finalUserId)], upgradeRole: isUpgrade || isNewUser }),
+                });
+                alert("Reviewer Assigned Successfully!");
+            }
+
             window.location.reload();
-        } catch (err) { alert("Failed to change editor."); }
+        } catch (err) { alert(err.message || "Action failed."); }
     };
 
     const toggleAuthorComment = (reviewId) => {
@@ -333,65 +350,11 @@ export default function JournalEditorPaperDetails() {
         });
     };
 
-    // --- Unified Invite/Upgrade Handler ---
-    const openInviteModal = (type) => {
-        setInviteType(type);
-        setInviteMode("existing");
-        setInviteExistingUserId("");
-        setInviteForm({ firstname: "", lastname: "", email: "" });
-        setInviteModalOpen(true);
-    };
-
-    const handleInviteSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            let targetUserId = inviteExistingUserId;
-            if (inviteMode === "new") {
-                if (!inviteForm.email || !inviteForm.firstname || !inviteForm.lastname) return alert("Please fill all fields.");
-                const roleArray = inviteType === "Editor" ? ["Journal Editor"] : ["Journal Reviewer"];
-                
-                const response = await fetch('http://localhost:3001/users', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: inviteForm.email, password: "tempPassword123", 
-                        firstname: inviteForm.firstname, lastname: inviteForm.lastname,
-                        role: roleArray, sendEmail: true
-                    }),
-                });
-                if (!response.ok) throw new Error("Failed to register new user.");
-                const newUser = await response.json();
-                targetUserId = newUser.id;
-            } else if (!targetUserId) {
-                return alert("Please select an existing user to upgrade.");
-            }
-
-            if (inviteType === "Editor") {
-                await fetch('http://localhost:3001/api/journal/eic/assign-editor', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paperId, editorId: targetUserId, upgradeRole: true })
-                });
-                alert("User upgraded and assigned as Editor!");
-            } else {
-                await fetch('http://localhost:3001/journal/assign-reviewers', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paperId, reviewerIds: [parseInt(targetUserId)], upgradeRole: true }),
-                });
-                alert("User upgraded and assigned as Reviewer!");
-            }
-            window.location.reload();
-        } catch (err) { alert(err.message); }
-    };
-
-    // --- Review Modal Handling ---
     const handleViewReview = (review) => {
         setSelectedReview(review);
         setViewReviewModalOpen(true);
     };
 
-    // --- Sorting Logic: Reviews ---
     const handleReviewSort = (column) => {
         if (reviewSortBy === column) setReviewSortOrder(reviewSortOrder === "asc" ? "desc" : "asc");
         else { setReviewSortBy(column); setReviewSortOrder("asc"); }
@@ -423,6 +386,30 @@ export default function JournalEditorPaperDetails() {
         });
     }, [reviews, reviewSortBy, reviewSortOrder, reviewSearchTerm, reviewers]);
 
+    // Data Aggregation for User Modal
+    const modalUsersToDisplay = useMemo(() => {
+        let list = [];
+        if (userModalTab === 'directory') {
+            list = userModal.role === 'Editor' ? availableEditors : eligibleReviewerUsers;
+        } else if (userModalTab === 'upgrade') {
+            list = userModal.role === 'Editor' ? usersWithoutEditorRole : usersWithoutReviewerRole;
+        }
+
+        // Exclude current editor if changing
+        if (userModal.role === 'Editor' && userModal.context === 'Change' && currentEditor) {
+            list = list.filter(u => u.id !== currentEditor.EditorId);
+        }
+
+        if (!userSearchTerm) return list;
+        const lowerSearch = userSearchTerm.toLowerCase();
+        return list.filter(u => 
+            (u.firstname + " " + u.lastname).toLowerCase().includes(lowerSearch) ||
+            u.email.toLowerCase().includes(lowerSearch) ||
+            (u.organisation || "").toLowerCase().includes(lowerSearch) ||
+            (u.expertise || []).join(" ").toLowerCase().includes(lowerSearch)
+        );
+    }, [userModal, userModalTab, userSearchTerm, availableEditors, eligibleReviewerUsers, usersWithoutEditorRole, usersWithoutReviewerRole, currentEditor]);
+
 
     if (loading) return <div className="p-8 text-center text-[#6b7280] font-medium mt-10">Loading Document Data...</div>;
     if (!paper) return <div className="p-8 text-center text-red-600 font-medium mt-10">Document not found.</div>;
@@ -440,6 +427,7 @@ export default function JournalEditorPaperDetails() {
                 >
                     ← Back to {isEIC ? 'EIC' : 'Editor'} Dashboard
                 </button>                
+                
                 {/* --- TOP SECTION: Grid Layout --- */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
@@ -473,7 +461,6 @@ export default function JournalEditorPaperDetails() {
 
                 {/* --- BOTTOM SECTION: Revision History, Triage, Reviewers, Final Decision --- */}
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full space-y-10">
-                    
                     {/* --- 1. Revision History --- */}
                     <div className="space-y-4">
                         <h3 className="text-xl font-bold text-[#1f2937]">Revision History</h3>
@@ -508,7 +495,6 @@ export default function JournalEditorPaperDetails() {
                     <div className="border-t border-[#e5e7eb]"></div>
 
                     {/* --- 2. EIC ONLY: Triage & Editor Assignment --- */}
-                    {/* --- 2. EIC ONLY: Triage & Editor Assignment --- */}
                     {isEIC && (
                         <>
                             <div className="space-y-4 bg-white p-5 border border-emerald-100 rounded-lg shadow-sm">
@@ -516,17 +502,17 @@ export default function JournalEditorPaperDetails() {
                                     <div>
                                         <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2">
                                             <svg className="w-5 h-5 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                                            Editor-in-Chief Triage Panel
+                                            Editor Assignment
                                         </h3>
-                                        <p className="text-sm text-emerald-700 mt-1">Assign an Associate Editor to handle peer review, or Desk Reject if out of scope.</p>
+                                        <p className="text-sm text-emerald-700 mt-1">Assign an Editor to handle peer review, or Desk Reject if out of scope.</p>
                                     </div>
                                     {currentEditor ? (
                                         <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
                                             Editor Assigned
                                         </span>
-                                    ) : (
+                                    ) : !isReviewLocked ? (
                                         <button onClick={handleDeskReject} className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-md hover:bg-red-100 border border-red-200 text-sm transition-colors">Desk Reject (No Review)</button>
-                                    )}
+                                    ) : null}
                                 </div>
                                 
                                 {currentEditor ? (
@@ -535,14 +521,16 @@ export default function JournalEditorPaperDetails() {
                                             <p className="font-semibold text-emerald-900 text-sm uppercase tracking-wider mb-1">Assigned Editor Details</p>
                                             
                                             {/* Action Buttons */}
-                                            <div className="flex gap-2">
-                                                <button onClick={handleRemindEditor} className="text-xs px-3 py-1 bg-white border border-emerald-200 text-emerald-700 font-medium rounded hover:bg-emerald-100 transition-colors shadow-sm">
-                                                    Remind Editor
-                                                </button>
-                                                <button onClick={() => setIsChangingEditor(!isChangingEditor)} className={`text-xs px-3 py-1 font-medium rounded transition-colors shadow-sm ${isChangingEditor ? 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200' : 'bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}>
-                                                    {isChangingEditor ? 'Cancel Change' : 'Change Editor'}
-                                                </button>
-                                            </div>
+                                            {!isReviewLocked && (
+                                                <div className="flex gap-2">
+                                                    <button onClick={handleRemindEditor} className="text-xs px-3 py-1 bg-white border border-emerald-300 text-[#059669] font-bold rounded hover:bg-emerald-50 transition-colors shadow-sm">
+                                                        Remind Editor
+                                                    </button>
+                                                    <button onClick={() => openUnifiedUserModal('Editor', 'Change')} className="text-xs px-3 py-1 bg-white border border-emerald-300 text-[#059669] font-bold rounded hover:bg-emerald-50 transition-colors shadow-sm">
+                                                        Change Editor
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
@@ -554,35 +542,11 @@ export default function JournalEditorPaperDetails() {
                                                 <p className="text-sm text-emerald-700"><span className="font-semibold">Assigned:</span> {formatDate(currentEditor.assignedAt)}</p>
                                             )}
                                         </div>
-
-                                        {/* Change Editor Dropdown Panel */}
-                                        {isChangingEditor && (
-                                            <div className="mt-4 pt-4 border-t border-emerald-200 flex flex-col sm:flex-row gap-4 items-center animate-fade-in">
-                                                <select value={selectedEditorId} onChange={(e) => setSelectedEditorId(e.target.value)} className="flex-1 w-full px-4 py-2 border border-emerald-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white">
-                                                    <option value="">-- Select NEW Associate Editor --</option>
-                                                    {/* Filter out the currently assigned editor so they can't be re-selected */}
-                                                    {availableEditors.filter(e => e.id !== currentEditor.EditorId).map(e => (
-                                                        <option key={e.id} value={e.id}>{e.firstname} {e.lastname} - {e.expertise?.join(", ")}</option>
-                                                    ))}
-                                                </select>
-                                                <button onClick={handleChangeEditorSubmit} className="px-6 py-2 bg-[#059669] text-white text-sm font-medium rounded-md hover:bg-[#047857] shadow-sm whitespace-nowrap">
-                                                    Confirm Reassignment
-                                                </button>
-                                            </div>
-                                        )}
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col sm:flex-row gap-4 items-center mt-4">
-                                        <select value={selectedEditorId} onChange={(e) => setSelectedEditorId(e.target.value)} className="flex-1 w-full px-4 py-2 border border-emerald-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white">
-                                            <option value="">-- Select Existing Associate Editor --</option>
-                                            {availableEditors.map(e => (
-                                                <option key={e.id} value={e.id}>{e.firstname} {e.lastname} - {e.expertise?.join(", ")}</option>
-                                            ))}
-                                        </select>
-                                        <button onClick={handleAssignEditor} className="px-6 py-2 bg-[#059669] text-white text-sm font-medium rounded-md hover:bg-[#047857] shadow-sm whitespace-nowrap">Assign Editor</button>
-                                        <span className="text-gray-400 text-sm">or</span>
-                                        <button onClick={() => openInviteModal("Editor")} className="px-6 py-2 bg-white text-[#059669] border border-[#059669] text-sm font-medium rounded-md hover:bg-emerald-50 whitespace-nowrap">
-                                            + Upgrade / Invite Editor
+                                ) : !isReviewLocked && (
+                                    <div className="mt-4">
+                                        <button onClick={() => openUnifiedUserModal('Editor', 'Assign')} className="px-6 py-2 bg-[#059669] text-white text-sm font-medium rounded-md hover:bg-[#047857] shadow-sm transition-colors">
+                                            Assign or Invite Editor
                                         </button>
                                     </div>
                                 )}
@@ -596,12 +560,12 @@ export default function JournalEditorPaperDetails() {
                         <div className="flex justify-between items-center flex-wrap gap-4">
                             <div className="flex items-center gap-3">
                                 <h3 className="text-xl font-bold text-[#1f2937]">Reviewer Management</h3>
-                                {disableReviewerActions && <span className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">EIC Read-Only Mode</span>}
+                                {disableReviewerActions && <span className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">Read-Only Mode</span>}
                             </div>
                             
                             {!disableReviewerActions && (
                                 <div className="flex gap-3">
-                                    <button onClick={handleRemindReviewers} disabled={checkedReviewIds.size === 0} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${checkedReviewIds.size ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}>
+                                    <button onClick={handleRemindReviewers} disabled={checkedReviewIds.size === 0} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${checkedReviewIds.size ? 'bg-[#059669] text-white hover:bg-[#047857] shadow-sm' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}>
                                         Remind Selected
                                     </button>
                                     <button onClick={handleRemoveReviewers} disabled={checkedReviewIds.size === 0} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${checkedReviewIds.size ? 'bg-red-600 text-white hover:bg-red-700 shadow-sm' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}>
@@ -612,18 +576,10 @@ export default function JournalEditorPaperDetails() {
                         </div>
                         
                         {!disableReviewerActions && (
-                            <div className="bg-white p-4 border border-[#e5e7eb] rounded-lg shadow-sm">
-                                <div className="flex flex-col sm:flex-row gap-4 items-center">
-                                    <select className="flex-1 w-full px-4 py-2 border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white" onChange={(e) => setNewReviewerId(e.target.value)} value={newReviewerId}>
-                                        <option value="">-- Select Existing Reviewer --</option>
-                                        {eligibleReviewerUsers.map(u => <option key={u.id} value={u.id}>{u.firstname} {u.lastname} ({u.email})</option>)}
-                                    </select>
-                                    <button onClick={handleAssignReviewer} className="px-6 py-2 bg-[#059669] text-white text-sm font-medium rounded-md hover:bg-[#047857] shadow-sm whitespace-nowrap">Assign Reviewer</button>
-                                    <span className="text-gray-400 text-sm">or</span>
-                                    <button onClick={() => openInviteModal("Reviewer")} className="px-6 py-2 bg-white text-[#059669] border border-[#059669] text-sm font-medium rounded-md hover:bg-[#059669]/5 whitespace-nowrap">
-                                        + Upgrade / Invite Reviewer
-                                    </button>
-                                </div>
+                            <div className="mt-4">
+                                <button onClick={() => openUnifiedUserModal('Journal Reviewer', 'Assign')} className="px-6 py-2 bg-[#059669] text-white text-sm font-medium rounded-md hover:bg-[#047857] shadow-sm transition-colors">
+                                    Assign or Invite Reviewer
+                                </button>
                             </div>
                         )}
 
@@ -631,7 +587,7 @@ export default function JournalEditorPaperDetails() {
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-gray-50 border-b border-[#e5e7eb]">
                                     <tr>
-                                        <th className="p-4 w-12 text-center"><span className="text-gray-400">Select</span></th>
+                                        {!disableReviewerActions && <th className="p-4 w-12 text-center"><span className="text-gray-400">Select</span></th>}
                                         <th className="p-4 font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]" onClick={() => handleReviewSort("reviewer")}>Reviewer {reviewSortBy === "reviewer" && (reviewSortOrder === "asc" ? "↑" : "↓")}</th>
                                         <th className="p-4 font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937]" onClick={() => handleReviewSort("status")}>Status {reviewSortBy === "status" && (reviewSortOrder === "asc" ? "↑" : "↓")}</th>
                                         <th className="p-4 font-medium text-[#6b7280]">Recommendation & Comments</th>
@@ -642,16 +598,15 @@ export default function JournalEditorPaperDetails() {
                                 </thead>
                                 <tbody className="divide-y divide-[#e5e7eb]">
                                     {filteredAndSortedReviews.length === 0 ? (
-                                        <tr><td colSpan="6" className="text-center py-8 text-[#6b7280]">No reviewers assigned yet.</td></tr>
+                                        <tr><td colSpan={disableReviewerActions ? 6 : 7} className="text-center py-8 text-[#6b7280]">No reviewers assigned yet.</td></tr>
                                     ) : (
                                         filteredAndSortedReviews.map((review) => {
                                             const reviewer = review.User || reviewers.find(r => r && r.id === review.ReviewerId);
-                                            // Check if reviewer has completed their task
                                             const isFinished = ['submitted', 'completed'].includes((review.Status || '').toLowerCase());
 
                                             return (
                                                 <tr key={review.id} className="hover:bg-[#f3f4f6]/50">
-                                                    
+                                                    {!disableReviewerActions && (
                                                         <td className="p-4 text-center align-top">
                                                             <input 
                                                                 type="checkbox" 
@@ -662,7 +617,7 @@ export default function JournalEditorPaperDetails() {
                                                                 title={isFinished ? "Cannot modify a reviewer who has already submitted." : ""}
                                                             />
                                                         </td>
-                                                    
+                                                    )}
                                                     <td className="p-4 align-top">
                                                         {reviewer ? (
                                                             <div><p className="font-bold text-[#1f2937]">{reviewer.firstname} {reviewer.lastname}</p><p className="text-xs text-[#6b7280]">{reviewer.email}</p></div>
@@ -680,7 +635,7 @@ export default function JournalEditorPaperDetails() {
                                                     <td className="p-4 align-top text-center">
                                                         <button 
                                                             onClick={() => handleViewReview(review)}
-                                                            className="text-[#059669] hover:bg-green-50 px-3 py-1 rounded border border-transparent hover:border-green-200 transition-colors text-sm font-medium"
+                                                            className="text-[#059669] hover:bg-emerald-50 px-3 py-1 rounded border border-transparent hover:border-emerald-200 transition-colors text-sm font-medium"
                                                         >
                                                             View Details
                                                         </button>
@@ -698,8 +653,8 @@ export default function JournalEditorPaperDetails() {
                     {isAssignedEditor && currentEditor.Status !== 'Completed' && (
                         <>
                             <div className="border-t border-[#e5e7eb]"></div>
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 shadow-sm">
-                                <h3 className="text-xl font-bold text-blue-900 mb-4">Submit Editor Recommendation</h3>
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 shadow-sm">
+                                <h3 className="text-xl font-bold text-emerald-900 mb-4">Submit Editor Recommendation</h3>
                                 
                                 {!hasEnoughReviewers ? (
                                     <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700 font-medium text-sm flex items-start gap-2">
@@ -707,7 +662,7 @@ export default function JournalEditorPaperDetails() {
                                         You must have at least 3 completed reviews submitted for this paper before you can send your formal recommendation to the Editor-in-Chief.
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-blue-800 mb-4">Based on the {reviews.length} reviews, select your recommendation for the Editor-in-Chief:</p>
+                                    <p className="text-sm text-emerald-800 mb-4">Based on the {reviews.length} reviews, select your recommendation for the Editor-in-Chief:</p>
                                 )}
 
                                 <div className="flex flex-wrap gap-4 items-center">
@@ -728,7 +683,7 @@ export default function JournalEditorPaperDetails() {
                                         <span className="text-sm font-bold text-red-700">Reject</span>
                                     </label>
                                 </div>
-                                <button onClick={handleEditorSubmit} disabled={!hasEnoughReviewers || !editorRecommendation} className="mt-6 px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-sm transition-colors">
+                                <button onClick={handleEditorSubmit} disabled={!hasEnoughReviewers || !editorRecommendation} className="mt-6 px-6 py-2 bg-[#059669] text-white font-medium rounded-md hover:bg-[#047857] disabled:bg-gray-400 disabled:cursor-not-allowed shadow-sm transition-colors">
                                     Send Recommendation to EIC
                                 </button>
                             </div>
@@ -876,70 +831,6 @@ export default function JournalEditorPaperDetails() {
                 </div>
             )}
 
-            {/* --- UNIFIED UPGRADE & INVITE MODAL --- */}
-            {inviteModalOpen && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-                        <div className="flex justify-between items-center p-5 border-b border-[#e5e7eb] bg-[#f9fafb]">
-                            <h3 className="text-lg font-bold text-[#1f2937]">Upgrade or Invite {inviteType}</h3>
-                            <button onClick={() => setInviteModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
-                        </div>
-                        
-                        <div className="p-5">
-                            {/* Modal Tabs */}
-                            <div className="flex gap-4 border-b border-[#e5e7eb] mb-5">
-                                <button 
-                                    className={`pb-2 text-sm font-bold ${inviteMode === 'existing' ? 'text-[#059669] border-b-2 border-[#059669]' : 'text-gray-500 hover:text-gray-700'}`}
-                                    onClick={() => setInviteMode('existing')}
-                                >
-                                    Upgrade Registered User
-                                </button>
-                                <button 
-                                    className={`pb-2 text-sm font-bold ${inviteMode === 'new' ? 'text-[#059669] border-b-2 border-[#059669]' : 'text-gray-500 hover:text-gray-700'}`}
-                                    onClick={() => setInviteMode('new')}
-                                >
-                                    Invite Brand New User
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleInviteSubmit} className="space-y-4">
-                                {inviteMode === 'existing' ? (
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#374151] mb-2">Select User to Upgrade</label>
-                                        <p className="text-xs text-gray-500 mb-3">Users listed below are registered on SubmitEase but do not currently hold the <strong>{inviteType}</strong> role. Selecting them will grant the role and assign them to this paper.</p>
-                                        <select required value={inviteExistingUserId} onChange={e => setInviteExistingUserId(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white">
-                                            <option value="">-- Select a User --</option>
-                                            {inviteType === 'Editor' 
-                                                ? usersWithoutEditorRole.map(u => <option key={u.id} value={u.id}>{u.firstname} {u.lastname} ({u.email})</option>)
-                                                : usersWithoutReviewerRole.map(u => <option key={u.id} value={u.id}>{u.firstname} {u.lastname} ({u.email})</option>)
-                                            }
-                                        </select>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-xs text-gray-500 mb-3">We will create a temporary account for this user, assign them the <strong>{inviteType}</strong> role, attach them to this paper, and email them their login credentials.</p>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <input type="text" placeholder="First Name *" required value={inviteForm.firstname} onChange={e => setInviteForm({...inviteForm, firstname: e.target.value})} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:outline-none" />
-                                            <input type="text" placeholder="Last Name *" required value={inviteForm.lastname} onChange={e => setInviteForm({...inviteForm, lastname: e.target.value})} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:outline-none" />
-                                        </div>
-                                        <input type="email" placeholder="Email Address *" required value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:outline-none" />
-                                    </div>
-                                )}
-
-                                <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
-                                    <button type="submit" className="flex-1 px-4 py-2 bg-[#059669] text-white font-medium text-sm rounded-md hover:bg-[#047857] shadow-sm transition-colors">
-                                        {inviteMode === 'existing' ? 'Upgrade & Assign' : 'Register & Assign'}
-                                    </button>
-                                    <button type="button" onClick={() => setInviteModalOpen(false)} className="px-4 py-2 bg-white border border-[#e5e7eb] text-gray-700 font-medium text-sm rounded-md hover:bg-gray-50 transition-colors">
-                                        Cancel
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* --- DESK REJECT MODAL --- */}
             {deskRejectModalOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120]">
@@ -977,6 +868,109 @@ export default function JournalEditorPaperDetails() {
                 </div>
             )}
 
+            {/* --- UNIFIED USER SELECTION MODAL --- */}
+            {userModal.open && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-5 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                            <h3 className="text-lg font-bold text-[#1f2937]">
+                                {userModal.context} {userModal.role}
+                            </h3>
+                            <button onClick={() => setUserModal({ open: false, role: '', context: '' })} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+                        </div>
+                        
+                        <div className="flex border-b border-[#e5e7eb] px-5 pt-3 bg-white">
+                            <button 
+                                className={`pb-3 mr-6 text-sm font-bold border-b-2 transition-colors ${userModalTab === 'directory' ? 'text-[#059669] border-[#059669]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+                                onClick={() => { setUserModalTab('directory'); setUserSearchTerm(''); }}
+                            >
+                                Registered {userModal.role}s
+                            </button>
+                            <button 
+                                className={`pb-3 mr-6 text-sm font-bold border-b-2 transition-colors ${userModalTab === 'upgrade' ? 'text-[#059669] border-[#059669]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+                                onClick={() => { setUserModalTab('upgrade'); setUserSearchTerm(''); }}
+                            >
+                                Upgrade Network User
+                            </button>
+                            <button 
+                                className={`pb-3 text-sm font-bold border-b-2 transition-colors ${userModalTab === 'new' ? 'text-[#059669] border-[#059669]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+                                onClick={() => setUserModalTab('new')}
+                            >
+                                Invite Brand New User
+                            </button>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto bg-gray-50 flex-1">
+                            {userModalTab === 'new' ? (
+                                <form onSubmit={(e) => { e.preventDefault(); handleUserSelectionSubmit(null, false, true); }} className="space-y-4 max-w-md mx-auto mt-4">
+                                    <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm space-y-4">
+                                        <p className="text-sm text-gray-600 mb-2">We will create a temporary account, assign them the <strong>{userModal.role}</strong> role, attach them to this paper, and automatically email them login instructions.</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input type="text" placeholder="First Name *" required value={inviteForm.firstname} onChange={e => setInviteForm({...inviteForm, firstname: e.target.value})} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                            <input type="text" placeholder="Last Name *" required value={inviteForm.lastname} onChange={e => setInviteForm({...inviteForm, lastname: e.target.value})} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                        </div>
+                                        <input type="email" placeholder="Email Address *" required value={inviteForm.email} onChange={e => setInviteForm({...inviteForm, email: e.target.value})} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                        
+                                        <button type="submit" className="w-full mt-2 px-4 py-2 bg-[#059669] text-white font-medium text-sm rounded-md hover:bg-[#047857] shadow-sm transition-colors">
+                                            Register & {userModal.context}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            placeholder={`Search by name, email, organisation, or expertise...`}
+                                            value={userSearchTerm}
+                                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white shadow-sm"
+                                        />
+                                        <svg className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    </div>
+
+                                    {userModalTab === 'upgrade' && (
+                                        <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md">
+                                            <p className="text-xs text-yellow-800 font-medium">These users are registered on SubmitEase but do not currently hold the <strong>{userModal.role}</strong> role. Selecting them will grant them the role globally and assign them to this paper.</p>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3 mt-4">
+                                        {modalUsersToDisplay.length === 0 ? (
+                                            <div className="text-center py-8 bg-white rounded-md border border-gray-200">
+                                                <p className="text-sm text-gray-500 italic">No users found matching your search.</p>
+                                            </div>
+                                        ) : (
+                                            modalUsersToDisplay.map(u => (
+                                                <div key={u.id} className="p-4 border border-[#e5e7eb] rounded-md hover:border-[#059669] flex justify-between items-center bg-white shadow-sm transition-colors group">
+                                                    <div className="flex-1 pr-4">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <p className="font-bold text-[#1f2937]">{u.firstname} {u.lastname}</p>
+                                                            <p className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{u.email}</p>
+                                                        </div>
+                                                        <div className="flex flex-col sm:flex-row sm:gap-6 mt-2">
+                                                            <p className="text-xs text-[#059669] font-medium"><span className="text-gray-500">Org:</span> {u.organisation || 'Not Specified'}</p>
+                                                            <p className="text-xs text-[#059669] font-medium truncate" title={u.expertise?.length ? u.expertise.join(', ') : ''}><span className="text-gray-500">Expertise:</span> {u.expertise?.length ? u.expertise.join(', ') : 'Not Specified'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleUserSelectionSubmit(u.id, userModalTab === 'upgrade', false)} 
+                                                        className="ml-2 px-5 py-2 bg-emerald-50 text-[#059669] border border-[#059669] font-bold text-xs rounded hover:bg-[#059669] hover:text-white transition-colors whitespace-nowrap"
+                                                    >
+                                                        {userModalTab === 'upgrade' ? `Upgrade & ${userModal.context}` : userModal.context}
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

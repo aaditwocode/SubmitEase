@@ -53,7 +53,7 @@ function sendMail(to, sub, msg) {
 const sendAutomatedEmail = async (to, subject, text) => {
     try {
         await transporter.sendMail({
-            from: '"SubmitEase System" <your-email@gmail.com>',
+            from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
             to,
             subject,
             text
@@ -474,6 +474,7 @@ app.post('/login', async (req, res) => {
         organisation: true,
         country: true,
         password: true,
+        isAdmin: true,
       },
       cacheStrategy: { ttl: 60 },
     });
@@ -569,6 +570,84 @@ app.post('/reset-password', async (req, res) => {
     res.status(500).json({ message: "Failed to reset password." });
   }
 });
+
+// PUT: Update Profile Details (Organisation & Expertise)
+app.put('/user/profile/:id', async (req, res) => {
+    const { id } = req.params;
+    const { organisation, expertise } = req.body;
+    try {
+        const updatedUser = await prisma.user.update({
+            where: { id: parseInt(id, 10) },
+            data: { organisation, expertise }
+        });
+        res.status(200).json({ user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST: Request OTP for Email Update (Stateless using bcrypt)
+app.post('/user/request-email-update', async (req, res) => {
+    const { newEmail, firstname } = req.body;
+    
+    if (!newEmail) return res.status(400).send("Email is required.");
+
+    try {
+        // 1. Check if email is already in use
+        const existingUser = await prisma.user.findUnique({ where: { email: newEmail } });
+        if (existingUser) return res.status(400).send("An account with this email already exists.");
+
+        // 2. Generate OTP and Hash
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const salt = await bcrypt.genSalt(10);
+        const hashedCode = await bcrypt.hash(otp, salt);
+
+        // 3. Send Email (using your existing transporter logic)
+        const mailOptions = {
+            from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
+            to: newEmail,
+            subject: 'Verify Your New Email Address',
+            html: `
+              <div style="font-family: sans-serif; padding: 20px;">
+                <h2>Hello ${firstname || 'User'},</h2>
+                <p>You requested to update your email address on SubmitEase. Please use the code below to verify this inbox:</p>
+                <h1 style="color: #059669; letter-spacing: 5px;">${otp}</h1>
+                <p>If you didn't request this, please ignore this email and your account will remain unchanged.</p>
+              </div>
+            `
+        };
+        await transporter.sendMail(mailOptions);
+
+        // 4. Return hash to frontend
+        res.status(200).json({ hash: hashedCode });
+    } catch (error) {
+        console.error("Email update OTP error:", error);
+        res.status(500).send("Failed to send OTP.");
+    }
+});
+
+// POST: Verify OTP Hash and Update Email
+app.post('/user/verify-email-update', async (req, res) => {
+    const { userId, newEmail, otp, hash } = req.body;
+    try {
+        // Compare the raw OTP the user typed with the hashed OTP we sent earlier
+        const isValid = await bcrypt.compare(otp, hash);
+        if (!isValid) return res.status(400).send("Invalid verification code.");
+
+        // Update the user in the database
+        const updatedUser = await prisma.user.update({
+            where: { id: parseInt(userId, 10) },
+            data: { email: newEmail }
+        });
+
+        res.status(200).json({ user: updatedUser });
+    } catch (error) {
+        console.error("Email update verification error:", error);
+        res.status(500).send("Failed to update email.");
+    }
+});
+
+
 app.get('/conferences', async (req, res) => {
   try {
     const conferences = await prisma.conference.findMany({
@@ -4031,6 +4110,37 @@ app.get('/api/user/dashboard-stats/:userId', async (req, res) => {
 });
 
 // ==================== END JOURNAL-SPECIFIC ENDPOINTS ====================
+
+// ============================================================================
+// PUBLIC ENDPOINTS (Landing Page)
+// ============================================================================
+
+// GET: Public Platform Stats for Landing Page
+app.get('/public/platform-stats', async (req, res) => {
+    try {
+        // 1. Count total registered users
+        const usersCount = await prisma.user.count();
+
+        // 2. Count total conferences 
+        // (Note: If your Prisma model is named differently, change 'conference' to match it, e.g., 'ConferenceDetails')
+        const conferencesCount = await prisma.conference.count(); 
+
+        // 3. Count total papers submitted (combining Journal and Conference papers)
+        const journalPapersCount = await prisma.journalPapers.count();
+        const confPapersCount = await prisma.paper.count();
+        const totalPapersCount = journalPapersCount + confPapersCount;
+
+        res.status(200).json({
+            users: usersCount,
+            conferences: conferencesCount,
+            papers: totalPapersCount
+        });
+    } catch (error) {
+        console.error("Public Stats Error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 
 // --- Schedule the Job ---
 cron.schedule('0 0 * * *', () => {

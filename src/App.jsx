@@ -34,7 +34,6 @@ import AdminConferences from "./components/Admin_ConferenceManagement";
 import AdminJournal from "./components/Admin_JournalManagement";
 import EIC from "./components/EIC_dashboard.jsx";
 import JournalEditorPaperDetails from "./components/JournalEditorPaperDetails.jsx";
-import JournalEditorRevisionDetails from "./components/JournalEditorRevisionDetails.jsx";
 function App() {
   return (
     <UserProvider>
@@ -251,14 +250,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <JournalEditorPaperDetails />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/journal/editor/revision/:paperId"
-            element={
-              <ProtectedRoute>
-                <JournalEditorRevisionDetails />
               </ProtectedRoute>
             }
           />

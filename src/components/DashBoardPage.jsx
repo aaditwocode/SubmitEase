@@ -10,7 +10,6 @@ const Header = ({ user, handleLogout }) => {
   const [isDropdownOpenJournal, setIsDropdownOpenJournal] = useState(false);
   const navigate = useNavigate();
 
-  // 1. Define the Master Config: Maps DB Role Strings -> Frontend Routes
   const ROLE_CONFIG = {
     "Author": { label: "Author", path: "/conference" },
     "Conference Host": { label: "Conference Host", path: "/conference/manage/chiefchair" },
@@ -27,7 +26,6 @@ const Header = ({ user, handleLogout }) => {
       "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
   };
 
-  // 2. Filter options based on the current user's roles
   const availablePortalOptions = useMemo(() => {
     if (!user || !user.role || !Array.isArray(user.role)) return [];
     return user.role.map(roleString => ROLE_CONFIG[roleString]).filter(Boolean);
@@ -41,7 +39,6 @@ const Header = ({ user, handleLogout }) => {
   return (
     <header className="border-b border-[#e5e7eb] bg-[#ffffff]/95 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/60">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        {/* Left side - Logo */}
         <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/')}>
           <div className="h-8 w-8 bg-[#059669] rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">S</span>
@@ -49,10 +46,7 @@ const Header = ({ user, handleLogout }) => {
           <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
         </div>
 
-        {/* Right side - Portal buttons and logout */}
         <div className="flex items-center space-x-4">
-          
-          {/* Journal Portal Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpenJournal(!isDropdownOpenJournal)}
@@ -88,7 +82,6 @@ const Header = ({ user, handleLogout }) => {
             )}
           </div>
           
-          {/* Conference Portal Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -133,12 +126,10 @@ const Header = ({ user, handleLogout }) => {
   );
 };
 
-// --- MAIN DASHBOARD PAGE ---
 export default function DashBoardPage() {
   const { user, setUser } = useUserData();
   const navigate = useNavigate();
   
-  // Dynamic Stats State
   const [stats, setStats] = useState({
     conferenceCount: 0,
     publishedCount: 0,
@@ -147,14 +138,30 @@ export default function DashBoardPage() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Logout Handler
+  // Profile Edit State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({ organisation: '', expertise: '' });
+
+  // Email Update Modal State
+  const [emailModal, setEmailModal] = useState({ open: false, step: 'input', newEmail: '', otp: '', hash: '', error: '' });
+
+  // Initialize edit form when user data loads
+  useEffect(() => {
+    if (user) {
+        setEditForm({
+            organisation: user.organisation || '',
+            expertise: Array.isArray(user.expertise) ? user.expertise.join(', ') : (user.expertise || '')
+        });
+    }
+  }, [user]);
+
   const handleLogout = () => {
     console.log("[v0] Logging out user");
     setUser(null);
     navigate("/home");
   };
 
-  // Fetch Dynamic Stats
+  // Fetch Dashboard Stats
   useEffect(() => {
     const fetchStats = async () => {
       if (!user?.id) return;
@@ -164,19 +171,91 @@ export default function DashBoardPage() {
             const data = await response.json();
             setStats(data);
         }
-      } catch (err) {
-        console.error("Failed to fetch dashboard stats:", err);
-      } finally {
+      } catch (err) {} finally {
         setLoading(false);
       }
     };
-
     fetchStats();
   }, [user]);
 
   const handlePortalClick = (portal) => {
-    console.log(`[v0] Navigating to ${portal} portal`);
     navigate(`/${portal}`);
+  };
+
+  // --- ACTION HANDLER: Save Profile Details ---
+  const saveProfileDetails = async () => {
+      try {
+          const res = await fetch(`http://localhost:3001/user/profile/${user.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  organisation: editForm.organisation,
+                  expertise: editForm.expertise.split(',').map(e => e.trim()).filter(Boolean)
+              })
+          });
+          if (res.ok) {
+              const data = await res.json();
+              setUser(data.user); // Update context
+              setIsEditingProfile(false); // Close edit mode
+          } else {
+              alert("Failed to update profile");
+          }
+      } catch (err) {
+          alert("Network error updating profile");
+      }
+  };
+
+  // --- ACTION HANDLER: Request Email OTP ---
+  const handleRequestOTP = async (e) => {
+      e.preventDefault();
+      setEmailModal(prev => ({ ...prev, error: '' }));
+      try {
+          const res = await fetch('http://localhost:3001/user/request-email-update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ newEmail: emailModal.newEmail, firstname: user.firstname })
+          });
+          
+          if (res.ok) {
+              const data = await res.json();
+              setEmailModal(prev => ({ ...prev, step: 'verify', hash: data.hash }));
+          } else {
+              const errorText = await res.text();
+              setEmailModal(prev => ({ ...prev, error: errorText }));
+          }
+      } catch (err) {
+          setEmailModal(prev => ({ ...prev, error: 'Network error.' }));
+      }
+  };
+
+  // --- ACTION HANDLER: Verify OTP and Update Email ---
+  const handleVerifyOTP = async (e) => {
+      e.preventDefault();
+      setEmailModal(prev => ({ ...prev, error: '' }));
+      try {
+          const res = await fetch('http://localhost:3001/user/verify-email-update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                  userId: user.id, 
+                  newEmail: emailModal.newEmail, 
+                  otp: emailModal.otp,
+                  hash: emailModal.hash 
+              })
+          });
+          
+          if (res.ok) {
+              const data = await res.json();
+              setUser(data.user); // Update context with new email
+              setEmailModal({ open: false, step: 'input', newEmail: '', otp: '', hash: '', error: '' });
+              alert("Email address updated successfully!");
+          } else {
+              const errorText = await res.text();
+              setEmailModal(prev => ({ ...prev, error: errorText }));
+          }
+      } catch (err) {
+          setEmailModal(prev => ({ ...prev, error: 'Network error.' }));
+      }
   };
 
   if (!user) {
@@ -189,14 +268,36 @@ export default function DashBoardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* --- Profile Information Section --- */}
+        {/* --- PROFILE SECTION --- */}
         <section className="mb-12">
-          <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8">
-            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">
-              Profile Information
-            </h2>
+          <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8 relative">
+            
+            {/* Edit / Save Controls - UPDATED: Change Email moved here */}
+            <div className="absolute top-8 right-8">
+                {!isEditingProfile ? (
+                    <div className="flex gap-2">
+                        <button onClick={() => setEmailModal({ ...emailModal, open: true })} className="px-4 py-2 bg-white border border-emerald-200 text-sm font-medium text-[#059669] rounded-md hover:bg-emerald-50 transition-colors shadow-sm">
+                            Change Email
+                        </button>
+                        <button onClick={() => setIsEditingProfile(true)} className="px-4 py-2 bg-white border border-emerald-200 text-sm font-medium text-[#059669] rounded-md hover:bg-emerald-50 transition-colors shadow-sm">
+                            Edit Profile
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex gap-2">
+                        <button onClick={saveProfileDetails} className="px-4 py-2 bg-[#059669] text-white text-sm font-medium rounded-md hover:bg-[#047857] shadow-sm transition-colors">
+                            Save
+                        </button>
+                        <button onClick={() => { setIsEditingProfile(false); setEditForm({ organisation: user.organisation || '', expertise: Array.isArray(user.expertise) ? user.expertise.join(', ') : (user.expertise || '') }); }} className="px-4 py-2 bg-white border border-[#e5e7eb] text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 transition-colors shadow-sm">
+                            Cancel
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">Profile Information</h2>
+            
             <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
-              {/* Profile Image */}
               <div className="flex-shrink-0">
                 <img
                   src={`https://placehold.co/128x128/059669/ffffff?text=${user.firstname?.charAt(0) || ''}${user.lastname?.charAt(0) || ''}`}
@@ -205,26 +306,33 @@ export default function DashBoardPage() {
                 />
               </div>
 
-              {/* Profile Details */}
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-4 w-full">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-[#6b7280] mb-1">Full Name</label>
-                    <p className="text-lg font-semibold text-[#1f2937]">{user.firstname} {user.lastname}</p>
+                    <p className="text-lg font-semibold text-[#1f2937] py-1">{user.firstname} {user.lastname}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#6b7280] mb-1">Email Address</label>
-                    <p className="text-lg text-[#1f2937]">{user.email}</p>
+                    <p className="text-lg text-[#1f2937] py-1">{user.email}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-[#6b7280] mb-1">Organisation</label>
-                    <p className="text-lg text-[#1f2937]">{user.organisation || 'Not specified'}</p>
+                    {isEditingProfile ? (
+                        <input type="text" value={editForm.organisation} onChange={(e) => setEditForm({...editForm, organisation: e.target.value})} className="w-full px-3 py-1.5 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:outline-none" />
+                    ) : (
+                        <p className="text-lg text-[#1f2937] py-1">{user.organisation || 'Not specified'}</p>
+                    )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#6b7280] mb-1">Research Area</label>
-                    <p className="text-lg text-[#1f2937]">
-                      {Array.isArray(user.expertise) ? user.expertise.join(', ') : (user.expertise || 'Not specified')}
-                    </p>
+                    <label className="block text-sm font-medium text-[#6b7280] mb-1">Research Area (Comma separated)</label>
+                    {isEditingProfile ? (
+                        <input type="text" value={editForm.expertise} onChange={(e) => setEditForm({...editForm, expertise: e.target.value})} className="w-full px-3 py-1.5 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:outline-none" />
+                    ) : (
+                        <p className="text-lg text-[#1f2937] py-1">
+                            {Array.isArray(user.expertise) ? user.expertise.join(', ') : (user.expertise || 'Not specified')}
+                        </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -232,49 +340,33 @@ export default function DashBoardPage() {
           </div>
         </section>
 
-        {/* --- Dynamic Academic Statistics Section --- */}
+        {/* --- STATS SECTION --- */}
         <section className="mb-12">
           <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8">
-            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">
-              Academic Statistics
-            </h2>
+            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">Academic Statistics</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Stat 1: Unique Conferences */}
               <div className="text-center p-6 bg-[#059669]/[0.05] rounded-lg border border-[#059669]/20">
                 <div className="text-3xl font-bold text-[#059669] mb-2">
                   {loading ? "..." : stats.conferenceCount}
                 </div>
-                <div className="text-sm font-medium text-[#6b7280]">
-                  Unique Conferences
-                </div>
+                <div className="text-sm font-medium text-[#6b7280]">Unique Conferences</div>
               </div>
-
-              {/* Stat 2: Total Submissions */}
               <div className="text-center p-6 bg-[#059669]/[0.05] rounded-lg border border-[#059669]/20">
                 <div className="text-3xl font-bold text-[#059669] mb-2">
                   {loading ? "..." : stats.totalSubmissions}
                 </div>
-                <div className="text-sm font-medium text-[#6b7280]">
-                  Total Submissions
-                </div>
+                <div className="text-sm font-medium text-[#6b7280]">Total Submissions</div>
               </div>
-
-              {/* Stat 3: Papers Published */}
               <div className="text-center p-6 bg-[#059669]/[0.05] rounded-lg border border-[#059669]/20">
                 <div className="text-3xl font-bold text-[#059669] mb-2">
                   {loading ? "..." : stats.publishedCount}
                 </div>
-                <div className="text-sm font-medium text-[#6b7280]">
-                  Papers Published
-                </div>
+                <div className="text-sm font-medium text-[#6b7280]">Papers Published</div>
               </div>
             </div>
 
-            {/* Dynamic Recent Activity */}
             <div className="mt-8">
-              <h3 className="text-lg font-semibold text-[#1f2937] mb-4">
-                Recent Activity
-              </h3>
+              <h3 className="text-lg font-semibold text-[#1f2937] mb-4">Recent Activity</h3>
               <div className="space-y-3">
                 {loading ? (
                     <p className="text-sm text-gray-500 italic">Loading activity...</p>
@@ -300,18 +392,13 @@ export default function DashBoardPage() {
           </div>
         </section>
 
-        {/* --- Access Portals Section --- */}
+        {/* --- PORTALS SECTION --- */}
         <section>
           <div className="bg-[#f9fafb] rounded-xl shadow-sm border border-[#e5e7eb] p-8">
-            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">
-              Access Portals
-            </h2>
-            <p className="text-[#6b7280] mb-8">
-              Choose your portal to manage submissions, track progress, and access academic resources.
-            </p>
+            <h2 className="text-2xl font-bold text-[#1f2937] mb-6">Access Portals</h2>
+            <p className="text-[#6b7280] mb-8">Choose your portal to manage submissions, track progress, and access academic resources.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Conference Portal Button */}
               <div className="group">
                 <button
                   onClick={() => handlePortalClick("conference")}
@@ -323,17 +410,12 @@ export default function DashBoardPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-[#059669] mb-2">
-                      Open Conference Portal
-                    </h3>
-                    <p className="text-[#6b7280] text-sm">
-                      Submit papers, track conference submissions, and manage your academic presentations.
-                    </p>
+                    <h3 className="text-xl font-bold text-[#059669] mb-2">Open Conference Portal</h3>
+                    <p className="text-[#6b7280] text-sm">Submit papers, track conference submissions, and manage your academic presentations.</p>
                   </div>
                 </button>
               </div>
 
-              {/* Journal Portal Button */}
               <div className="group">
                 <button
                   onClick={() => handlePortalClick("journal")}
@@ -345,12 +427,8 @@ export default function DashBoardPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-[#059669] mb-2">
-                      Open Journal Portal
-                    </h3>
-                    <p className="text-[#6b7280] text-sm">
-                      Submit to journals, manage peer reviews, and track publication status.
-                    </p>
+                    <h3 className="text-xl font-bold text-[#059669] mb-2">Open Journal Portal</h3>
+                    <p className="text-[#6b7280] text-sm">Submit to journals, manage peer reviews, and track publication status.</p>
                   </div>
                 </button>
               </div>
@@ -358,6 +436,56 @@ export default function DashBoardPage() {
           </div>
         </section>
       </main>
+
+      {/* --- EMAIL UPDATE OTP MODAL --- */}
+      {emailModal.open && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+                <div className="flex justify-between items-center p-5 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                    <h3 className="text-lg font-bold text-[#1f2937]">Update Email Address</h3>
+                    <button onClick={() => setEmailModal({ open: false, step: 'input', newEmail: '', otp: '', hash: '', error: '' })} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+                </div>
+                
+                <div className="p-5">
+                    {emailModal.error && <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded border border-red-200">{emailModal.error}</div>}
+                    
+                    {emailModal.step === 'input' ? (
+                        <form onSubmit={handleRequestOTP} className="space-y-4">
+                            <p className="text-sm text-gray-600">Enter your new email address. We will send a 6-digit OTP to verify you own this inbox.</p>
+                            <input 
+                                type="email" 
+                                required 
+                                placeholder="new.email@example.com" 
+                                value={emailModal.newEmail} 
+                                onChange={e => setEmailModal({...emailModal, newEmail: e.target.value})} 
+                                className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:outline-none"
+                            />
+                            <div className="flex gap-3 pt-2">
+                                <button type="submit" className="flex-1 px-4 py-2 bg-[#059669] text-white font-medium text-sm rounded-md hover:bg-[#047857]">Send OTP</button>
+                            </div>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleVerifyOTP} className="space-y-4">
+                            <p className="text-sm text-gray-600">Enter the 6-digit code sent to <strong>{emailModal.newEmail}</strong>.</p>
+                            <input 
+                                type="text" 
+                                required 
+                                maxLength={6}
+                                placeholder="123456" 
+                                value={emailModal.otp} 
+                                onChange={e => setEmailModal({...emailModal, otp: e.target.value})} 
+                                className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-center text-xl tracking-widest focus:ring-[#059669] focus:outline-none"
+                            />
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setEmailModal({...emailModal, step: 'input', otp: '', hash: '', error: ''})} className="px-4 py-2 bg-white border border-[#e5e7eb] text-gray-700 font-medium text-sm rounded-md hover:bg-gray-50">Back</button>
+                                <button type="submit" className="flex-1 px-4 py-2 bg-[#059669] text-white font-medium text-sm rounded-md hover:bg-[#047857]">Verify & Update</button>
+                            </div>
+                        </form>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

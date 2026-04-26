@@ -48,7 +48,12 @@ export default function SignInPage() {
       setUser(data.user);
       setLoading(false);
       setFeedback({ message: 'Sign In Successful! Redirecting...', type: 'Success' });
-      setTimeout(() => navigate('/dashboard'), 200);
+      if(data.user.isAdmin){
+        setTimeout(() => navigate('/admin/dashboard'), 200);
+      }
+      else{
+        setTimeout(() => navigate('/dashboard'), 200);
+      }
     } catch (err) {
       console.error(err);
       setLoading(false);
