@@ -1,26 +1,30 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 // --- EXACT PORTAL HEADER ---
-const Header = ({ user, handleLogout }) => {
+const Header = ({ user, journalid, currentJournalName, handleLogout }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
   const ROLE_CONFIG = {
-      "Author": { label: "Author", path: "/journal" },
-      "Journal Editor": { label: "Editor", path: "/journal/editor" },
-      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
-      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
+      "Author": { label: "Author", path: `/journal/${journalid}/author` },
+      "Journal Editor": { label: "Editor", path: `/journal/${journalid}/editor` },
+      "Journal Reviewer": { label: "Reviewer", path: `/journal/${journalid}/reviewer` },
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: `/journal/${journalid}/eic` },
+      "Journal Host": { label: "Journal Host", path: `/journal/${journalid}/journalhost` }
     };
 
   const availablePortals = useMemo(() => {
-    if (!user || !user.role || !Array.isArray(user.role)) return [];
-    return user.role
-      .map(roleString => ROLE_CONFIG[roleString])
-      .filter(Boolean);
-  }, [user]);
+    if (!user || !user.activeJournals) return [];
+    const currentJournal = user.activeJournals.find((j) => j.journalId === parseInt(journalid, 10));
+    const rolesForThisJournal = currentJournal?.roles || [];
+    
+    return rolesForThisJournal
+        .map(roleString => ROLE_CONFIG[roleString])
+        .filter(Boolean);
+  }, [user, journalid]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -31,6 +35,12 @@ const Header = ({ user, handleLogout }) => {
               <span className="text-lg font-bold text-white">S</span>
             </div>
             <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+            {currentJournalName && (
+                <>
+                    <span className="text-gray-300 mx-1">|</span>
+                    <span className="text-sm font-semibold text-[#059669] truncate max-w-[200px] md:max-w-md">{currentJournalName}</span>
+                </>
+            )}
           </div>
         </div>
 
@@ -54,7 +64,7 @@ const Header = ({ user, handleLogout }) => {
                   <>
                     <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Your Roles</h6>
                     {availablePortals.map((option, index) => (
-                      <button key={index} onClick={() => { navigate(option.path); setIsDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]">
+                      <button key={index} onMouseDown={() => { navigate(option.path); setIsDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]">
                         {option.label}
                       </button>
                     ))}
@@ -94,9 +104,11 @@ const getStatusBadge = (status, isOverdue) => {
 export default function JournalEICDashboard() {
   const { user, setUser, setloginStatus } = useUserData();
   const navigate = useNavigate();
+  const { journalid } = useParams();
 
   const [papers, setPapers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentJournalName, setCurrentJournalName] = useState("");
 
   const [activeTab, setActiveTab] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,7 +117,7 @@ export default function JournalEICDashboard() {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  // --- NEW: State for expanded editor accordion ---
+  // State for expanded editor accordion
   const [expandedEditorId, setExpandedEditorId] = useState(null);
 
   const handleLogout = () => {
@@ -114,11 +126,23 @@ export default function JournalEICDashboard() {
     navigate("/home");
   };
 
+  // Extract Journal Name for Header
+  useEffect(() => {
+    if (user && user.activeJournals && journalid) {
+        const matchingJournal = user.activeJournals.find(j => j.journalId === parseInt(journalid, 10));
+        if (matchingJournal) {
+            setCurrentJournalName(matchingJournal.journalName);
+        }
+    }
+  }, [user, journalid]);
+
   // --- Data Fetching ---
   const fetchDashboardData = async () => {
+    if (!journalid) return;
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/journal/eic/dashboard-data');
+      // NOTE: Ensure your backend endpoint expects the journalId query parameter
+      const response = await fetch(`http://localhost:3001/journal/eic/dashboard-data?journalId=${journalid}`);
       if (response.ok) {
         const data = await response.json();
         setPapers(data.papers || []);
@@ -132,7 +156,7 @@ export default function JournalEICDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [journalid]);
 
   // --- DERIVED DATA LOGIC (For Main Papers) ---
   const triagePapers = papers.filter(p => p.Status === "Under Review" && (!p.Editors || p.Editors.length === 0));
@@ -220,7 +244,7 @@ export default function JournalEICDashboard() {
 
     let filtered = list.filter(p => 
       p.Title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.id.toLowerCase().includes(searchTerm.toLowerCase())
+      p.id?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return filtered.sort((a, b) => {
@@ -244,7 +268,7 @@ export default function JournalEICDashboard() {
 
   return (
     <div className="min-h-screen bg-[#ffffff]">
-      <Header user={user} handleLogout={handleLogout} />
+      <Header user={user} journalid={journalid} currentJournalName={currentJournalName} handleLogout={handleLogout} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
@@ -392,7 +416,7 @@ export default function JournalEICDashboard() {
                                                 </td>
                                                 <td className="py-3 px-3 text-right">
                                                   <button 
-                                                    onClick={() => navigate(`/journal/editor/paper/${paper.id}`)} 
+                                                    onClick={() => navigate(`/journal/${journalid}/editor/paper/${paper.id}`)} 
                                                     className="px-3 py-1 bg-white border border-[#059669] text-[#059669] font-medium rounded text-xs hover:bg-emerald-50 transition-colors"
                                                   >
                                                     View
@@ -497,7 +521,7 @@ export default function JournalEICDashboard() {
                           </td>
                           <td className="py-4 px-4 text-right whitespace-nowrap">
                             <button 
-                              onClick={() => navigate(`/journal/editor/paper/${paper.id}`)} 
+                              onClick={() => navigate(`/journal/${journalid}/editor/paper/${paper.id}`)} 
                               className="px-4 py-2 bg-[#059669] text-white font-medium rounded-md text-xs hover:bg-[#047857] transition-colors shadow-sm"
                             >
                               Manage Paper

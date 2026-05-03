@@ -51,17 +51,17 @@ function sendMail(to, sub, msg) {
 }
 
 const sendAutomatedEmail = async (to, subject, text) => {
-    try {
-        await transporter.sendMail({
-            from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
-            to,
-            subject,
-            text
-        });
-        console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject}`);
-    } catch (error) {
-        console.error(`[EMAIL FAILED] To: ${to} | Error:`, error.message);
-    }
+  try {
+    await transporter.sendMail({
+      from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      text
+    });
+    console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject}`);
+  } catch (error) {
+    console.error(`[EMAIL FAILED] To: ${to} | Error:`, error.message);
+  }
 };
 
 // --- Initialize Supabase Client ---
@@ -475,6 +475,18 @@ app.post('/login', async (req, res) => {
         country: true,
         password: true,
         isAdmin: true,
+        // Fetch the user's assigned journals directly during login
+        JournalAssignments: {
+          select: {
+            role: true,
+            JournalId: true,
+            Journal: {
+              select: { name: true, status: true }
+            }
+          }
+        },
+        /* Note: If you have a similar table for conferences, 
+           you can add ConferenceAssignments: { select: { ... } } here too! */
       },
       cacheStrategy: { ttl: 60 },
     });
@@ -488,8 +500,23 @@ app.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials. Please check your email and password.' });
     }
 
-    const { password: _, ...userWithoutPassword } = user;
-    res.status(200).json({ user: userWithoutPassword });
+    // Format the journals to make them clean and easy to use on the frontend
+    const activeJournals = user.JournalAssignments?.map(a => ({
+      journalId: a.JournalId,
+      journalName: a.Journal?.name,
+      roles: a.role
+    })) || [];
+
+    // Destructure to remove the password and the raw JournalAssignments array
+    const { password: _, JournalAssignments: __, ...userWithoutPassword } = user;
+
+    // Attach the clean activeJournals array to the final object
+    const finalUser = {
+      ...userWithoutPassword,
+      activeJournals
+    };
+
+    res.status(200).json({ user: finalUser });
 
   } catch (error) {
     res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
@@ -573,41 +600,41 @@ app.post('/reset-password', async (req, res) => {
 
 // PUT: Update Profile Details (Organisation & Expertise)
 app.put('/user/profile/:id', async (req, res) => {
-    const { id } = req.params;
-    const { organisation, expertise } = req.body;
-    try {
-        const updatedUser = await prisma.user.update({
-            where: { id: parseInt(id, 10) },
-            data: { organisation, expertise }
-        });
-        res.status(200).json({ user: updatedUser });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+  const { id } = req.params;
+  const { organisation, expertise } = req.body;
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: parseInt(id, 10) },
+      data: { organisation, expertise }
+    });
+    res.status(200).json({ user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // POST: Request OTP for Email Update (Stateless using bcrypt)
 app.post('/user/request-email-update', async (req, res) => {
-    const { newEmail, firstname } = req.body;
-    
-    if (!newEmail) return res.status(400).send("Email is required.");
+  const { newEmail, firstname } = req.body;
 
-    try {
-        // 1. Check if email is already in use
-        const existingUser = await prisma.user.findUnique({ where: { email: newEmail } });
-        if (existingUser) return res.status(400).send("An account with this email already exists.");
+  if (!newEmail) return res.status(400).send("Email is required.");
 
-        // 2. Generate OTP and Hash
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const salt = await bcrypt.genSalt(10);
-        const hashedCode = await bcrypt.hash(otp, salt);
+  try {
+    // 1. Check if email is already in use
+    const existingUser = await prisma.user.findUnique({ where: { email: newEmail } });
+    if (existingUser) return res.status(400).send("An account with this email already exists.");
 
-        // 3. Send Email (using your existing transporter logic)
-        const mailOptions = {
-            from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
-            to: newEmail,
-            subject: 'Verify Your New Email Address',
-            html: `
+    // 2. Generate OTP and Hash
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedCode = await bcrypt.hash(otp, salt);
+
+    // 3. Send Email (using your existing transporter logic)
+    const mailOptions = {
+      from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
+      to: newEmail,
+      subject: 'Verify Your New Email Address',
+      html: `
               <div style="font-family: sans-serif; padding: 20px;">
                 <h2>Hello ${firstname || 'User'},</h2>
                 <p>You requested to update your email address on SubmitEase. Please use the code below to verify this inbox:</p>
@@ -615,36 +642,36 @@ app.post('/user/request-email-update', async (req, res) => {
                 <p>If you didn't request this, please ignore this email and your account will remain unchanged.</p>
               </div>
             `
-        };
-        await transporter.sendMail(mailOptions);
+    };
+    await transporter.sendMail(mailOptions);
 
-        // 4. Return hash to frontend
-        res.status(200).json({ hash: hashedCode });
-    } catch (error) {
-        console.error("Email update OTP error:", error);
-        res.status(500).send("Failed to send OTP.");
-    }
+    // 4. Return hash to frontend
+    res.status(200).json({ hash: hashedCode });
+  } catch (error) {
+    console.error("Email update OTP error:", error);
+    res.status(500).send("Failed to send OTP.");
+  }
 });
 
 // POST: Verify OTP Hash and Update Email
 app.post('/user/verify-email-update', async (req, res) => {
-    const { userId, newEmail, otp, hash } = req.body;
-    try {
-        // Compare the raw OTP the user typed with the hashed OTP we sent earlier
-        const isValid = await bcrypt.compare(otp, hash);
-        if (!isValid) return res.status(400).send("Invalid verification code.");
+  const { userId, newEmail, otp, hash } = req.body;
+  try {
+    // Compare the raw OTP the user typed with the hashed OTP we sent earlier
+    const isValid = await bcrypt.compare(otp, hash);
+    if (!isValid) return res.status(400).send("Invalid verification code.");
 
-        // Update the user in the database
-        const updatedUser = await prisma.user.update({
-            where: { id: parseInt(userId, 10) },
-            data: { email: newEmail }
-        });
+    // Update the user in the database
+    const updatedUser = await prisma.user.update({
+      where: { id: parseInt(userId, 10) },
+      data: { email: newEmail }
+    });
 
-        res.status(200).json({ user: updatedUser });
-    } catch (error) {
-        console.error("Email update verification error:", error);
-        res.status(500).send("Failed to update email.");
-    }
+    res.status(200).json({ user: updatedUser });
+  } catch (error) {
+    console.error("Email update verification error:", error);
+    res.status(500).send("Failed to update email.");
+  }
 });
 
 
@@ -2620,61 +2647,130 @@ const closeExpiredConferences = async () => {
   }
 };
 
+const getBeautifulEmailTemplate = (title, bodyHtml, isDanger = false) => {
+  const themeColor = isDanger ? '#dc2626' : '#059669';
+  const icon = isDanger ? '!' : 'S';
+
+  return `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f9fafb; padding: 40px 20px; text-align: center;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 40px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); border: 1px solid #e5e7eb;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+                  <tr>
+                      <td align="center">
+                          <div style="width: 50px; height: 50px; background-color: ${themeColor}; border-radius: 12px; display: inline-block;">
+                              <p style="color: white; font-size: 26px; font-weight: bold; margin: 0; line-height: 50px;">${icon}</p>
+                          </div>
+                      </td>
+                  </tr>
+              </table>
+              <h1 style="color: #1f2937; font-size: 24px; margin-top: 0; margin-bottom: 20px;">${title}</h1>
+              <div style="color: #4b5563; font-size: 16px; line-height: 1.6; text-align: left; margin-bottom: 20px;">
+                  ${bodyHtml}
+              </div>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0 20px 0;">
+              <p style="color: #9ca3af; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} SubmitEase. All rights reserved.</p>
+          </div>
+      </div>
+    `;
+};
 
 
-app.get('/journal/papers', async (req, res) => {
-  const { authorId } = req.query;
 
-  if (!authorId || isNaN(parseInt(authorId, 10))) {
-    return res.status(400).json({ message: 'Valid authorId is required.' });
-  }
-  const parsedAuthorId = parseInt(authorId, 10);
+// ============================================================================
+// JOURNAL DATA & PAPER MANAGEMENT
+// ============================================================================
+
+app.get('/journal/users', async (req, res) => {
+  const { journalId } = req.query;
+  if (!journalId) return res.status(400).json({ message: 'journalId is required' });
 
   try {
-    const papers = await prisma.journalPapers.findMany({
-      where: {
-        // 1. Filter: Belongs to Author AND is an Original Paper (not a revision)
-        Authors: { some: { id: parsedAuthorId } },
-        OriginalPaperId: null 
-      },
-      select: {
-        id: true,
-        Title: true,
-        Status: true,
-        Keywords: true,
-        Abstract: true,
-        URL: true,
-        AuthorOrder: true,
-        submittedAt: true,
-        // Relation: Get the LATEST revision to determine current status
-        Revisions: {
-          take: 1,
-          orderBy: { submittedAt: 'desc' },
-          select: {
-            Status: true,
-            submittedAt: true,
-            // You can add 'version' here if you added that column
-          }
-        }
-      },
-      orderBy: { submittedAt: 'desc' }
+    const emails = await prisma.user.findMany({
+      where: { JournalAssignments: { some: { JournalId: parseInt(journalId, 10) } } },
+      select: { id: true, firstname: true, lastname: true, organisation: true, expertise: true, email: true, role: true },
+      cacheStrategy: { ttl: 60 },
     });
+    if (!emails || emails.length === 0) return res.status(404).json({ message: 'No users found for this journal.' });
 
-    if (!papers || papers.length === 0) {
-      return res.status(404).json({ message: 'No papers found.' });
-    }
-
-    // Optional: Flatten the structure for the frontend if needed, 
-    // or let the frontend handle the `paper.Revisions[0]?.Status` logic.
-    res.status(200).json({ papers: papers });
-
+    res.status(200).json({ users: emails });
   } catch (error) {
-    console.error('Error fetching papers:', error);
-    res.status(500).json({ message: 'Server error', details: error.message });
+    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
   }
 });
 
-// Helper function to handle text wrapping on the PDF cover page
+app.get('/journal/papers', async (req, res) => {
+  const { authorId, journalId } = req.query;
+  if (!authorId || !journalId) return res.status(400).json({ message: 'Valid authorId and journalId are required.' });
+
+  try {
+    const rawPapers = await prisma.journalPapers.findMany({
+      where: {
+        JournalId: parseInt(journalId, 10),
+        Authors: { some: { id: parseInt(authorId, 10) } },
+        OriginalPaperId: null
+      },
+      select: {
+        id: true, Title: true, Status: true, Keywords: true, Abstract: true, URL: true, AuthorOrder: true, submittedAt: true,
+        Revisions: { take: 1, orderBy: { submittedAt: 'desc' }, select: { Status: true, submittedAt: true } },
+        Editors: { select: { Status: true } },
+        Reviews: { select: { Status: true } }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+    const formattedPapers = rawPapers.map(p => {
+      const hasEditor = p.Editors && p.Editors.length > 0;
+      const editorDecisionMade = p.Editors && p.Editors.some(e => e.Status === 'Completed');
+      const reviewersInvited = p.Reviews ? p.Reviews.length : 0;
+      const reviewersSubmitted = p.Reviews ? p.Reviews.filter(r => ['Submitted', 'Completed'].includes(r.Status)).length : 0;
+
+      return {
+        ...p,
+        hasEditor,
+        editorDecisionMade,
+        reviewersInvited,
+        reviewersSubmitted
+      };
+    });
+
+    res.status(200).json({ papers: formattedPapers });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', details: error.message });
+  }
+});
+app.get('/journal/getpaperbyid/:id', async (req, res) => {
+  const { id } = req.params;
+  // We no longer capture journalId from req.query
+
+  try {
+    // Change back to findUnique since 'id' is guaranteed unique
+    const paper = await prisma.journalPapers.findUnique({
+      where: { id: id }, // Only search by the unique paper ID
+      include: {
+        Authors: true,
+        Reviews: {
+          select: { id: true, Status: true, Recommendation: true, Comment: true, isVisibleToAuthor: true }
+        },
+        OriginalPaper: true,
+        Revisions: {
+          orderBy: { submittedAt: 'desc' },
+          include: {
+            Authors: true,
+            Reviews: {
+              select: { id: true, Status: true, Recommendation: true, Comment: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!paper) return res.status(404).json({ error: "Paper not found." });
+    res.status(200).json({ paper });
+  } catch (error) {
+    console.error("Fetch Author Paper Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const drawWrappedText = (page, text, x, y, maxWidth, font, fontSize) => {
   if (!text) return y;
   const words = text.split(' ');
@@ -2684,676 +2780,839 @@ const drawWrappedText = (page, text, x, y, maxWidth, font, fontSize) => {
   for (let i = 0; i < words.length; i++) {
     const testLine = line + words[i] + ' ';
     const testWidth = font.widthOfTextAtSize(testLine, fontSize);
-    
+
     if (testWidth > maxWidth && i > 0) {
       page.drawText(line, { x, y: currentY, size: fontSize, font, color: rgb(0, 0, 0) });
       line = words[i] + ' ';
-      currentY -= (fontSize + 4); // Move down for the next line
+      currentY -= (fontSize + 4);
     } else {
       line = testLine;
     }
   }
   page.drawText(line, { x, y: currentY, size: fontSize, font, color: rgb(0, 0, 0) });
-  return currentY - (fontSize + 10); // Return the next available Y position
+  return currentY - (fontSize + 10);
 };
 
-// POST: Save New Paper OR Revision
-// CHANGED: Use upload.fields to accept the main pdf and the array of additional documents
 app.post('/journal/savepaper', upload.fields([
-  { name: 'pdfFile', maxCount: 1 }, 
-  { name: 'additionalFiles' } // Can accept multiple files
+  { name: 'pdfFile', maxCount: 1 },
+  { name: 'responseSheet', maxCount: 1 },
+  { name: 'additionalFiles' }
 ]), async (req, res) => {
-  
-  // Extract common fields
-  const { 
-    id, 
-    title, 
-    abstract, 
-    originalPaperId, 
-  } = req.body;
+  const { id, title, abstract, originalPaperId, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ error: 'Journal ID is required.' });
 
-  // Safe parsing
   const keywords = JSON.parse(req.body.keywords || '[]');
-  const authorIds = JSON.parse(req.body.authorIds || '[]');
-  const authorIdsInt = authorIds.map(aId => parseInt(aId, 10));
+  const authorIdsInt = JSON.parse(req.body.authorIds || '[]').map(a => parseInt(a, 10));
 
-  // Extract files from the new Multer structure
-  const pdfFile = req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
-  const additionalFiles = req.files['additionalFiles'] || [];
-
-  if (!pdfFile) return res.status(400).json({ error: 'No PDF uploaded.' });
+  // Files are now OPTIONAL for saving a draft
+  const pdfFile = req.files && req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
+  const responseSheetFile = req.files && req.files['responseSheet'] ? req.files['responseSheet'][0] : null;
+  const additionalFiles = req.files && req.files['additionalFiles'] ? req.files['additionalFiles'] : [];
 
   try {
-    // 1. ID Generation Logic
     let finalId = id;
-    
+    let journalNameStr = "SubmitEase Journal";
+    const isRevision = !!originalPaperId;
+
+    // 1. ALWAYS FETCH JOURNAL NAME
+    const journal = await prisma.journal.findUnique({
+      where: { id: parseInt(journalId, 10) },
+      select: { name: true }
+    });
+
+    if (!journal) return res.status(404).json({ error: 'Journal not found.' });
+    journalNameStr = journal.name;
+
+    // 2. ID GENERATION (For Brand New Papers Only)
     if (!finalId) {
-       // Just find the latest paper in the whole database
-       const lastPaper = await prisma.journalPapers.findFirst({
-         orderBy: { id: 'desc' } 
-       });
-       
-       let nextNum = 1;
-       
-       // Correctly parse an ID like "JP_2026_0001"
-       if (lastPaper && lastPaper.id && lastPaper.id.startsWith('JP_')) {
-          const parts = lastPaper.id.split('_'); // Splits into ["JP", "2026", "0001"]
-          
-          if (parts.length === 3) {
-             const lastSequence = parts[2]; // Grabs the "0001" part
-             nextNum = parseInt(lastSequence, 10) + 1;
-          }
-       }
-       
-       const year = new Date().getFullYear();
-       finalId = `JP_${year}_${String(nextNum).padStart(4, '0')}`;
+      const initials = journalNameStr.split(/\s+/).filter(word => word.length > 0).map(word => word[0].toUpperCase()).join('');
+      const lastPaper = await prisma.journalPapers.findFirst({
+        where: { JournalId: parseInt(journalId, 10) },
+        orderBy: { id: 'desc' }
+      });
+
+      let nextNum = 1;
+      if (lastPaper && lastPaper.id && lastPaper.id.includes('_P')) {
+        const parts = lastPaper.id.split('_P');
+        if (parts.length === 2) {
+          const sequenceNum = parseInt(parts[1], 10);
+          if (!isNaN(sequenceNum)) nextNum = sequenceNum + 1;
+        }
+      }
+      finalId = `${initials}_${journalId}_P${String(nextNum).padStart(4, '0')}`;
     }
 
-    // 2. Fetch Author Names for the Cover Page
-    // Assuming your user table is 'user', adjust if it's named differently in Prisma
-    const authorsData = await prisma.user.findMany({
-      where: { id: { in: authorIdsInt } },
-      select: { id: true, firstname: true, lastname: true }
-    });
-    
-    // Sort to match the order provided by the frontend
-    const authorNamesString = authorIdsInt.map(aId => {
-      const author = authorsData.find(a => a.id === aId);
-      return author ? `${author.firstname} ${author.lastname}` : `Author ${aId}`;
-    }).join(', ');
+    const safeJournalName = journalNameStr.replace(/[^a-zA-Z0-9]/g, '_');
+    const rootId = originalPaperId || finalId;
+    const folder = `Journals/${safeJournalName}_${journalId}/${rootId}`;
 
-    // 3. CREATE AND MERGE PDFS
-    const mergedPdf = await PDFDocument.create();
-    
-    // A. Generate Cover Page
-    const coverPage = mergedPdf.addPage();
-    const { width, height } = coverPage.getSize();
-    const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
-    const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
-    
-    let currentY = height - 50;
-    const margin = 50;
-    const maxWidth = width - (margin * 2);
+    let standardUrl = null;
+    let revisionUrl = null;
 
-    coverPage.drawText('Submission Overview', { x: margin, y: currentY, size: 20, font: boldFont });
-    currentY -= 40;
-    
-    currentY = drawWrappedText(coverPage, `Paper ID: ${finalId}`, margin, currentY, maxWidth, boldFont, 12);
-    currentY = drawWrappedText(coverPage, `Title: ${title}`, margin, currentY, maxWidth, font, 12);
-    currentY = drawWrappedText(coverPage, `Authors: ${authorNamesString}`, margin, currentY, maxWidth, font, 12);
-    currentY = drawWrappedText(coverPage, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
-    
-    currentY -= 10;
-    coverPage.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
-    currentY -= 20;
-    drawWrappedText(coverPage, abstract, margin, currentY, maxWidth, font, 11);
+    // --- PDF GENERATION (ONLY IF PDF WAS UPLOADED) ---
+    if (pdfFile) {
+      const authorsData = await prisma.user.findMany({
+        where: { id: { in: authorIdsInt } },
+        select: { id: true, firstname: true, lastname: true, email: true, organisation: true }
+      });
 
-    // B. Merge Main Paper
-    const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
-    const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
-    mainPages.forEach((page) => mergedPdf.addPage(page));
+      const authorNamesString = authorIdsInt.map(aId => {
+        const author = authorsData.find(a => a.id === aId);
+        return author ? `${author.firstname} ${author.lastname} (${author.organisation || 'Independent'})` : `Author ${aId}`;
+      }).join('\n');
 
-    // C. Merge Additional Documents in Order
-    for (const addFile of additionalFiles) {
-      try {
-        const extraPdfDoc = await PDFDocument.load(addFile.buffer);
-        const extraPages = await mergedPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
-        extraPages.forEach((page) => mergedPdf.addPage(page));
-      } catch (fileErr) {
-        console.warn(`Could not merge file ${addFile.originalname}: it might not be a valid PDF.`);
-        // Decide if you want to throw here or just skip invalid non-PDF files
+      const createCoverPage = async (doc) => {
+        const page = doc.addPage();
+        const { width, height } = page.getSize();
+        const font = await doc.embedFont(StandardFonts.Helvetica);
+        const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+
+        let currentY = height - 60;
+        const margin = 50;
+        const maxWidth = width - (margin * 2);
+
+        page.drawText(journalNameStr, { x: margin, y: currentY, size: 24, font: boldFont, color: rgb(0.02, 0.59, 0.41) });
+        currentY -= 20;
+        page.drawLine({ start: { x: margin, y: currentY }, end: { x: width - margin, y: currentY }, thickness: 2, color: rgb(0.8, 0.8, 0.8) });
+        currentY -= 30;
+
+        page.drawText('Official Manuscript Submission', { x: margin, y: currentY, size: 16, font: boldFont });
+        currentY -= 30;
+
+        currentY = drawWrappedText(page, `Title: ${title}`, margin, currentY, maxWidth, boldFont, 14);
+        currentY -= 10;
+        currentY = drawWrappedText(page, `Paper ID: ${finalId}`, margin, currentY, maxWidth, font, 12);
+
+        currentY -= 10;
+        page.drawText('Authors:', { x: margin, y: currentY, size: 12, font: boldFont });
+        currentY -= 15;
+        currentY = drawWrappedText(page, authorNamesString, margin, currentY, maxWidth, font, 11);
+
+        currentY -= 10;
+        currentY = drawWrappedText(page, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
+
+        currentY -= 20;
+        page.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
+        currentY -= 15;
+        drawWrappedText(page, abstract, margin, currentY, maxWidth, font, 10);
+
+        page.drawLine({ start: { x: margin, y: 50 }, end: { x: width - margin, y: 50 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+        page.drawText(`Generated by SubmitEase on ${new Date().toLocaleDateString()}`, { x: margin, y: 35, size: 9, font: font, color: rgb(0.5, 0.5, 0.5) });
+      };
+
+      const standardPdf = await PDFDocument.create();
+      await createCoverPage(standardPdf);
+      const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
+      const mainPages = await standardPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach((page) => standardPdf.addPage(page));
+
+      for (const addFile of additionalFiles) {
+        try {
+          const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+          const extraPages = await standardPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+          extraPages.forEach((page) => standardPdf.addPage(page));
+        } catch (e) { }
+      }
+
+      const standardPdfBytes = await standardPdf.save();
+      const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      standardUrl = await uploadPdfToSupabase(Buffer.from(standardPdfBytes), `${finalId}_${randomSuffix}.pdf`, folder);
+
+      if (isRevision && responseSheetFile) {
+        const revPdf = await PDFDocument.create();
+        await createCoverPage(revPdf);
+
+        try {
+          const respDoc = await PDFDocument.load(responseSheetFile.buffer);
+          const respPages = await revPdf.copyPages(respDoc, respDoc.getPageIndices());
+          respPages.forEach((page) => revPdf.addPage(page));
+        } catch (e) { }
+
+        const mainRevPages = await revPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+        mainRevPages.forEach((page) => revPdf.addPage(page));
+
+        for (const addFile of additionalFiles) {
+          try {
+            const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+            const extraPages = await revPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+            extraPages.forEach((page) => revPdf.addPage(page));
+          } catch (e) { }
+        }
+
+        const revPdfBytes = await revPdf.save();
+        revisionUrl = await uploadPdfToSupabase(Buffer.from(revPdfBytes), `${finalId}_REV_${randomSuffix}.pdf`, folder);
       }
     }
 
-    // Save the final merged document to a buffer
-    const mergedPdfBytes = await mergedPdf.save();
-    const finalBuffer = Buffer.from(mergedPdfBytes);
-
-    // 4. Upload to Supabase
-     const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    const folder = originalPaperId ? `Journals/${originalPaperId}` : `Journals/${finalId}`;
-    const fileName = `${finalId}_${randomSuffix}.pdf`;
-    
-    let url;
-    try {
-      // Pass the newly created finalBuffer instead of req.file.buffer
-      url = await uploadPdfToSupabase(finalBuffer, fileName, folder);
-    } catch (err) {
-      return res.status(500).json({ error: 'Upload failed: ' + err.message });
-    }
-
-    // 5. Save to DB
+    // --- DATABASE INSERT ---
     const newPaper = await prisma.journalPapers.create({
       data: {
         id: finalId,
+        JournalId: parseInt(journalId, 10),
         Title: title,
         Abstract: abstract,
         Keywords: keywords,
         Status: "Pending Submission",
         submittedAt: new Date(),
-        URL: url,
+        URL: standardUrl, // Will be null if no PDF was uploaded
+        RevisionPaperURL: isRevision ? revisionUrl : null,
         AuthorOrder: authorIdsInt,
         OriginalPaperId: originalPaperId || null,
-        Authors: {
-          connect: authorIdsInt.map(id => ({ id }))
-        }
+        Authors: { connect: authorIdsInt.map(id => ({ id })) }
       }
     });
 
     res.status(201).json({ message: 'Success', paper: newPaper });
-
   } catch (error) {
-    console.error("Save Error:", error);
-    if (error.code === 'P2002') {
-       return res.status(409).json({ message: 'Paper ID already exists.' });
-    }
+    if (error.code === 'P2002') return res.status(409).json({ message: 'Paper ID already exists.' });
     res.status(500).json({ message: 'Database error', details: error.message });
   }
 });
 
-// POST: Edit Existing Paper (Saves as Draft)
+
 app.post('/journal/editpaper', upload.fields([
-  { name: 'pdfFile', maxCount: 1 }, 
+  { name: 'pdfFile', maxCount: 1 },
+  { name: 'responseSheet', maxCount: 1 },
   { name: 'additionalFiles' }
 ]), async (req, res) => {
-  
-  const { paperId, title, abstract } = req.body;
+  const { paperId, title, abstract, journalId } = req.body;
+  if (!paperId || !journalId) return res.status(400).json({ error: 'Paper ID and Journal ID required.' });
 
-  if (!paperId) return res.status(400).json({ error: 'Paper ID is required for editing.' });
-
-  // Safe parsing
   const keywords = JSON.parse(req.body.keywords || '[]');
-  const authorIds = JSON.parse(req.body.authorIds || '[]');
-  const authorIdsInt = authorIds.map(aId => parseInt(aId, 10));
+  const authorIdsInt = JSON.parse(req.body.authorIds || '[]').map(a => parseInt(a, 10));
 
-  // Extract files
+  // Files optional for edit
   const pdfFile = req.files && req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
+  const responseSheetFile = req.files && req.files['responseSheet'] ? req.files['responseSheet'][0] : null;
   const additionalFiles = req.files && req.files['additionalFiles'] ? req.files['additionalFiles'] : [];
 
   try {
-    let updatedUrl = undefined;
+    const existingPaper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!existingPaper || existingPaper.JournalId !== parseInt(journalId, 10)) {
+      return res.status(403).json({ message: "Unauthorized or paper not found." });
+    }
 
-    // ONLY regenerate and upload PDF if a new main file is provided
+    const isRevision = !!existingPaper.OriginalPaperId;
+
+    let updatedUrl = undefined;
+    let updatedRevisionUrl = undefined;
+
+    // --- PDF GENERATION (ONLY IF NEW PDF UPLOADED) ---
     if (pdfFile) {
-      const authorsData = await prisma.user.findMany({
-        where: { id: { in: authorIdsInt } },
-        select: { id: true, firstname: true, lastname: true }
-      });
-      
+      const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) }, select: { name: true } });
+      const journalNameStr = journal ? journal.name : "SubmitEase Journal";
+
+      const authorsData = await prisma.user.findMany({ where: { id: { in: authorIdsInt } }, select: { id: true, firstname: true, lastname: true, organisation: true } });
       const authorNamesString = authorIdsInt.map(aId => {
         const author = authorsData.find(a => a.id === aId);
-        return author ? `${author.firstname} ${author.lastname}` : `Author ${aId}`;
-      }).join(', ');
+        return author ? `${author.firstname} ${author.lastname} (${author.organisation || 'Independent'})` : `Author ${aId}`;
+      }).join('\n');
 
-      const mergedPdf = await PDFDocument.create();
-      
-      // A. Generate Cover Page
-      const coverPage = mergedPdf.addPage();
-      const { width, height } = coverPage.getSize();
-      const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
-      const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
-      
-      let currentY = height - 50;
-      const margin = 50;
-      const maxWidth = width - (margin * 2);
+      const createCoverPage = async (doc) => {
+        const page = doc.addPage();
+        const { width, height } = page.getSize();
+        const font = await doc.embedFont(StandardFonts.Helvetica);
+        const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
 
-      coverPage.drawText('Submission Overview', { x: margin, y: currentY, size: 20, font: boldFont });
-      currentY -= 40;
-      
-      currentY = drawWrappedText(coverPage, `Paper ID: ${paperId}`, margin, currentY, maxWidth, boldFont, 12);
-      currentY = drawWrappedText(coverPage, `Title: ${title}`, margin, currentY, maxWidth, font, 12);
-      currentY = drawWrappedText(coverPage, `Authors: ${authorNamesString}`, margin, currentY, maxWidth, font, 12);
-      currentY = drawWrappedText(coverPage, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
-      
-      currentY -= 10;
-      coverPage.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
-      currentY -= 20;
-      drawWrappedText(coverPage, abstract, margin, currentY, maxWidth, font, 11);
+        let currentY = height - 60;
+        const margin = 50;
+        const maxWidth = width - (margin * 2);
 
-      // B. Merge Main Paper
+        page.drawText(journalNameStr, { x: margin, y: currentY, size: 24, font: boldFont, color: rgb(0.02, 0.59, 0.41) });
+        currentY -= 20;
+        page.drawLine({ start: { x: margin, y: currentY }, end: { x: width - margin, y: currentY }, thickness: 2, color: rgb(0.8, 0.8, 0.8) });
+        currentY -= 30;
+
+        page.drawText('Official Manuscript Submission', { x: margin, y: currentY, size: 16, font: boldFont });
+        currentY -= 30;
+
+        currentY = drawWrappedText(page, `Title: ${title}`, margin, currentY, maxWidth, boldFont, 14);
+        currentY -= 10;
+        currentY = drawWrappedText(page, `Paper ID: ${paperId}`, margin, currentY, maxWidth, font, 12);
+
+        currentY -= 10;
+        page.drawText('Authors:', { x: margin, y: currentY, size: 12, font: boldFont });
+        currentY -= 15;
+        currentY = drawWrappedText(page, authorNamesString, margin, currentY, maxWidth, font, 11);
+
+        currentY -= 10;
+        currentY = drawWrappedText(page, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
+
+        currentY -= 20;
+        page.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
+        currentY -= 15;
+        drawWrappedText(page, abstract, margin, currentY, maxWidth, font, 10);
+
+        page.drawLine({ start: { x: margin, y: 50 }, end: { x: width - margin, y: 50 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+        page.drawText(`Generated by SubmitEase on ${new Date().toLocaleDateString()}`, { x: margin, y: 35, size: 9, font: font, color: rgb(0.5, 0.5, 0.5) });
+      };
+
+      const standardPdf = await PDFDocument.create();
+      await createCoverPage(standardPdf);
       const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
-      const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
-      mainPages.forEach((page) => mergedPdf.addPage(page));
+      const mainPages = await standardPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach((page) => standardPdf.addPage(page));
 
-      // C. Merge Additional Documents
       for (const addFile of additionalFiles) {
         try {
           const extraPdfDoc = await PDFDocument.load(addFile.buffer);
-          const extraPages = await mergedPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
-          extraPages.forEach((page) => mergedPdf.addPage(page));
-        } catch (fileErr) {
-          console.warn(`Could not merge file ${addFile.originalname}.`);
-        }
+          const extraPages = await standardPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+          extraPages.forEach((page) => standardPdf.addPage(page));
+        } catch (fileErr) { }
       }
 
-      const mergedPdfBytes = await mergedPdf.save();
-      const finalBuffer = Buffer.from(mergedPdfBytes);
-
-      // D. Upload to Supabase
+      const standardPdfBytes = await standardPdf.save();
       const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-      const folder = `Journals/${paperId}`;
-      const fileName = `${paperId}_${randomSuffix}.pdf`;
-      
-      updatedUrl = await uploadPdfToSupabase(finalBuffer, fileName, folder);
+      const safeJournalName = journalNameStr.replace(/[^a-zA-Z0-9]/g, '_');
+      const rootId = existingPaper.OriginalPaperId || paperId;
+      const folder = `Journals/${safeJournalName}_${journalId}/${rootId}`;
+
+      updatedUrl = await uploadPdfToSupabase(Buffer.from(standardPdfBytes), `${paperId}_${randomSuffix}.pdf`, folder);
+
+      if (isRevision && responseSheetFile) {
+        const revPdf = await PDFDocument.create();
+        await createCoverPage(revPdf);
+
+        try {
+          const respDoc = await PDFDocument.load(responseSheetFile.buffer);
+          const respPages = await revPdf.copyPages(respDoc, respDoc.getPageIndices());
+          respPages.forEach((page) => revPdf.addPage(page));
+        } catch (e) { }
+
+        const mainRevPages = await revPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+        mainRevPages.forEach((page) => revPdf.addPage(page));
+
+        for (const addFile of additionalFiles) {
+          try {
+            const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+            const extraPages = await revPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+            extraPages.forEach((page) => revPdf.addPage(page));
+          } catch (e) { }
+        }
+
+        const revPdfBytes = await revPdf.save();
+        updatedRevisionUrl = await uploadPdfToSupabase(Buffer.from(revPdfBytes), `${paperId}_REV_${randomSuffix}.pdf`, folder);
+      }
     }
 
-    // Update DB entry
+    const updateData = {
+      Title: title, Abstract: abstract, Keywords: keywords, AuthorOrder: authorIdsInt,
+      Authors: { set: authorIdsInt.map(id => ({ id })) }
+    };
+
+    if (updatedUrl) updateData.URL = updatedUrl;
+
+    if (!isRevision) {
+      updateData.RevisionPaperURL = null;
+    } else if (updatedRevisionUrl) {
+      updateData.RevisionPaperURL = updatedRevisionUrl;
+    }
+
     const updatedPaper = await prisma.journalPapers.update({
-      where: { id: paperId },
-      data: {
-        Title: title,
-        Abstract: abstract,
-        Keywords: keywords,
-        AuthorOrder: authorIdsInt,
-        // Using `set` replaces the existing relations with this exact new array
-        Authors: { set: authorIdsInt.map(id => ({ id })) },
-        ...(updatedUrl && { URL: updatedUrl }), // Only update URL field if a new URL was generated
-      },
-      include: { Authors: true } // Return authors for frontend state sync
+      where: { id: paperId, JournalId: parseInt(journalId, 10) },
+      data: updateData,
+      include: { Authors: true }
     });
 
     res.status(200).json({ message: 'Paper updated successfully', paper: updatedPaper });
-
   } catch (error) {
-    console.error("Edit Error:", error);
     res.status(500).json({ message: 'Database error', details: error.message });
   }
 });
 
-// POST: Submit Paper for Review (Locks editing)
+
 app.post('/journal/submitpaper', upload.fields([
-  { name: 'pdfFile', maxCount: 1 }, 
+  { name: 'pdfFile', maxCount: 1 },
+  { name: 'responseSheet', maxCount: 1 },
   { name: 'additionalFiles' }
 ]), async (req, res) => {
-  
-  const { paperId, title, abstract } = req.body;
-
-  if (!paperId) return res.status(400).json({ error: 'Paper ID is required for submission.' });
+  const { paperId, title, abstract, journalId } = req.body;
+  if (!paperId || !journalId) return res.status(400).json({ error: 'Paper ID and Journal ID required.' });
 
   const keywords = JSON.parse(req.body.keywords || '[]');
-  const authorIds = JSON.parse(req.body.authorIds || '[]');
-  const authorIdsInt = authorIds.map(aId => parseInt(aId, 10));
-
+  const authorIdsInt = JSON.parse(req.body.authorIds || '[]').map(a => parseInt(a, 10));
   const pdfFile = req.files && req.files['pdfFile'] ? req.files['pdfFile'][0] : null;
+  const responseSheetFile = req.files && req.files['responseSheet'] ? req.files['responseSheet'][0] : null;
   const additionalFiles = req.files && req.files['additionalFiles'] ? req.files['additionalFiles'] : [];
 
   try {
-    let updatedUrl = undefined;
+    const existingPaper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!existingPaper || existingPaper.JournalId !== parseInt(journalId, 10)) {
+      return res.status(403).json({ message: "Unauthorized or paper not found." });
+    }
 
+    const isRevision = !!existingPaper.OriginalPaperId;
+
+    // --- STRICT SUBMISSION VALIDATION ---
+    // 1. Must have a main PDF (either just uploaded or already saved in DB)
+    if (!pdfFile && !existingPaper.URL) {
+      return res.status(400).json({ error: "A main manuscript PDF is required for submission." });
+    }
+
+    // 2. If it is a revision, it MUST have a response sheet (either uploaded or already saved in DB)
+    // Note: We check if RevisionPaperURL exists to see if they previously saved a draft with the response sheet
+    if (isRevision && !responseSheetFile && !existingPaper.RevisionPaperURL) {
+      return res.status(400).json({ error: "A Response to Reviewers document is required for revision submissions." });
+    }
+
+    // 3. (Optional but good practice) Check for marked up paper in additionalFiles if required by your journal rules
+    const hasPreviousPaper = additionalFiles.length > 0 || (existingPaper.URL !== null);
+    if (isRevision && !hasPreviousPaper) {
+      // You can uncomment this if marked-up paper is STRICTLY mandatory
+      // return res.status(400).json({ error: "A Marked-up manuscript is required for revision submissions." });
+    }
+
+    let updatedUrl = undefined;
+    let updatedRevisionUrl = undefined;
+
+    // Only regenerate PDF if new files were uploaded during this final submission click
     if (pdfFile) {
-      const authorsData = await prisma.user.findMany({
-        where: { id: { in: authorIdsInt } },
-        select: { id: true, firstname: true, lastname: true }
-      });
-      
+      const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) }, select: { name: true } });
+      const journalNameStr = journal ? journal.name : "SubmitEase Journal";
+
+      const authorsData = await prisma.user.findMany({ where: { id: { in: authorIdsInt } }, select: { id: true, firstname: true, lastname: true, organisation: true } });
       const authorNamesString = authorIdsInt.map(aId => {
         const author = authorsData.find(a => a.id === aId);
-        return author ? `${author.firstname} ${author.lastname}` : `Author ${aId}`;
-      }).join(', ');
+        return author ? `${author.firstname} ${author.lastname} (${author.organisation || 'Independent'})` : `Author ${aId}`;
+      }).join('\n');
 
-      const mergedPdf = await PDFDocument.create();
-      
-      const coverPage = mergedPdf.addPage();
-      const { width, height } = coverPage.getSize();
-      const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
-      const boldFont = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
-      
-      let currentY = height - 50;
-      const margin = 50;
-      const maxWidth = width - (margin * 2);
+      const createCoverPage = async (doc) => {
+        const page = doc.addPage();
+        const { width, height } = page.getSize();
+        const font = await doc.embedFont(StandardFonts.Helvetica);
+        const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
 
-      coverPage.drawText('Submission Overview', { x: margin, y: currentY, size: 20, font: boldFont });
-      currentY -= 40;
-      
-      currentY = drawWrappedText(coverPage, `Paper ID: ${paperId}`, margin, currentY, maxWidth, boldFont, 12);
-      currentY = drawWrappedText(coverPage, `Title: ${title}`, margin, currentY, maxWidth, font, 12);
-      currentY = drawWrappedText(coverPage, `Authors: ${authorNamesString}`, margin, currentY, maxWidth, font, 12);
-      currentY = drawWrappedText(coverPage, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
-      
-      currentY -= 10;
-      coverPage.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
-      currentY -= 20;
-      drawWrappedText(coverPage, abstract, margin, currentY, maxWidth, font, 11);
+        let currentY = height - 60;
+        const margin = 50;
+        const maxWidth = width - (margin * 2);
+
+        page.drawText(journalNameStr, { x: margin, y: currentY, size: 24, font: boldFont, color: rgb(0.02, 0.59, 0.41) });
+        currentY -= 20;
+        page.drawLine({ start: { x: margin, y: currentY }, end: { x: width - margin, y: currentY }, thickness: 2, color: rgb(0.8, 0.8, 0.8) });
+        currentY -= 30;
+
+        page.drawText('Official Manuscript Submission', { x: margin, y: currentY, size: 16, font: boldFont });
+        currentY -= 30;
+
+        currentY = drawWrappedText(page, `Title: ${title}`, margin, currentY, maxWidth, boldFont, 14);
+        currentY -= 10;
+        currentY = drawWrappedText(page, `Paper ID: ${paperId}`, margin, currentY, maxWidth, font, 12);
+
+        currentY -= 10;
+        page.drawText('Authors:', { x: margin, y: currentY, size: 12, font: boldFont });
+        currentY -= 15;
+        currentY = drawWrappedText(page, authorNamesString, margin, currentY, maxWidth, font, 11);
+
+        currentY -= 10;
+        currentY = drawWrappedText(page, `Keywords: ${keywords.join(', ')}`, margin, currentY, maxWidth, font, 12);
+
+        currentY -= 20;
+        page.drawText('Abstract:', { x: margin, y: currentY, size: 12, font: boldFont });
+        currentY -= 15;
+        drawWrappedText(page, abstract, margin, currentY, maxWidth, font, 10);
+
+        page.drawLine({ start: { x: margin, y: 50 }, end: { x: width - margin, y: 50 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+        page.drawText(`Generated by SubmitEase on ${new Date().toLocaleDateString()}`, { x: margin, y: 35, size: 9, font: font, color: rgb(0.5, 0.5, 0.5) });
+      };
+
+      const standardPdf = await PDFDocument.create();
+      await createCoverPage(standardPdf);
 
       const mainPdfDoc = await PDFDocument.load(pdfFile.buffer);
-      const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
-      mainPages.forEach((page) => mergedPdf.addPage(page));
+      const mainPages = await standardPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach((page) => standardPdf.addPage(page));
 
       for (const addFile of additionalFiles) {
         try {
           const extraPdfDoc = await PDFDocument.load(addFile.buffer);
-          const extraPages = await mergedPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
-          extraPages.forEach((page) => mergedPdf.addPage(page));
-        } catch (fileErr) {
-          console.warn(`Could not merge file ${addFile.originalname}.`);
-        }
+          const extraPages = await standardPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+          extraPages.forEach((page) => standardPdf.addPage(page));
+        } catch (e) { }
       }
 
-      const mergedPdfBytes = await mergedPdf.save();
-      const finalBuffer = Buffer.from(mergedPdfBytes);
-
+      const standardPdfBytes = await standardPdf.save();
       const randomSuffix = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-      const folder = `Journals/${paperId}`;
-      const fileName = `${paperId}_${randomSuffix}.pdf`;
-      
-      updatedUrl = await uploadPdfToSupabase(finalBuffer, fileName, folder);
+      const safeJournalName = journalNameStr.replace(/[^a-zA-Z0-9]/g, '_');
+      const rootId = existingPaper.OriginalPaperId || paperId;
+      const folder = `Journals/${safeJournalName}_${journalId}/${rootId}`;
+
+      updatedUrl = await uploadPdfToSupabase(Buffer.from(standardPdfBytes), `${paperId}_${randomSuffix}.pdf`, folder);
+
+      if (isRevision && responseSheetFile) {
+        const revPdf = await PDFDocument.create();
+        await createCoverPage(revPdf);
+
+        try {
+          const respDoc = await PDFDocument.load(responseSheetFile.buffer);
+          const respPages = await revPdf.copyPages(respDoc, respDoc.getPageIndices());
+          respPages.forEach((page) => revPdf.addPage(page));
+        } catch (e) { }
+
+        const mainRevPages = await revPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+        mainRevPages.forEach((page) => revPdf.addPage(page));
+
+        for (const addFile of additionalFiles) {
+          try {
+            const extraPdfDoc = await PDFDocument.load(addFile.buffer);
+            const extraPages = await revPdf.copyPages(extraPdfDoc, extraPdfDoc.getPageIndices());
+            extraPages.forEach((page) => revPdf.addPage(page));
+          } catch (e) { }
+        }
+
+        const revPdfBytes = await revPdf.save();
+        updatedRevisionUrl = await uploadPdfToSupabase(Buffer.from(revPdfBytes), `${paperId}_REV_${randomSuffix}.pdf`, folder);
+      }
     }
 
-    // Update DB entry and CHANGE STATUS
+    const updateData = {
+      Title: title, Abstract: abstract, Keywords: keywords, AuthorOrder: authorIdsInt,
+      Authors: { set: authorIdsInt.map(id => ({ id })) },
+      Status: "Under Review" // MIGRATING STATE TO ACTIVE REVIEW
+    };
+
+    if (updatedUrl) updateData.URL = updatedUrl;
+
+    if (!isRevision) {
+      updateData.RevisionPaperURL = null;
+    } else if (updatedRevisionUrl) {
+      updateData.RevisionPaperURL = updatedRevisionUrl;
+    }
+
     const updatedPaper = await prisma.journalPapers.update({
-      where: { id: paperId },
-      data: {
-        Title: title,
-        Abstract: abstract,
-        Keywords: keywords,
-        AuthorOrder: authorIdsInt,
-        Authors: { set: authorIdsInt.map(id => ({ id })) },
-        ...(updatedUrl && { URL: updatedUrl }),
-        Status: "Under Review", // Locks the paper from further editing
-      },
+      where: { id: paperId, JournalId: parseInt(journalId, 10) },
+      data: updateData,
       include: { Authors: true }
     });
 
     res.status(200).json({ message: 'Paper submitted for review', paper: updatedPaper });
-
   } catch (error) {
-    console.error("Submit Error:", error);
     res.status(500).json({ message: 'Database error', details: error.message });
   }
 });
 
-// ==================== JOURNAL-SPECIFIC ENDPOINTS ====================
+// ============================================================================
+// REVIEWER ENDPOINTS
+// ============================================================================
 
 app.post('/journal/get-your-reviews', async (req, res) => {
-  const { reviewerId } = req.body;
+  const { reviewerId, journalId } = req.body;
   try {
-    const parsedId = parseInt(reviewerId, 10);
-    if (isNaN(parsedId)) return res.status(400).json({ message: 'Invalid reviewerId.' });
+    if (!reviewerId || !journalId) return res.status(400).json({ message: 'reviewerId and journalId required.' });
 
-    // 1) Fetch Journal Reviews only
     const journalReviews = await prisma.journalReviews.findMany({
-      where: { ReviewerId: parsedId },
+      where: {
+        ReviewerId: parseInt(reviewerId, 10),
+        Paper: { JournalId: parseInt(journalId, 10) }
+      },
       select: {
-        id: true,
-        Comment: true,
-        Recommendation: true,
-        submittedAt: true,
-        Status: true,
-        isBlind: true,
-        scoreOriginality: true,
-        scoreClarity: true,
-        scoreSoundness: true,
-        scoreSignificance: true,
-        scoreRelevance: true,
-        avgScore: true,
-        assignedAt: true,
+        id: true, Comment: true, Recommendation: true, submittedAt: true, Status: true,
+        scoreOriginality: true, scoreClarity: true, scoreSoundness: true, scoreSignificance: true, scoreRelevance: true, avgScore: true, assignedAt: true,
         Paper: {
-          select: {
-            id: true,
-            Title: true,
-            Abstract: true,
-            Authors: { select: { id: true, firstname: true, lastname: true, organisation: true, expertise: true } },
-            submittedAt: true,
-            URL: true,
-          }
+          select: { id: true, Title: true, Abstract: true, URL: true, submittedAt: true, Authors: { select: { id: true, firstname: true, lastname: true } } }
         }
-      }
+      },
+      orderBy: { assignedAt: 'desc' }
     });
 
-    if (!journalReviews || journalReviews.length === 0) {
-      return res.status(404).json({ message: 'No journal reviews available.' });
-    }
-
-    // Map journal reviews to add Journal information
-    const reviewsWithJournal = journalReviews.map(r => ({
-      ...r,
-      Paper: {
-        ...r.Paper,
-        Journal: { id: null, name: 'Journal' }
-      }
-    }));
-
+    const reviewsWithJournal = journalReviews.map(r => ({ ...r, Paper: { ...r.Paper, Journal: { id: parseInt(journalId, 10), name: 'Journal' } } }));
     res.status(200).json({ reviews: reviewsWithJournal });
   } catch (error) {
-    console.error('Failed to fetch journal reviews:', error);
-    res.status(500).json({ message: "Failed to fetch journal reviews.", details: error.message });
+    console.error("Get Your Reviews Error:", error);
+    res.status(500).json({ message: "Failed to fetch journal reviews." });
   }
 });
 
 app.post('/journal/get-review', async (req, res) => {
-  const { paperId, reviewerId } = req.body;
+  const { paperId, reviewerId, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
   try {
-    const review = await prisma.journalReviews.findUnique({
-      where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(reviewerId, 10) } }
+    const review = await prisma.journalReviews.findFirst({
+      where: {
+        PaperId: paperId,
+        ReviewerId: parseInt(reviewerId, 10),
+        Paper: { JournalId: parseInt(journalId, 10) }
+      }
     });
-
     if (!review) return res.status(404).json({ message: 'No journal review found.' });
-
     res.status(200).json(review);
   } catch (error) {
-    console.error('Failed to fetch journal review:', error);
+    console.error("Get Review Error:", error);
     res.status(500).json({ message: "Failed to fetch journal review." });
   }
 });
 
 app.post('/journal/save-review', async (req, res) => {
-  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance } = req.body;
+  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
 
   try {
-    const updatedJournal = await prisma.journalReviews.update({
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!paper || paper.JournalId !== parseInt(journalId, 10)) return res.status(403).json({ message: "Unauthorized access." });
+
+    // Safe average calculation for drafts (ignores nulls)
+    let avgScore = null;
+    const scores = [scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance].filter(s => s != null);
+    if (scores.length > 0) {
+      avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+
+    const updatedReview = await prisma.journalReviews.update({
       where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(reviewerId, 10) } },
-      data: {
-        Recommendation,
-        Comment,
-        scoreOriginality,
-        scoreClarity,
-        scoreSoundness,
-        scoreSignificance,
-        scoreRelevance,
-      }
+      data: { Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance, avgScore }
     });
-    return res.status(201).json(updatedJournal);
+    return res.status(200).json(updatedReview);
   } catch (err) {
-    console.error('Failed to save journal review:', err);
+    console.error("Save Review Error:", err);
     return res.status(500).json({ message: "Failed to save journal review." });
   }
 });
 
 app.post('/journal/submit-review', async (req, res) => {
-  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance } = req.body;
-  const avgScore = (scoreOriginality + scoreClarity + scoreSoundness + scoreSignificance + scoreRelevance) / 5.0;
+  const { paperId, reviewerId, Recommendation, Comment, scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
   try {
-    const updatedJournal = await prisma.journalReviews.update({
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!paper || paper.JournalId !== parseInt(journalId, 10)) return res.status(403).json({ message: "Unauthorized access." });
+
+    // Strict average calculation (assumes all 5 are present on final submit)
+    const avgScore = (scoreOriginality + scoreClarity + scoreSoundness + scoreSignificance + scoreRelevance) / 5.0;
+
+    const updatedReview = await prisma.journalReviews.update({
       where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(reviewerId, 10) } },
       data: {
-        Recommendation,
-        Comment,
-        submittedAt: new Date(),
-        Status: "Submitted",
-        scoreOriginality,
-        scoreClarity,
-        scoreSoundness,
-        scoreSignificance,
-        scoreRelevance,
-        avgScore,
+        Recommendation, Comment, submittedAt: new Date(), Status: "Submitted",
+        scoreOriginality, scoreClarity, scoreSoundness, scoreSignificance, scoreRelevance, avgScore
       }
     });
-    return res.status(201).json(updatedJournal);
+    return res.status(200).json(updatedReview);
   } catch (err) {
-    console.error('Failed to submit journal review:', err);
+    console.error("Submit Review Error:", err);
     return res.status(500).json({ message: "Failed to submit journal review." });
   }
 });
 
 app.post('/journal/reviewInvitationResponse', async (req, res) => {
-  const { reviewId, response } = req.body;
+  const { reviewId, response, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
 
   try {
-    const updatedJournalReview = await prisma.journalReviews.update({
+    const review = await prisma.journalReviews.findUnique({ where: { id: reviewId }, include: { Paper: true } });
+    if (!review || review.Paper.JournalId !== parseInt(journalId, 10)) return res.status(403).json({ message: "Unauthorized." });
+
+    const updatedReview = await prisma.journalReviews.update({
       where: { id: reviewId },
-      data: { Status: response, assignedAt: new Date() }
-    });
-    return res.status(201).json(updatedJournalReview);
-  } catch (err) {
-    console.error('Failed to update journal review invitation response:', err);
-    return res.status(500).json({ message: "Failed to update journal review invitation response." });
-  }
-});
-
-
-
-// ==================== GLOBAL ADMIN ENDPOINTS ====================
-
-// 1. Get Global Dashboard Statistics
-// Replace the existing /admin/global-stats endpoint in Server.js
-app.get('/admin/global-stats', async (req, res) => {
-  try {
-    const totalConferences = await prisma.conference.count();
-    const activeConferences = await prisma.conference.count({ where: { status: 'Open' } });
-    const pendingConferences = await prisma.conference.count({ where: { status: 'Pending Approval' } });
-    const closedConferences = await prisma.conference.count({ where: { status: 'Closed' } });
-    
-    const totalUsers = await prisma.user.count();
-    const totalAuthors = await prisma.user.count({ where: { role: { has: 'Author' } } });
-    const totalReviewers = await prisma.user.count({ where: { role: { has: 'Reviewer' } } });
-    
-    // FIX: Only count base manuscripts (OriginalPaperId: null) that are NOT drafts
-    const totalJournalPapers = await prisma.journalPapers.count({
-      where: { 
-        Status: { not: 'Pending Submission' },
-        OriginalPaperId: null 
+      data: {
+        Status: response,
+        // Only update assignedAt if they are accepting the review
+        ...(response === 'Under Review' ? { assignedAt: new Date() } : {})
       }
     });
-    
-    // FIX: Only count base papers that are accepted, or their LATEST revision is accepted
-    const acceptedJournalPapers = await prisma.journalPapers.count({ 
-      where: { 
-        Status: 'Accepted',
-        OriginalPaperId: null 
-      } 
-    });
-
-    const totalConferencePapers = await prisma.paper.count({
-      where: { Status: { not: 'Pending Submission' } }
-    });
-
-    // Fetch Recent Activity
-    const recentConferences = await prisma.conference.findMany({
-        take: 5,
-        orderBy: { id: 'desc' },
-        select: { id: true, name: true, status: true, startsAt: true }
-    });
-
-    const recentUsers = await prisma.user.findMany({
-        take: 5,
-        orderBy: { id: 'desc' },
-        select: { id: true, firstname: true, lastname: true, email: true, role: true }
-    });
-
-    res.status(200).json({
-      conferences: { total: totalConferences, active: activeConferences, pending: pendingConferences, closed: closedConferences },
-      users: { total: totalUsers, authors: totalAuthors, reviewers: totalReviewers },
-      papers: { journalTotal: totalJournalPapers, journalAccepted: acceptedJournalPapers, conferenceTotal: totalConferencePapers },
-      recentActivity: { conferences: recentConferences, users: recentUsers }
-    });
-  } catch (error) {
-    console.error("Global stats error:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(200).json(updatedReview);
+  } catch (err) {
+    console.error("Review Invitation Response Error:", err);
+    return res.status(500).json({ message: "Failed to update response." });
   }
 });
 
-// 2. Get Conferences Awaiting Approval or Updates
-app.get('/admin/conferences/pending', async (req, res) => {
+
+// ============================================================================
+// GLOBAL ADMIN ENDPOINTS
+// ============================================================================
+
+app.get('/admin/global-stats', async (req, res) => {
+    try {
+        const totalConferences = await prisma.conference.count();
+        const activeConferences = await prisma.conference.count({ where: { status: 'Open' } });
+        const pendingConferences = await prisma.conference.count({ where: { status: 'Pending Approval' } });
+        const closedConferences = await prisma.conference.count({ where: { status: 'Closed' } });
+
+        // NEW: Fetch Journal Stats
+        const totalJournals = await prisma.journal.count();
+        const pendingJournals = await prisma.journal.count({ where: { status: { in: ['Pending', 'Pending Approval'] } } });
+
+        const totalUsers = await prisma.user.count();
+        const totalAuthors = await prisma.user.count({ where: { role: { has: 'Author' } } });
+        const totalReviewers = await prisma.user.count({ where: { role: { has: 'Reviewer' } } });
+
+        const totalJournalPapers = await prisma.journalPapers.count({ where: { Status: { not: 'Pending Submission' }, OriginalPaperId: null } });
+        const acceptedJournalPapers = await prisma.journalPapers.count({ where: { Status: 'Accepted', OriginalPaperId: null } });
+        
+        const totalConferencePapers = await prisma.paper.count({ where: { Status: { not: 'Pending Submission' } } });
+        // NEW: Fetch Accepted Conference Papers
+        const acceptedConferencePapers = await prisma.paper.count({ where: { Status: 'Accepted' } });
+
+        const recentConferences = await prisma.conference.findMany({ take: 5, orderBy: { id: 'desc' }, select: { id: true, name: true, status: true, startsAt: true } });
+        const recentJournals = await prisma.journal.findMany({ take: 5, orderBy: { id: 'desc' }, select: { id: true, name: true, status: true, Publication: true } });
+
+        res.status(200).json({
+            conferences: { total: totalConferences, active: activeConferences, pending: pendingConferences, closed: closedConferences },
+            journals: { total: totalJournals, pending: pendingJournals }, // Added to payload
+            users: { total: totalUsers, authors: totalAuthors, reviewers: totalReviewers },
+            papers: { 
+                journalTotal: totalJournalPapers, 
+                journalAccepted: acceptedJournalPapers, 
+                conferenceTotal: totalConferencePapers,
+                conferenceAccepted: acceptedConferencePapers // Added to payload
+            },
+            recentActivity: { conferences: recentConferences, journals: recentJournals }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/admin/journals/pending', async (req, res) => {
   try {
-    const newPending = await prisma.conference.findMany({
-      where: { status: 'Pending Approval' },
-      include: { host: { select: { firstname: true, lastname: true, email: true } } }
+    const pendingJournals = await prisma.journal.findMany({
+      where: { status: { in: ['Pending', 'Pending Approval'] } },
+      include: { host: { select: { firstname: true, lastname: true, email: true, organisation: true, expertise: true } } },
+      orderBy: { id: 'desc' }
     });
-    
-    // Assuming 'Pending Update' is the status for old conferences needing change approvals
-    const updatePending = await prisma.conference.findMany({
-      where: { status: 'Pending Update' },
-      include: { host: { select: { firstname: true, lastname: true, email: true } } }
+    res.status(200).json({ newPending: pendingJournals });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch pending journals" });
+  }
+});
+
+app.get('/admin/journals/stats', async (req, res) => {
+  try {
+    const stats = await prisma.journal.findMany({
+      include: { _count: { select: { Papers: true } } },
+      orderBy: { id: 'desc' }
+    });
+    res.status(200).json({ stats });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch journal stats" });
+  }
+});
+
+app.post('/get-journal-by-id', async (req, res) => {
+    const { journalId } = req.body;
+    try {
+        const journal = await prisma.journal.findUnique({
+            where: { id: parseInt(journalId) },
+            include: {
+                host: { select: { firstname: true, lastname: true, email: true, organisation: true } },
+                // NEW: Explicitly include the EIC details via the relation
+                EIC: { select: { firstname: true, lastname: true, email: true, organisation: true } },
+                Assignments: { include: { User: { select: { id: true, firstname: true, lastname: true, email: true, organisation: true } } } }
+            }
+        });
+        if (!journal) return res.status(404).json({ error: "Journal not found" });
+        res.status(200).json({ journal });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch journal details" });
+    }
+});
+
+app.post('/admin/journals/approve', async (req, res) => {
+  const { journalId } = req.body;
+  try {
+    const approvedJournal = await prisma.journal.update({
+      where: { id: parseInt(journalId) }, data: { status: 'Open' }, include: { host: true }
     });
 
+    await prisma.journalAssignment.upsert({
+      where: { JournalId_UserId: { JournalId: approvedJournal.id, UserId: approvedJournal.hostID } },
+      update: { role: { push: "Journal Host" } },
+      create: { JournalId: approvedJournal.id, UserId: approvedJournal.hostID, role: ["Journal Host", "Author"] }
+    });
+
+    if (approvedJournal.host && approvedJournal.host.email) {
+      const bodyHtml = `
+                <p>Hello <strong>${approvedJournal.host.firstname}</strong>,</p>
+                <p>Great news! The platform administrators have reviewed and approved your journal:</p>
+                <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h2 style="color: #065f46; margin: 0 0 10px 0;">${approvedJournal.name}</h2>
+                    <span style="background-color: #d1fae5; color: #065f46; padding: 6px 16px; border-radius: 9999px; font-size: 14px; font-weight: bold;">Status: Open & Active</span>
+                </div>
+                <p>Your journal is now live. You have been granted <strong>Journal Host</strong> privileges to configure your editorial board.</p>
+            `;
+      const emailHtml = getBeautifulEmailTemplate("Journal Approved!", bodyHtml);
+      try {
+        await sendMail(approvedJournal.host.email, 'Your Journal Has Been Approved!', emailHtml);
+      } catch (mailErr) {
+        console.error("Failed to send journal approval email:", mailErr);
+      }
+    }
+    res.status(200).json({ message: "Journal approved successfully", journal: approvedJournal });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to approve journal" });
+  }
+});
+
+app.post('/admin/journals/reject', async (req, res) => {
+  const { journalId } = req.body;
+  try {
+    const rejectedJournal = await prisma.journal.update({
+      where: { id: parseInt(journalId) }, data: { status: 'Rejected' }, include: { host: true }
+    });
+
+    if (rejectedJournal.host && rejectedJournal.host.email) {
+      const bodyHtml = `
+                <p>Hello <strong>${rejectedJournal.host.firstname}</strong>,</p>
+                <p>Thank you for your interest in hosting a journal. Our administration team has reviewed your application for:</p>
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h2 style="color: #991b1b; margin: 0 0 10px 0;">${rejectedJournal.name}</h2>
+                    <span style="background-color: #fee2e2; color: #991b1b; padding: 6px 16px; border-radius: 9999px; font-size: 14px; font-weight: bold;">Status: Application Declined</span>
+                </div>
+                <p>Unfortunately, we are unable to approve this request at this time.</p>
+            `;
+      const emailHtml = getBeautifulEmailTemplate("Journal Registration Update", bodyHtml, true);
+      try {
+        await sendMail(rejectedJournal.host.email, 'Update on Your Journal Registration', emailHtml);
+      } catch (mailErr) {
+        console.error("Failed to send journal rejection email:", mailErr);
+      }
+    }
+    res.status(200).json({ message: "Journal rejected successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to reject journal" });
+  }
+});
+
+app.get('/admin/conferences/pending', async (req, res) => {
+  try {
+    const newPending = await prisma.conference.findMany({ where: { status: 'Pending Approval' }, include: { host: { select: { firstname: true, lastname: true, email: true } } } });
+    const updatePending = await prisma.conference.findMany({ where: { status: 'Pending Update' }, include: { host: { select: { firstname: true, lastname: true, email: true } } } });
     res.status(200).json({ newPending, updatePending });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 3. Approve Conference
-// 3. Approve Conference (Updated with Email Notification)
 app.post('/admin/conferences/approve', async (req, res) => {
   const { conferenceId } = req.body;
-  
   try {
-    // 1. Update the conference status to 'Open' AND include the host to get their email
     const updatedConference = await prisma.conference.update({
-      where: { id: parseInt(conferenceId, 10) },
-      data: { status: 'Open' },
-      include: { 
-        host: { 
-          select: { firstname: true, lastname: true, email: true } 
-        } 
-      }
+      where: { id: parseInt(conferenceId, 10) }, data: { status: 'Open' }, include: { host: { select: { firstname: true, lastname: true, email: true } } }
     });
 
-    // 2. Draft and send the email to the Conference Host
     if (updatedConference.host && updatedConference.host.email) {
-      const hostName = `${updatedConference.host.firstname} ${updatedConference.host.lastname}`;
-      const subject = `Your Conference "${updatedConference.name}" has been Approved! - SubmitEase`;
-      
-      const htmlMessage = `
-        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-          <div style="background-color: #059669; padding: 20px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Conference Approved</h1>
-          </div>
-          <div style="padding: 24px; background-color: #f9fafb;">
-            <p style="font-size: 16px;">Dear <strong>${hostName}</strong>,</p>
-            <p style="font-size: 16px; line-height: 1.5;">We are pleased to inform you that your requested conference, <strong>${updatedConference.name}</strong>, has been officially reviewed and approved by the SubmitEase administration team.</p>
-            
-            <div style="background-color: #ffffff; padding: 15px; border-left: 4px solid #059669; margin: 20px 0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-              <h3 style="margin-top: 0; color: #1f2937; font-size: 16px;">Event Details</h3>
-              <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; color: #374151;">
-                <li style="margin-bottom: 8px;"><strong>Location:</strong> ${updatedConference.location}</li>
-                <li><strong>Start Date:</strong> ${new Date(updatedConference.startsAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</li>
-              </ul>
-            </div>
-
-            <p style="font-size: 16px; line-height: 1.5;">Your conference status is now marked as <strong>Open</strong>. You may now access the Conference Portal to manage paper submissions, invite committee members, and finalize your event tracks.</p>
-            
-            <p style="font-size: 14px; color: #6b7280; margin-top: 30px; border-top: 1px solid #e5e7eb; pt-4;">
-              Best regards,<br/>
-              <strong>The SubmitEase Platform Admin</strong>
-            </p>
-          </div>
-        </div>
-      `;
-
-      // Use your existing sendMail function
-      sendMail(updatedConference.host.email, subject, htmlMessage);
+      const bodyHtml = `
+            <p>Dear <strong>${updatedConference.host.firstname} ${updatedConference.host.lastname}</strong>,</p>
+            <p>We are pleased to inform you that your requested conference, <strong>${updatedConference.name}</strong>, has been officially reviewed and approved.</p>
+            <p>Your conference status is now marked as <strong>Open</strong>. You may now access the Conference Portal.</p>
+        `;
+      const emailHtml = getBeautifulEmailTemplate("Conference Approved", bodyHtml);
+      try {
+        await sendMail(updatedConference.host.email, `Your Conference "${updatedConference.name}" has been Approved!`, emailHtml);
+      } catch (mailErr) {
+        console.error("Failed to send conference approval email:", mailErr);
+      }
     }
-
-    res.status(200).json({ message: "Conference approved and notification email sent.", conference: updatedConference });
+    res.status(200).json({ message: "Conference approved", conference: updatedConference });
   } catch (error) {
-    console.error("Error approving conference and sending email:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// 4. Detailed Conference Statistics
 app.get('/admin/conferences/stats', async (req, res) => {
   try {
     const stats = await prisma.conference.findMany({
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        _count: {
-          select: { Paper: true, Tracks: true, Reviewers: true }
-        }
-      }
+      select: { id: true, name: true, status: true, _count: { select: { Paper: true, Tracks: true, Reviewers: true } } }
     });
     res.status(200).json({ stats });
   } catch (error) {
@@ -3361,78 +3620,64 @@ app.get('/admin/conferences/stats', async (req, res) => {
   }
 });
 
-// 5. Journal EiC Management
-app.get('/admin/journal/eic', async (req, res) => {
+app.post('/admin/conferences/reject', async (req, res) => {
+  const { conferenceId } = req.body;
   try {
-    const eic = await prisma.user.findFirst({
-      where: { role: { has: 'Editor-in-Chief' } },
-      select: { id: true, firstname: true, lastname: true, email: true, organisation: true }
+    const rejectedConference = await prisma.conference.update({
+      where: { id: parseInt(conferenceId) }, data: { status: 'Rejected' }, include: { host: true }
     });
-    res.status(200).json({ eic });
+
+    if (rejectedConference.host && rejectedConference.host.email) {
+      const bodyHtml = `
+                <p>Hello <strong>${rejectedConference.host.firstname}</strong>,</p>
+                <p>Unfortunately, your application for the conference <strong>${rejectedConference.name}</strong> has been declined at this time.</p>
+            `;
+      const emailHtml = getBeautifulEmailTemplate("Conference Registration Update", bodyHtml, true);
+      try {
+        await sendMail(rejectedConference.host.email, 'Update on Your Conference Registration', emailHtml);
+      } catch (mailErr) {
+        console.error("Failed to send conference rejection email:", mailErr);
+      }
+    }
+    res.status(200).json({ message: "Conference rejected successfully", conference: rejectedConference });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Failed to reject conference" });
   }
 });
 
-// 6. Journal Accepted Papers
-app.get('/admin/journal/accepted-papers', async (req, res) => {
+// ============================================================================
+// JOURNAL HOST ENDPOINTS
+// ============================================================================
+
+app.get('/journal/getjournalbyid/:id', async (req, res) => {
   try {
-    const papers = await prisma.journalPapers.findMany({
-      where: { Status: 'Accepted' },
-      select: {
-        id: true,
-        Title: true,
-        submittedAt: true,
-        URL: true,
-        Authors: { select: { firstname: true, lastname: true } }
-      }
+    const journal = await prisma.journal.findUnique({
+      where: { id: parseInt(req.params.id, 10) }
     });
-    res.status(200).json({ papers });
+    if (!journal) return res.status(404).json({ message: "Journal not found." });
+    res.status(200).json({ journal });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Fetch Journal Meta Error:", error);
+    res.status(500).json({ message: "Failed to fetch journal metadata." });
   }
 });
 
-// 7. Detailed Journal Statistics
-app.get('/admin/journal/stats', async (req, res) => {
-  try {
-    // FIX: Exclude drafts AND only count base manuscripts (not revision history rows)
-    const totalPapers = await prisma.journalPapers.count({
-      where: { 
-        Status: { not: 'Pending Submission' },
-        OriginalPaperId: null
-      }
-    });
-    
-    // NOTE: If you want to count a paper as "Accepted" even if it was a revision that got accepted, 
-    // you might need a slightly more complex query or assume the base paper's status is updated to 'Accepted'.
-    // Assuming the base paper's Status reflects the final verdict:
-    const acceptedPapers = await prisma.journalPapers.count({ 
-      where: { Status: 'Accepted', OriginalPaperId: null } 
-    });
-    
-    const underReview = await prisma.journalPapers.count({ 
-      where: { Status: 'Under Review', OriginalPaperId: null } 
-    });
-    
-    const rejectedPapers = await prisma.journalPapers.count({ 
-      where: { Status: 'Rejected', OriginalPaperId: null } 
-    });
-    
-    const revisions = await prisma.journalPapers.count({ 
-      where: { Status: { contains: 'Revision' }, OriginalPaperId: null } 
-    });
+app.get('/journal/host/stats', async (req, res) => {
+  const { journalId } = req.query;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
 
-    const totalReviews = await prisma.journalReviews.count();
+  try {
+    const jId = parseInt(journalId, 10);
+    const totalPapers = await prisma.journalPapers.count({ where: { JournalId: jId, Status: { not: 'Pending Submission' }, OriginalPaperId: null } });
+    const acceptedPapers = await prisma.journalPapers.count({ where: { JournalId: jId, Status: 'Accepted', OriginalPaperId: null } });
+    const underReview = await prisma.journalPapers.count({ where: { JournalId: jId, Status: 'Under Review', OriginalPaperId: null } });
+    const rejectedPapers = await prisma.journalPapers.count({ where: { JournalId: jId, Status: 'Rejected', OriginalPaperId: null } });
+    const revisions = await prisma.journalPapers.count({ where: { JournalId: jId, Status: { contains: 'Revision' }, OriginalPaperId: null } });
+
+    const totalReviews = await prisma.journalReviews.count({ where: { Paper: { JournalId: jId } } });
 
     res.status(200).json({
-      papers: { 
-        total: totalPapers, 
-        accepted: acceptedPapers, 
-        underReview: underReview,
-        revisions: revisions,
-        rejected: rejectedPapers
-      },
+      papers: { total: totalPapers, accepted: acceptedPapers, underReview, revisions, rejected: rejectedPapers },
       reviews: { total: totalReviews }
     });
   } catch (error) {
@@ -3440,707 +3685,1206 @@ app.get('/admin/journal/stats', async (req, res) => {
   }
 });
 
+// ============================================================================
+// JOURNAL HOST ENDPOINTS
+// ============================================================================
 
-// POST: Change Journal Editor-in-Chief
-// POST: Change Journal Editor-in-Chief (With Safety Check for Same User)
-app.post('/admin/journal/change-eic', async (req, res) => {
-  const { newEicId, newUser } = req.body;
+app.get('/journal/host/stats', async (req, res) => {
+  const { journalId } = req.query;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
 
-  if (!newEicId && !newUser) {
-    return res.status(400).json({ message: "Either an existing user ID or new user details are required." });
+  try {
+    const jId = parseInt(journalId, 10);
+    const totalPapers = await prisma.journalPapers.count({ where: { JournalId: jId, Status: { not: 'Pending Submission' }, OriginalPaperId: null } });
+    const acceptedPapers = await prisma.journalPapers.count({ where: { JournalId: jId, Status: 'Accepted', OriginalPaperId: null } });
+    const underReview = await prisma.journalPapers.count({ where: { JournalId: jId, Status: 'Under Review', OriginalPaperId: null } });
+    const rejectedPapers = await prisma.journalPapers.count({ where: { JournalId: jId, Status: 'Rejected', OriginalPaperId: null } });
+    const revisions = await prisma.journalPapers.count({ where: { JournalId: jId, Status: { contains: 'Revision' }, OriginalPaperId: null } });
+
+    const totalReviews = await prisma.journalReviews.count({ where: { Paper: { JournalId: jId } } });
+
+    res.status(200).json({
+      papers: { total: totalPapers, accepted: acceptedPapers, underReview, revisions, rejected: rejectedPapers },
+      reviews: { total: totalReviews }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
+});
+
+app.get('/journal/host/eic', async (req, res) => {
+  const { journalId } = req.query;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
+
+  try {
+    const assignment = await prisma.journalAssignment.findFirst({
+      where: { JournalId: parseInt(journalId, 10), role: { has: 'Editor-in-Chief' } },
+      include: { User: { select: { id: true, firstname: true, lastname: true, email: true, organisation: true } } }
+    });
+    res.status(200).json({ eic: assignment ? assignment.User : null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/journal/host/accepted-papers', async (req, res) => {
+  const { journalId } = req.query;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    const papers = await prisma.journalPapers.findMany({
+      where: { JournalId: parseInt(journalId, 10), Status: 'Accepted' },
+      select: { id: true, Title: true, submittedAt: true, URL: true, Authors: { select: { firstname: true, lastname: true } } }
+    });
+    res.status(200).json({ papers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/journal/host/change-eic', async (req, res) => {
+  const { newEicId, newUser, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
 
   const generateRandomPassword = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
     let password = "";
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for (let i = 0; i < 12; i++) password += chars.charAt(Math.floor(Math.random() * chars.length));
     return password;
   };
 
   try {
-    // 1. Identify current EiC
-    const currentEic = await prisma.user.findFirst({
-      where: { role: { has: 'Editor-in-Chief' } }
+    const parsedJournalId = parseInt(journalId, 10);
+    const currentAssignment = await prisma.journalAssignment.findFirst({
+      where: { JournalId: parsedJournalId, role: { has: 'Editor-in-Chief' } },
+      include: { User: true }
     });
-
-    // ==========================================
-    // 🛑 NEW SAFETY CHECK: Prevent accidental re-assignments
-    // ==========================================
+    const currentEic = currentAssignment ? currentAssignment.User : null;
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "our journal";
+    // 1. Revoke from Current EiC
     if (currentEic) {
-      if (newEicId && currentEic.id === parseInt(newEicId, 10)) {
-        return res.status(400).json({ message: "This user is already the Editor-in-Chief. No changes made." });
-      }
-      if (newUser && currentEic.email === newUser.email) {
-        return res.status(400).json({ message: "This email belongs to the current Editor-in-Chief. No changes made." });
-      }
-    }
+      if (newEicId && currentEic.id === parseInt(newEicId, 10)) return res.status(400).json({ message: "This user is already EiC." });
+      if (newUser && currentEic.email === newUser.email) return res.status(400).json({ message: "Email belongs to current EiC." });
 
-    // 2. Remove the old EiC role and send removal email
-    if (currentEic) {
-      const updatedRoles = currentEic.role.filter(role => role !== 'Editor-in-Chief');
-      await prisma.user.update({
-        where: { id: currentEic.id },
-        data: { role: updatedRoles }
+      await prisma.journalAssignment.update({
+        where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: currentEic.id } },
+        data: { role: currentAssignment.role.filter(role => role !== 'Editor-in-Chief') }
       });
 
-      // Email Notification: Old EiC
-      const oldEicSubject = "Update regarding your Editor-in-Chief Role - SubmitEase";
-      const oldEicHtml = `
-        <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-          <div style="background-color: #f3f4f6; padding: 20px; border-bottom: 1px solid #e5e7eb;">
-            <h2 style="margin: 0; color: #374151;">SubmitEase Journal Administration</h2>
-          </div>
-          <div style="padding: 24px;">
-            <p>Dear <strong>${currentEic.firstname} ${currentEic.lastname}</strong>,</p>
-            <p>This is an automated notification to inform you that your role as <strong>Editor-in-Chief</strong> for the SubmitEase Journal has been formally reassigned to another user by the Platform Administrator.</p>
-            <p>We thank you for your service and contributions to the editorial board. Your standard author and reviewer access remains unchanged.</p>
-            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">Best regards,<br/>The SubmitEase Platform Admin</p>
-          </div>
-        </div>
-      `;
-      sendMail(currentEic.email, oldEicSubject, oldEicHtml);
+      try {
+        const oldEicBody = `
+                    <p>Dear <strong>${currentEic.firstname} ${currentEic.lastname}</strong>,</p>
+                    <p>This is an automated notification to inform you that your role as <strong>Editor-in-Chief</strong> for Journal ${journalName} has been formally reassigned to another user by the Journal Host.</p>
+                    <p>We thank you for your service and contributions to the editorial board.</p>
+                `;
+        const oldEicHtml = getBeautifulEmailTemplate(`Update regarding your Editor-in-Chief Role`, oldEicBody, true);
+        await sendMail(currentEic.email, "Update regarding your Editor-in-Chief Role", oldEicHtml);
+      } catch (mailErr) {
+        console.error("Failed to send revocation email to old EiC", mailErr);
+      }
     }
 
     let finalNewEic;
     let isBrandNewAccount = false;
     const generatedPassword = generateRandomPassword();
 
-    // 3. Assign the new EiC (Existing User OR Create New User)
+    // 2. Assign New EiC
     if (newEicId) {
       finalNewEic = await prisma.user.findUnique({ where: { id: parseInt(newEicId, 10) } });
       if (!finalNewEic) return res.status(404).json({ message: "User not found." });
-      
-      const newRoles = [...new Set([...finalNewEic.role, 'Editor-in-Chief'])];
-      finalNewEic = await prisma.user.update({
-        where: { id: finalNewEic.id },
-        data: { role: newRoles }
+
+      const existingAssignment = await prisma.journalAssignment.findUnique({
+        where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: finalNewEic.id } }
       });
 
-    } else if (newUser) {
-      // Check if the invited email actually exists already
-      const existingUser = await prisma.user.findUnique({ where: { email: newUser.email } });
-      
-      if (existingUser) {
-         const newRoles = [...new Set([...existingUser.roleole, 'Editor-in-Chief'])];
-         finalNewEic = await prisma.user.update({
-           where: { id: existingUser.id },
-           data: { role: newRoles }
-         });
+      if (existingAssignment) {
+        // FIXED: Using JournalId_UserId instead of id
+        await prisma.journalAssignment.update({
+          where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: finalNewEic.id } },
+          data: { role: Array.from(new Set([...existingAssignment.role, 'Editor-in-Chief'])) }
+        });
       } else {
-         // Create a brand new user account with the generated password
-         const hashedPassword = await bcrypt.hash(generatedPassword, 10);
-         finalNewEic = await prisma.user.create({
-           data: {
-             firstname: newUser.firstname,
-             lastname: newUser.lastname,
-             email: newUser.email,
-             password: hashedPassword,
-             organisation: newUser.organisation || "Independent",
-             country: "Not Specified",
-             role: ["Author","Editor-in-Chief"]
-           }
-         });
-         isBrandNewAccount = true;
+        await prisma.journalAssignment.create({
+          data: { JournalId: parsedJournalId, UserId: finalNewEic.id, role: ['Editor-in-Chief', 'Author'] }
+        });
+      }
+
+    } else if (newUser) {
+      const existingUser = await prisma.user.findUnique({ where: { email: newUser.email } });
+
+      if (existingUser) {
+        finalNewEic = existingUser;
+        const existingAssignment = await prisma.journalAssignment.findUnique({
+          where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: existingUser.id } }
+        });
+
+        if (existingAssignment) {
+          // FIXED: Using JournalId_UserId instead of id
+          await prisma.journalAssignment.update({
+            where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: existingUser.id } },
+            data: { role: Array.from(new Set([...existingAssignment.role, 'Editor-in-Chief'])) }
+          });
+        } else {
+          await prisma.journalAssignment.create({
+            data: { JournalId: parsedJournalId, UserId: existingUser.id, role: ['Editor-in-Chief', 'Author'] }
+          });
+        }
+      } else {
+        const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+        finalNewEic = await prisma.user.create({
+          data: {
+            firstname: newUser.firstname, lastname: newUser.lastname, email: newUser.email, password: hashedPassword,
+            organisation: newUser.organisation || "Independent", country: "Not Specified",
+            role: ["Author"]
+          }
+        });
+        await prisma.journalAssignment.create({
+          data: { JournalId: parsedJournalId, UserId: finalNewEic.id, role: ['Editor-in-Chief', 'Author'] }
+        });
+        isBrandNewAccount = true;
       }
     }
+    try {
+      const credentialsBlock = isBrandNewAccount ? `
+                <div style="background-color: #f0fdf4; padding: 15px; border-left: 4px solid #059669; margin: 20px 0; border-radius: 4px;">
+                    <h4 style="margin-top: 0; color: #065f46;">Your Login Credentials</h4>
+                    <p style="margin-bottom: 5px;">An account has been automatically created for you.</p>
+                    <strong>Email:</strong> ${finalNewEic.email}<br/>
+                    <strong>Temporary Password:</strong> <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${generatedPassword}</span><br/>
+                </div>
+            ` : '';
 
-    // 4. Email Notification: New EiC
-    const newEicSubject = "You have been appointed as Editor-in-Chief - SubmitEase";
-    
-    const credentialsBlock = isBrandNewAccount ? `
-      <div style="background-color: #f0fdf4; padding: 15px; border-left: 4px solid #059669; margin: 20px 0; border-radius: 4px;">
-        <h4 style="margin-top: 0; color: #065f46;">Your Login Credentials</h4>
-        <p style="margin-bottom: 5px;">An account has been automatically created for you.</p>
-        <strong>Email:</strong> ${finalNewEic.email}<br/>
-        <strong>Temporary Password:</strong> <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${generatedPassword}</span><br/>
-        <p style="font-size: 12px; margin-top: 10px; color: #047857;">Please log in and change your password immediately from your profile settings.</p>
-      </div>
-    ` : '';
+      const newEicBody = `
+                <p>Dear <strong>${finalNewEic.firstname} ${finalNewEic.lastname}</strong>,</p>
+                <p>You have been officially appointed as the <strong>Editor-in-Chief</strong> of <strong>Journal ${journalName}</strong>.</p>
+                <p>You now have full access to the EIC portal to oversee submissions, manage associate editors, and render final publication verdicts.</p>
+                ${credentialsBlock}
+            `;
+      const newEicHtml = getBeautifulEmailTemplate(`Welcome to the Editorial Board`, newEicBody);
+      await sendMail(finalNewEic.email, "You have been appointed as Editor-in-Chief", newEicHtml);
+    } catch (mailErr) {
+      console.error("Failed to send welcome email to new EiC", mailErr);
+    }
 
-    const newEicHtml = `
-      <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-        <div style="background-color: #059669; padding: 20px; text-align: center;">
-          <h2 style="margin: 0; color: #ffffff;">Welcome to the Editorial Board</h2>
-        </div>
-        <div style="padding: 24px;">
-          <p>Dear <strong>${finalNewEic.firstname} ${finalNewEic.lastname}</strong>,</p>
-          <p>You have been officially appointed as the <strong>Editor-in-Chief</strong> for the SubmitEase Journal by the Platform Administrator.</p>
-          <p>You now have full access to the EIC portal to oversee submissions, manage associate editors, and render final publication verdicts.</p>
-          ${credentialsBlock}
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">Best regards,<br/>The SubmitEase Platform Admin</p>
-        </div>
-      </div>
-    `;
-    
-    sendMail(finalNewEic.email, newEicSubject, newEicHtml);
-
-    res.status(200).json({ message: "Editor-in-Chief updated successfully and emails dispatched.", eic: finalNewEic });
+    res.status(200).json({ message: "Editor-in-Chief updated successfully." });
   } catch (error) {
-    console.error("Error changing EiC:", error);
+    console.error("Change EIC Error:", error);
     res.status(500).json({ message: "Failed to update EiC.", details: error.message });
   }
 });
 
 
+// ============================================================================
+// NEW USER REGISTRATION ENDPOINT (With Email)
+// ============================================================================
 
-// ==================== EIC DASHBOARD ENDPOINTS ====================
+app.post('/journal/new-users', async (req, res) => {
+  const { email, password, firstname, lastname, role, journalId, organisation, country } = req.body;
 
-// 1. Fetch Dashboard Data (Papers and Available Editors)
-app.get('/api/journal/eic/dashboard-data', async (req, res) => {
   try {
-    // Fetch all submitted papers (excluding drafts)
-    const papers = await prisma.journalPapers.findMany({
-      where: { 
-        Status: { not: 'Pending Submission' }
-      },
-      include: {
-        Authors: { select: { id: true, firstname: true, lastname: true } },
-        Editors: {
-            include: {
-                Editor: { select: { id: true, firstname: true, lastname: true } }
-            }
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        password, // Ensure this is hashed in production!
+        firstname,
+        lastname,
+        organisation: organisation || "",
+        country: country || "",
+        role: ["Author"] // GLOBAL role is permanently Author by default
+      }
+    });
+
+    let assignedRolesHtml = "Author";
+    let journalName = "SubmitEase";
+
+    if (journalId) {
+      const requestedRoles = role || [];
+      const finalJournalRoles = Array.from(new Set(["Author", ...requestedRoles]));
+      assignedRolesHtml = finalJournalRoles.join(", ");
+
+      // Assign the user to the journal
+      await prisma.journalAssignment.create({
+        data: {
+          JournalId: parseInt(journalId, 10),
+          UserId: newUser.id,
+          role: finalJournalRoles
         }
-      },
-      orderBy: { submittedAt: 'desc' }
-    });
+      });
 
-    // Format the papers for the frontend
-    const formattedPapers = papers.map(p => {
-      const daysSinceSubmission = (new Date() - new Date(p.submittedAt)) / (1000 * 60 * 60 * 24);
-      const isOverdue = p.Status === 'Under Review' && daysSinceSubmission > 30;
+      // Safely fetch the journal name
+      const journal = await prisma.journal.findUnique({
+        where: { id: parseInt(journalId, 10) }
+      });
+      if (journal) {
+        journalName = journal.name;
+      }
+    }
 
-      return {
-        ...p,
-        Author: p.Authors && p.Authors.length > 0 ? p.Authors[0] : { firstname: "Unknown", lastname: "Author" },
-        isOverdue: isOverdue,
-        isRevision: !!p.OriginalPaperId 
-      };
-    });
+    // --- EMAIL NOTIFICATION: New User Created ---
+    const bodyHtml = `
+            <p>Dear <strong>${firstname} ${lastname}</strong>,</p>
+            <p>An account has been created for you on the <strong>SubmitEase Platform</strong>${journalId ? ` and you have been invited to join the Journal <strong>${journalName}</strong>` : ''}.</p>
+            <div style="background-color: #f3f4f6; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>Your Login Email:</strong> ${email}</p>
+                <p style="margin: 5px 0 0 0;"><strong>Temporary Password:</strong> <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${password}</span></p>
+                <p style="margin: 5px 0 0 0;"><strong>Assigned Roles:</strong> ${assignedRolesHtml}</p>
+            </div>
+            <p>Please log in to the portal and change your password immediately for security purposes.</p>
+        `;
 
-    // We ONLY return the papers now. No more wasted 'editors' fetch!
-    res.status(200).json({ papers: formattedPapers });
-    
+    const emailHtml = getBeautifulEmailTemplate(`Welcome to SubmitEase`, bodyHtml);
+    try {
+      await sendMail(email, `Welcome to SubmitEase - Account Created`, emailHtml);
+    } catch (mailErr) {
+      console.error("Failed to send welcome email:", mailErr);
+    }
+
+    res.status(201).json(newUser);
   } catch (error) {
-    console.error("EiC Dashboard fetch error:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Create User Error:", error);
+    res.status(500).json({ error: "Failed to create user." });
   }
 });
 
 
 // ============================================================================
-// 1. DATA FETCHING ENDPOINTS
+// EIC PORTAL ENDPOINTS
 // ============================================================================
 
-// GET: Fetch full paper details, authors, assignments, and revision history
-app.get('/journal/getpaperbyid/:paperId', async (req, res) => {
-    const { paperId } = req.params;
+app.get('/journal/eic/dashboard-data', async (req, res) => {
+  const { journalId } = req.query;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
 
-    try {
-        const paper = await prisma.journalPapers.findFirst({
-            where: { 
-                id: paperId,
-                Status: { not: 'Pending Submission' } // 1. Blocks the main paper if it's a draft
-            },
-            include: {
-                Authors: {
-                    select: { id: true, firstname: true, lastname: true, email: true, expertise: true, organisation: true }
-                },
-                Editors: {
-                    include: {
-                        Editor: { select: { id: true, firstname: true, lastname: true, email: true, expertise: true, organisation: true } }
-                    }
-                },
-                Reviews: {
-                    include: {
-                        User: { select: { id: true, firstname: true, lastname: true, email: true } }
-                    }
-                },
-                Revisions: {
-                    // 2. NEW: Filters the revision history array to block draft revisions
-                    where: {
-                        Status: { not: 'Pending Submission' } 
-                    },
-                    orderBy: { submittedAt: 'desc' }
-                }
-            }
+  try {
+    const papers = await prisma.journalPapers.findMany({
+      where: { JournalId: parseInt(journalId, 10), Status: { not: 'Pending Submission' } },
+      include: {
+        Authors: { select: { id: true, firstname: true, lastname: true } },
+        Editors: { include: { Editor: { select: { id: true, firstname: true, lastname: true } } } }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    const formattedPapers = papers.map(p => {
+      const daysSinceSubmission = (new Date() - new Date(p.submittedAt)) / (1000 * 60 * 60 * 24);
+      return {
+        ...p,
+        Author: p.Authors?.length > 0 ? p.Authors[0] : { firstname: "Unknown", lastname: "Author" },
+        isOverdue: p.Status === 'Under Review' && daysSinceSubmission > 30,
+        isRevision: !!p.OriginalPaperId
+      };
+    });
+
+    res.status(200).json({ papers: formattedPapers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/journal/eic/assign-editor', async (req, res) => {
+  const { paperId, editorId, upgradeRole, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    const assignment = await prisma.journalEditors.create({
+      data: { PaperId: paperId, EditorId: parseInt(editorId, 10), Status: 'Assigned' }
+    });
+
+    const user = await prisma.user.findUnique({ where: { id: parseInt(editorId, 10) } });
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+
+    let roleUpgraded = false;
+    if (upgradeRole) {
+      const existingAssignment = await prisma.journalAssignment.findUnique({
+        where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: user.id } }
+      });
+
+      if (existingAssignment) {
+        await prisma.journalAssignment.update({
+          where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: user.id } },
+          data: { role: Array.from(new Set([...existingAssignment.role, "Author", "Journal Editor"])) }
         });
-
-        if (!paper) {
-            return res.status(404).json({ message: "Paper not found, or it is currently a pending draft." });
-        }
-
-        res.status(200).json({ paper });
-    } catch (error) {
-        console.error("Error fetching paper:", error);
-        res.status(500).json({ message: "Internal server error", error: error.message });
-    }
-});
-
-
-// ============================================================================
-// 2. EDITOR-IN-CHIEF (EIC) ENDPOINTS
-// ============================================================================
-
-// POST: Assign an Editor & handle optional role upgrades
-app.post('/api/journal/eic/assign-editor', async (req, res) => {
-    const { paperId, editorId, upgradeRole } = req.body;
-
-    try {
-        // 1. Database Updates
-        const assignment = await prisma.journalEditors.create({
-            data: { PaperId: paperId, EditorId: parseInt(editorId, 10), Status: 'Active' }
+      } else {
+        await prisma.journalAssignment.create({
+          data: { JournalId: parseInt(journalId, 10), UserId: user.id, role: ["Author", "Journal Editor"] }
         });
-
-
-        const user = await prisma.user.findUnique({ where: { id: parseInt(editorId, 10) } });
-        
-        if (upgradeRole && !user.role.includes('Journal Editor')) {
-            await prisma.user.update({
-                where: { id: parseInt(editorId, 10) },
-                data: { role: { push: 'Journal Editor' } } 
-            });
-        }
-
-        // 2. SEND EMAIL TO EDITOR
-        const emailSubject = `New Assignment: Associate Editor for Paper #${paperId}`;
-        const emailText = `Dear ${user.firstname} ${user.lastname},\n\nYou have been assigned as the Associate Editor for the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Editor Portal to assign reviewers and manage the peer-review process.\n\nBest regards,\nSubmitEase Editor-in-Chief`;
-        
-        // Fire asynchronously (don't block the response)
-        sendAutomatedEmail(user.email, emailSubject, emailText);
-
-        res.status(200).json({ message: "Editor assigned and notified successfully", assignment });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to assign editor", error: error.message });
+      }
+      roleUpgraded = true;
     }
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    const body = `
+            <p>Dear <strong>${user.firstname} ${user.lastname}</strong>,</p>
+            <p>You have been assigned as the Editor in the Journal ${journalName} for the manuscript titled:</p>
+            <div style="background-color: #f3f4f6; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; font-style: italic;">"${paper.Title}"</p>
+            </div>
+            ${roleUpgraded ? `<p style="color: #059669; font-weight: bold;">Note: You have also been granted the 'Journal Editor' role for this journal.</p>` : ''}
+            <p>Please log in to the SubmitEase Editor Portal to assign reviewers and manage the peer-review process.</p>
+        `;
+    const emailHtml = getBeautifulEmailTemplate(`New Assignment: Paper #${paperId}`, body);
+    sendMail(user.email, `New Assignment: Editor for Paper #${paperId}`, emailHtml);
+
+    res.status(200).json({ message: "Editor assigned successfully", assignment });
+  } catch (error) {
+    console.error("Assign Editor Error:", error);
+    res.status(500).json({ message: "Failed to assign editor" });
+  }
 });
 
-// POST: Desk Reject & Email Author
-app.post('/api/journal/eic/desk-reject', async (req, res) => {
-    const { paperId, message } = req.body;
 
-    try {
-        // 1. Update Paper Status to Rejected and fetch Authors for the email
-        const updatedPaper = await prisma.journalPapers.update({
-            where: { id: paperId },
-            data: { Status: 'Rejected' }, // Desk reject is functionally a rejection
-            include: { Authors: true }
+app.post('/journal/eic/change-editor', async (req, res) => {
+  const { paperId, oldEditorId, newEditorId, journalId, upgradeRole } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
+
+  try {
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!paper) return res.status(404).json({ message: "Paper not found." });
+
+    await prisma.journalEditors.deleteMany({ where: { PaperId: paperId, EditorId: parseInt(oldEditorId, 10) } });
+
+    const newAssignment = await prisma.journalEditors.create({
+      data: { PaperId: paperId, EditorId: parseInt(newEditorId, 10), Status: 'Assigned' }
+    });
+
+    const newEditor = await prisma.user.findUnique({ where: { id: parseInt(newEditorId, 10) } });
+
+    if (upgradeRole) {
+      const existingAssignment = await prisma.journalAssignment.findUnique({
+        where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: newEditor.id } }
+      });
+      if (existingAssignment) {
+        await prisma.journalAssignment.update({
+          where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: newEditor.id } },
+          data: { role: Array.from(new Set([...existingAssignment.role, "Author", "Journal Editor"])) }
         });
-
-        // 2. SEND EMAIL TO AUTHOR
-        if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
-            const primaryAuthor = updatedPaper.Authors[0];
-            
-            const emailSubject = `Update on your submission: Paper #${paperId}`;
-            const emailText = `Dear ${primaryAuthor.firstname} ${primaryAuthor.lastname},\n\nThank you for submitting your manuscript "${updatedPaper.Title}" to our journal.\n\nAfter an initial editorial review, we regret to inform you that your paper has been Desk Rejected and will not be sent for peer review.\n\nMessage from the Editor-in-Chief:\n"${message}"\n\nWe wish you the best in your future publications.\n\nBest regards,\nEditor-in-Chief`;
-            
-            // Fire the email function you set up previously
-            sendAutomatedEmail(primaryAuthor.email, emailSubject, emailText);
-        }
-
-        res.status(200).json({ message: "Paper desk rejected and author notified successfully" });
-    } catch (error) {
-        console.error("Desk Reject Error:", error);
-        res.status(500).json({ message: "Failed to desk reject", error: error.message });
-    }
-});
-
-// POST: Process the EIC's Final Decision and curate comments
-app.post('/api/journal/eic/final-decision', async (req, res) => {
-    const { paperId, status, commentsForAuthor } = req.body;
-
-    try {
-        // 1. Update Paper
-        const updatedPaper = await prisma.journalPapers.update({
-            where: { id: paperId },
-            data: { Status: status },
-            include: { Authors: true } // Include authors to get their email!
+      } else {
+        await prisma.journalAssignment.create({
+          data: { JournalId: parseInt(journalId, 10), UserId: newEditor.id, role: ["Author", "Journal Editor"] }
         });
-
-        // 2. Compile Feedback
-        let compiledFeedback = "No additional feedback was provided.";
-        if (commentsForAuthor && commentsForAuthor.length > 0) {
-            const selectedReviews = await prisma.journalReviews.findMany({
-                where: { id: { in: commentsForAuthor } }
-            });
-            compiledFeedback = selectedReviews.map((r, i) => `Reviewer ${i+1}:\n"${r.Comment}"`).join('\n\n');
-        }
-
-        // 3. SEND EMAIL TO PRIMARY AUTHOR
-        if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
-            const primaryAuthor = updatedPaper.Authors[0];
-            
-            const emailSubject = `Decision Reached: ${status} - Paper #${paperId}`;
-            const emailText = `Dear ${primaryAuthor.firstname} ${primaryAuthor.lastname},\n\nThe peer-review process for your manuscript "${updatedPaper.Title}" is complete.\n\nDecision: ${status}\n\nEditorial Feedback / Reviewer Comments:\n${compiledFeedback}\n\nPlease log in to the SubmitEase Author Portal for next steps.\n\nBest regards,\nEditor-in-Chief`;
-            
-            sendAutomatedEmail(primaryAuthor.email, emailSubject, emailText);
-        }
-
-        res.status(200).json({ message: "Final decision logged and Author notified successfully", paper: updatedPaper });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to log final decision", error: error.message });
+      }
     }
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    const bodyHtml = `
+            <p>Dear <strong>${newEditor.firstname} ${newEditor.lastname}</strong>,</p>
+            <p>You have been newly assigned to take over as the Editor in Journal ${journalName} for the manuscript:</p>
+            <div style="background-color: #f3f4f6; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; font-style: italic;">"${paper.Title}"</p>
+            </div>
+            <p>Please log in to the SubmitEase Editor Portal to manage this paper.</p>
+        `;
+    const emailHtml = getBeautifulEmailTemplate(`New Assignment: Editor`, bodyHtml);
+    sendMail(newEditor.email, `New Assignment: Editor for Paper #${paperId}`, emailHtml);
+
+    res.status(200).json({ message: "Editor changed successfully" });
+  } catch (error) {
+    console.error("Change Editor Error:", error);
+    res.status(500).json({ message: "Failed to change editor" });
+  }
+});
+
+app.post('/journal/eic/desk-reject', async (req, res) => {
+  const { paperId, message, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    const updatedPaper = await prisma.journalPapers.update({
+      where: { id: paperId, JournalId: parseInt(journalId, 10) },
+      data: { Status: 'Rejected' },
+      include: { Authors: true }
+    });
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
+      const primaryAuthor = updatedPaper.Authors[0];
+      const body = `
+                <p>Dear <strong>${primaryAuthor.firstname} ${primaryAuthor.lastname}</strong>,</p>
+                <p>Thank you for submitting your manuscript <strong>"${updatedPaper.Title}"</strong> to Journal ${journalName}.</p>
+                <p>After an initial editorial review, we regret to inform you that your paper has been Desk Rejected and will not be sent for peer review.</p>
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h3 style="color: #991b1b; margin-top: 0; font-size: 16px;">Message from the Editor-in-Chief:</h3>
+                    <p style="color: #7f1d1d; font-style: italic; margin-bottom: 0;">"${message}"</p>
+                </div>
+                <p>We wish you the best in your future publications.</p>
+            `;
+      const emailHtml = getBeautifulEmailTemplate(`Submission Update: Paper #${paperId}`, body, true);
+      sendMail(primaryAuthor.email, `Update on your submission: Paper #${paperId}`, emailHtml);
+    }
+    res.status(200).json({ message: "Paper desk rejected and author notified." });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to desk reject" });
+  }
+});
+
+app.post('/journal/eic/remind-editor', async (req, res) => {
+  const { paperId, editorId, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
+
+  try {
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    const user = await prisma.user.findUnique({ where: { id: parseInt(editorId, 10) } });
+    if (!paper || paper.JournalId !== parseInt(journalId, 10)) return res.status(403).json({ message: "Unauthorized" });
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    const bodyHtml = `
+            <p>Dear <strong>${user.firstname} ${user.lastname}</strong>,</p>
+            <p>This is a friendly reminder regarding the manuscript titled: <strong>"${paper.Title}"</strong> submitted to Journal ${journalName}.</p>
+            <p>Please log in to the SubmitEase Editor Portal to review the current status and take any necessary actions.</p>
+        `;
+    const emailHtml = getBeautifulEmailTemplate(`Reminder: Pending Action Required`, bodyHtml);
+    sendMail(user.email, `Reminder: Pending Action Required for Paper #${paperId}`, emailHtml);
+
+    res.status(200).json({ message: "Reminder sent successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to send reminder" });
+  }
+});
+
+// --- UPDATED FINAL DECISION ENDPOINT ---
+app.post('/journal/eic/final-decision', async (req, res) => {
+  const { paperId, status, commentsForAuthor, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    const updatedPaper = await prisma.journalPapers.update({
+      where: { id: paperId, JournalId: parseInt(journalId, 10) },
+      data: { Status: status }, include: { Authors: true }
+    });
+
+    let compiledFeedback = "No additional feedback was provided.";
+
+    if (commentsForAuthor && commentsForAuthor.length > 0) {
+      // Flip the flag to true in the database so the Author can see it
+      await prisma.journalReviews.updateMany({
+        where: { id: { in: commentsForAuthor } },
+        data: { isVisibleToAuthor: true }
+      });
+
+      const selectedReviews = await prisma.journalReviews.findMany({
+        where: { id: { in: commentsForAuthor } }
+      });
+      compiledFeedback = selectedReviews.map((r, i) => `<strong>Reviewer ${i + 1}:</strong><br/>"${r.Comment}"`).join('<br/><br/>');
+    }
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
+      const primaryAuthor = updatedPaper.Authors[0];
+      const isRejection = status.toLowerCase().includes('reject');
+      const body = `
+                <p>Dear <strong>${primaryAuthor.firstname} ${primaryAuthor.lastname}</strong>,</p>
+                <p>The peer-review process for your manuscript <strong>"${updatedPaper.Title}"</strong> in Journal ${journalName} is complete.</p>
+                <div style="background-color: ${isRejection ? '#fef2f2' : '#ecfdf5'}; border: 1px solid ${isRejection ? '#fecaca' : '#a7f3d0'}; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h2 style="color: ${isRejection ? '#991b1b' : '#065f46'}; margin: 0 0 10px 0;">Decision: ${status}</h2>
+                    <h3 style="color: #374151; font-size: 14px;">Editorial Feedback:</h3>
+                    <p style="color: #4b5563; font-size: 14px;">${compiledFeedback}</p>
+                </div>
+                <p>Please log in to the SubmitEase Author Portal for next steps.</p>
+            `;
+      const emailHtml = getBeautifulEmailTemplate(`Decision Reached: ${status}`, body, isRejection);
+      sendMail(primaryAuthor.email, `Decision Reached: ${status} - Paper #${paperId}`, emailHtml);
+    }
+    res.status(200).json({ message: "Final decision logged and Author notified." });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to log final decision" });
+  }
 });
 
 // ============================================================================
-// 3. REVIEWER MANAGEMENT ENDPOINTS
+// EDITOR PORTAL ENDPOINTS
 // ============================================================================
 
-// POST: Assign Reviewers & handle optional role upgrades
-app.post('/journal/assign-reviewers', async (req, res) => {
-    const { paperId, reviewerIds, upgradeRole } = req.body;
-
-    try {
-        const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
-
-        for (const rId of reviewerIds) {
-            const existing = await prisma.journalReviews.findUnique({
-                where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: parseInt(rId, 10) } }
-            });
-
-            if (!existing) {
-                await prisma.journalReviews.create({
-                    data: { PaperId: paperId, ReviewerId: parseInt(rId, 10), Status: 'Pending Invitation' }
-                });
-            }
-
-            const user = await prisma.user.findUnique({ where: { id: parseInt(rId, 10) } });
-            
-            if (upgradeRole && !user.role.includes('Journal Reviewer')) {
-                await prisma.user.update({
-                    where: { id: parseInt(rId, 10) },
-                    data: { role: { push: 'Journal Reviewer' } }
-                });
-            }
-
-            // 2. SEND EMAIL TO REVIEWER
-            // Only send if they weren't already assigned
-            if (!existing) {
-                const emailSubject = `Reviewer Invitation: Paper #${paperId}`;
-                const emailText = `Dear ${user.firstname} ${user.lastname},\n\nYou have been invited to review the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Reviewer Portal to formally Accept or Decline this invitation and access the manuscript.\n\nThank you for your expertise,\nThe Editorial Team`;
-                
-                sendAutomatedEmail(user.email, emailSubject, emailText);
-            }
-        }
-
-        res.status(200).json({ message: "Reviewers assigned and notified successfully" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to assign reviewers", error: error.message });
-    }
-});
-// POST: Send Reminders to selected reviewers
-app.post('/journal/remind-reviewers', async (req, res) => {
-    const { paperId, reviewerIds } = req.body;
-    try {
-        // TODO: Plug in your NodeMailer logic here
-        console.log(`[SYSTEM] Sending reminder emails to Reviewer IDs: ${reviewerIds.join(', ')} for paper ${paperId}`);
-        
-        res.status(200).json({ message: "Reminders sent successfully" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to send reminders", error: error.message });
-    }
-});
-// ============================================================================
-// ASSOCIATE EDITOR DASHBOARD ENDPOINT
-// ============================================================================
-
-// POST: Fetch all papers assigned to a specific Associate Editor
 app.post('/journal/editor/papers', async (req, res) => {
-    const { editorId } = req.body;
+  const { editorId, journalId } = req.body;
 
-    if (!editorId) {
-        return res.status(400).json({ message: "Editor ID is required" });
-    }
+  if (!editorId) return res.status(400).json({ error: "editorId is required" });
 
-    try {
-        // 1. Fetch the assignments for this specific editor
-        const assignments = await prisma.journalEditors.findMany({
-            where: { 
-                EditorId: parseInt(editorId, 10),
-                // Optional: Ensure the assignment is still active
-                // Status: 'Active' 
-            },
-            include: {
-                Paper: {
-                    include: {
-                        // Fetch the authors to display the primary author
-                        Authors: { 
-                            select: { firstname: true, lastname: true } 
-                        },
-                        // Fetch all reviews to calculate the dynamic progress stats
-                        Reviews: { 
-                            select: { Status: true } 
-                        }
-                    }
-                }
-            }
-        });
+  try {
+    // Find all papers where this user is EITHER the primary editor OR the transferred editor
+    const papers = await prisma.journalPapers.findMany({
+      where: {
+        JournalId: journalId ? parseInt(journalId, 10) : undefined,
+        Editors: {
+          some: {
+            OR: [
+              { EditorId: parseInt(editorId, 10) },
+              { TransferredEditorId: parseInt(editorId, 10) }
+            ]
+          }
+        }
+      },
+      include: {
+        Authors: { select: { id: true, firstname: true, lastname: true, email: true } },
+        Journal: { select: { id: true, name: true } },
+        Reviews: { select: { id: true, Status: true } },
+        Editors: {
+          // CRITICAL FIX: Only include the editor record that applies to THIS specific user!
+          where: {
+            OR: [
+              { EditorId: parseInt(editorId, 10) },
+              { TransferredEditorId: parseInt(editorId, 10) }
+            ]
+          },
+          include: {
+            Editor: { select: { id: true, firstname: true, lastname: true, email: true } },
+            TransferredEditor: { select: { id: true, firstname: true, lastname: true, email: true } }
+          }
+        }
+      },
+      orderBy: { submittedAt: 'desc' }
+    });
 
-        // 2. Format the data to perfectly match the frontend's expected structure
-        const formattedPapers = assignments
-            .filter(assignment => assignment.Paper && assignment.Paper.Status !== 'Pending Submission') // Exclude drafts
-            .map(assignment => {
-                const p = assignment.Paper;
-                
-                // --- Dynamic Reviewer Calculations ---
-                const totalReviews = p.Reviews || [];
-                
-                // Total invited is simply the number of review records
-                const reviewersInvited = totalReviews.length;
-                
-                // Count how many accepted (usually 'Accepted', 'In Progress', 'Submitted', 'Completed')
-                const reviewersAccepted = totalReviews.filter(r => 
-                    ['Accepted', 'In Progress', 'Submitted', 'Completed'].includes(r.Status)
-                ).length;
-                
-                // Count how many actually finished their review
-                const reviewersSubmitted = totalReviews.filter(r => 
-                    ['Submitted', 'Completed'].includes(r.Status)
-                ).length;
+    // Map over the papers to inject calculated fields specifically tailored for THIS editor
+    const mappedPapers = papers.map(paper => {
+      const editorRecord = paper.Editors[0];
 
-                // --- Format Return Object ---
-                return {
-                    id: p.id,
-                    Title: p.Title,
-                    Author: p.Authors && p.Authors.length > 0 ? p.Authors[0] : { firstname: "Unknown", lastname: "Author" },
-                    submittedAt: p.submittedAt,
-                    Keywords: p.Keywords || [],
-                    Status: p.Status,
-                    
-                    // Stats
-                    reviewersInvited,
-                    reviewersAccepted,
-                    reviewersSubmitted,
-                    
-                    // Derived Flags (Fallback logic since these aren't explicit booleans in your schema)
-                    isbeingtransferred: p.Status.toLowerCase().includes('transfer'), 
-                    isFinal: ['Accepted', 'Rejected'].includes(p.Status),
-                    
-                    // Placeholder for Journal Name (Update if you link JournalPapers directly to the Journal table later)
-                    Journal: { name: "SubmitEase Journal" } 
-                };
-            });
+      const isIncomingTransfer = editorRecord?.TransferredEditorId === parseInt(editorId, 10) && editorRecord?.TransferStatus === "Pending";
+      const isOutgoingTransfer = editorRecord?.EditorId === parseInt(editorId, 10) && editorRecord?.TransferredEditorId !== null && editorRecord?.TransferStatus === "Pending";
 
-        // Sort by submission date descending by default
-        formattedPapers.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+      let effectiveStatus = paper.Status;
+      if (isIncomingTransfer) {
+        effectiveStatus = "Pending Transfer Acceptance";
+      }
 
-        res.status(200).json({ papers: formattedPapers });
+      return {
+        ...paper,
+        Status: effectiveStatus,
+        reviewersInvited: paper.Reviews ? paper.Reviews.length : 0,
+        reviewersSubmitted: paper.Reviews ? paper.Reviews.filter(r => r.Status === 'Submitted').length : 0,
+        reviewersAccepted: paper.Reviews ? paper.Reviews.filter(r => r.Status === 'Accepted' || r.Status === 'Completed' || r.Status === 'Submitted').length : 0,
+        editorRecommendation: editorRecord?.Recommendation || null,
+        isbeingtransferred: isIncomingTransfer || isOutgoingTransfer,
+        transferType: isIncomingTransfer ? 'incoming' : (isOutgoingTransfer ? 'outgoing' : null)
+      };
+    });
 
-    } catch (error) {
-        console.error("Error fetching editor papers:", error);
-        res.status(500).json({ message: "Internal server error", error: error.message });
-    }
+    res.status(200).json({ papers: mappedPapers });
+  } catch (error) {
+    console.error("Error fetching editor papers:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
+app.get('/journal/editor/paper/:id', async (req, res) => {
+  const { id } = req.params;
+  const { journalId } = req.query;
 
-app.post('/api/journal/editor/recommendation', async (req, res) => {
-    const { paperId, editorId, recommendation } = req.body;
-
-    try {
-        // 1. Update the Editor's assignment record with their decision
-        await prisma.journalEditors.update({
-            where: { 
-                PaperId_EditorId: { 
-                    PaperId: paperId, 
-                    EditorId: parseInt(editorId, 10) 
-                } 
+  try {
+    const paper = await prisma.journalPapers.findFirst({
+      where: {
+        id: id,
+        ...(journalId && { JournalId: parseInt(journalId, 10) })
+      },
+      include: {
+        Authors: true,
+        Editors: {
+          include: {
+            Editor: { select: { id: true, firstname: true, lastname: true, email: true, expertise: true } },
+            TransferredEditor: { select: { id: true, firstname: true, lastname: true, email: true } }
+          }
+        },
+        Reviews: {
+          include: {
+            User: { select: { id: true, firstname: true, lastname: true, email: true } }
+          }
+        },
+        OriginalPaper: true,
+        Revisions: {
+          orderBy: { submittedAt: 'desc' },
+          include: {
+            Authors: true,
+            Reviews: {
+              include: {
+                User: { select: { id: true, firstname: true, lastname: true, email: true } }
+              }
             },
-            data: { 
-                Recommendation: recommendation, 
-                Status: 'Completed' 
+            Editors: {
+              include: {
+                Editor: { select: { id: true, firstname: true, lastname: true, email: true, expertise: true } },
+                TransferredEditor: { select: { id: true, firstname: true, lastname: true, email: true } }
+              }
             }
-        });
+          }
+        }
+      }
+    });
 
-        // 2. Change the overall paper status to alert the EIC
-        await prisma.journalPapers.update({
-            where: { id: paperId },
-            data: { Status: 'Awaiting Final Decision' }
-        });
+    if (!paper) return res.status(404).json({ error: "Paper not found." });
+    res.status(200).json({ paper });
+  } catch (error) {
+    console.error("Fetch Editor Paper Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
-        res.status(200).json({ message: "Recommendation submitted successfully." });
-    } catch (error) {
-        console.error("Editor Recommendation Error:", error);
-        res.status(500).json({ message: "Failed to submit recommendation", error: error.message });
-    }
+app.post('/journal/editor/recommendation', async (req, res) => {
+  const { paperId, editorId, recommendation, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required" });
+
+  try {
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!paper || paper.JournalId !== parseInt(journalId, 10)) return res.status(403).json({ message: "Unauthorized" });
+
+    await prisma.journalEditors.update({
+      where: { PaperId_EditorId: { PaperId: paperId, EditorId: parseInt(editorId, 10) } },
+      data: { Recommendation: recommendation, Status: 'Completed' }
+    });
+
+    await prisma.journalPapers.update({
+      where: { id: paperId }, data: { Status: 'Awaiting Final Decision' }
+    });
+
+    res.status(200).json({ message: "Recommendation submitted successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to submit recommendation" });
+  }
 });
 
 
 // ============================================================================
-// REVIEWER MANAGEMENT EXTENSION
+// EDITOR TRANSFER ENDPOINTS (With Emails)
 // ============================================================================
 
-// POST: Remove Reviewers from a paper
+app.post('/journal/editor/transfer/initiate', async (req, res) => {
+  const { paperId, journalId, editorId, newEditorId, upgradeRole } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    await prisma.journalEditors.update({
+      where: { PaperId_EditorId: { PaperId: paperId, EditorId: parseInt(editorId, 10) } },
+      data: { TransferredEditorId: parseInt(newEditorId, 10), TransferStatus: 'Pending' }
+    });
+
+    const newEditor = await prisma.user.findUnique({ where: { id: parseInt(newEditorId, 10) } });
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+
+    if (upgradeRole) {
+      const existingAssignment = await prisma.journalAssignment.findUnique({
+        where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: newEditor.id } }
+      });
+      if (existingAssignment) {
+        await prisma.journalAssignment.update({
+          where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: newEditor.id } },
+          data: { role: Array.from(new Set([...existingAssignment.role, "Author", "Journal Editor"])) }
+        });
+      } else {
+        await prisma.journalAssignment.create({
+          data: { JournalId: parseInt(journalId, 10), UserId: newEditor.id, role: ["Author", "Journal Editor"] }
+        });
+      }
+    }
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    const bodyHtml = `
+            <p>Dear <strong>${newEditor.firstname} ${newEditor.lastname}</strong>,</p>
+            <p>You have been requested to take over the editorial duties of Journal ${journalName} for the manuscript:</p>
+            <div style="background-color: #f3f4f6; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; font-style: italic;">"${paper.Title}"</p>
+            </div>
+            <p>Please log in to the SubmitEase Editor Portal and navigate to your <strong>Transfers Tab</strong> to accept or decline this request.</p>
+        `;
+    const emailHtml = getBeautifulEmailTemplate(`Editor Transfer Request`, bodyHtml);
+    sendMail(newEditor.email, `Editor Transfer Request: Paper #${paperId}`, emailHtml);
+
+    res.status(200).json({ message: "Transfer initiated successfully." });
+  } catch (error) {
+    console.error("Initiate Transfer Error:", error);
+    res.status(500).json({ message: "Failed to initiate transfer." });
+  }
+});
+
+
+app.post('/journal/editor/transfer/respond', async (req, res) => {
+  const { paperId, editorId, action, journalId } = req.body;
+
+  try {
+    const editorAssignment = await prisma.journalEditors.findFirst({
+      where: { PaperId: paperId, TransferredEditorId: parseInt(editorId, 10), TransferStatus: "Pending" },
+      include: { Editor: true, Paper: true }
+    });
+
+    if (!editorAssignment) return res.status(404).json({ error: "Transfer request not found." });
+
+    if (action === "accept") {
+      await prisma.journalEditors.update({
+        where: { id: editorAssignment.id },
+        data: { EditorId: parseInt(editorId, 10), TransferredEditorId: null, TransferStatus: null }
+      });
+
+      const existingAssignment = await prisma.journalAssignment.findUnique({
+        where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: parseInt(editorId, 10) } }
+      });
+
+      if (existingAssignment) {
+        await prisma.journalAssignment.update({
+          where: { JournalId_UserId: { JournalId: parseInt(journalId, 10), UserId: parseInt(editorId, 10) } },
+          data: { role: Array.from(new Set([...existingAssignment.role, "Author", "Journal Editor"])) }
+        });
+      } else {
+        await prisma.journalAssignment.create({
+          data: { JournalId: parseInt(journalId, 10), UserId: parseInt(editorId, 10), role: ["Author", "Journal Editor"] }
+        });
+      }
+    } else if (action === "reject") {
+      await prisma.journalEditors.update({
+        where: { id: editorAssignment.id },
+        data: { TransferredEditorId: null, TransferStatus: "Rejected" }
+      });
+    }
+
+    const originalEditor = editorAssignment.Editor;
+    const paper = editorAssignment.Paper;
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    const bodyHtml = `
+            <p>Dear <strong>${originalEditor.firstname} ${originalEditor.lastname}</strong>,</p>
+            <p>Your request to transfer editorial duties of Journal ${journalName} for the manuscript <strong>"${paper.Title}"</strong> has been <strong>${action}ed</strong>.</p>
+            ${action === 'reject' ? `<p style="color: #991b1b;">The paper has been returned to your Editor Dashboard.</p>` : `<p style="color: #065f46;">The new editor has successfully taken over the paper.</p>`}
+        `;
+    const emailHtml = getBeautifulEmailTemplate(`Transfer ${action.toUpperCase()}`, bodyHtml, action === 'reject');
+    sendMail(originalEditor.email, `Transfer ${action.toUpperCase()}: Paper #${paperId}`, emailHtml);
+
+    res.status(200).json({ message: `Transfer ${action}ed successfully.` });
+  } catch (error) {
+    console.error("Transfer Respond Error:", error);
+    res.status(500).json({ error: "Failed to update transfer." });
+  }
+});
+
+app.post('/journal/editor/transfer/revoke', async (req, res) => {
+  const { paperId, editorId, journalId } = req.body;
+
+  try {
+    // 1. Verify the paper belongs to this journal (Defensive security check)
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!paper || (journalId && paper.JournalId !== parseInt(journalId, 10))) {
+      return res.status(403).json({ message: "Unauthorized access to this paper." });
+    }
+
+    // 2. Clear the transfer fields back to null
+    await prisma.journalEditors.update({
+      where: {
+        PaperId_EditorId: {
+          PaperId: paperId,
+          EditorId: parseInt(editorId, 10)
+        }
+      },
+      data: {
+        TransferredEditorId: null,
+        TransferStatus: null
+      }
+    });
+
+    res.status(200).json({ message: "Transfer revoked successfully." });
+  } catch (error) {
+    console.error("Revoke Transfer Error:", error);
+    res.status(500).json({ error: "Failed to revoke transfer." });
+  }
+});
+
+// ============================================================================
+// REVIEWER MANAGEMENT ENDPOINTS (With Emails)
+// ============================================================================
+
+app.post('/journal/assign-reviewers', async (req, res) => {
+  const { paperId, reviewerIds, upgradeRole, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+
+    for (const rId of reviewerIds) {
+      const reviewerIntId = parseInt(rId, 10);
+
+      // 1. Assign the Reviewer to the Paper
+      const existing = await prisma.journalReviews.findUnique({
+        where: { PaperId_ReviewerId: { PaperId: paperId, ReviewerId: reviewerIntId } }
+      });
+
+      if (!existing) {
+        await prisma.journalReviews.create({
+          data: { PaperId: paperId, ReviewerId: reviewerIntId, Status: 'Pending Invitation' }
+        });
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: reviewerIntId } });
+      if (!user) continue; // Safety skip if user is missing
+
+      // 2. Upgrade the Role Safely
+      let roleUpgraded = false;
+      if (upgradeRole) {
+        const parsedJournalId = parseInt(journalId, 10);
+        const existingAssignment = await prisma.journalAssignment.findUnique({
+          where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: user.id } }
+        });
+
+        // DEFENSIVE FIX: Ensure roles is always treated as an array, even if null in the DB
+        const currentRoles = Array.isArray(existingAssignment?.role) ? existingAssignment.role : [];
+        const updatedRoles = Array.from(new Set([...currentRoles, "Author", "Journal Reviewer"]));
+
+        if (existingAssignment) {
+          await prisma.journalAssignment.update({
+            where: { JournalId_UserId: { JournalId: parsedJournalId, UserId: user.id } },
+            data: { role: updatedRoles }
+          });
+        } else {
+          await prisma.journalAssignment.create({
+            data: { JournalId: parsedJournalId, UserId: user.id, role: updatedRoles }
+          });
+        }
+        roleUpgraded = true;
+      }
+
+      // 3. Send the Email Safely
+      if (!existing) {
+        try {
+          // DEFENSIVE FIX: Provide a fallback in case the paper title is missing
+          const safeTitle = paper?.Title || "the assigned manuscript";
+          const body = `
+                        <p>Dear <strong>${user.firstname} ${user.lastname}</strong>,</p>
+                        <p>You have been invited to review the following manuscript:</p>
+                        <div style="background-color: #f3f4f6; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                            <p style="margin: 0; font-style: italic;">"${safeTitle}"</p>
+                        </div>
+                        ${roleUpgraded ? `<p style="color: #059669; font-weight: bold;">Note: You have been granted the 'Journal Reviewer' role of Journal ${journalName} to access this paper.</p>` : ''}
+                        <p>Please log in to the SubmitEase Reviewer Portal to formally <strong>Accept</strong> or <strong>Decline</strong> this invitation.</p>
+                    `;
+          const emailHtml = getBeautifulEmailTemplate(`Review Invitation: Paper #${paperId}`, body);
+
+          // Await the mail function so we know it fires, but catch errors so it doesn't crash the loop
+          await sendMail(user.email, `Reviewer Invitation: Paper #${paperId}`, emailHtml);
+        } catch (mailError) {
+          console.error(`Failed to send email to: ${user.email}`, mailError);
+        }
+      }
+    }
+
+    res.status(200).json({ message: "Reviewers assigned and notified successfully" });
+  } catch (error) {
+    console.error("Assign Reviewers Overall Error:", error);
+    res.status(500).json({ message: "Failed to assign reviewers", error: error.message });
+  }
+});
+
 app.post('/journal/remove-reviewers', async (req, res) => {
-    const { paperId, reviewerIds } = req.body;
+  const { paperId, reviewerIds, journalId } = req.body;
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
 
-    try {
-        // Ensure reviewerIds are integers
-        const parsedIds = reviewerIds.map(id => parseInt(id, 10));
+  try {
+    const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
+    if (!paper || paper.JournalId !== parseInt(journalId, 10)) return res.status(403).json({ message: "Unauthorized" });
 
-        await prisma.journalReviews.deleteMany({
-            where: {
-                PaperId: paperId,
-                ReviewerId: { in: parsedIds }
-            }
-        });
+    const parsedIds = reviewerIds.map(id => parseInt(id, 10));
+    await prisma.journalReviews.deleteMany({
+      where: { PaperId: paperId, ReviewerId: { in: parsedIds } }
+    });
+    res.status(200).json({ message: "Reviewers removed successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to remove reviewers" });
+  }
+});
 
-        res.status(200).json({ message: "Reviewers removed successfully." });
-    } catch (error) {
-        console.error("Remove Reviewers Error:", error);
-        res.status(500).json({ message: "Failed to remove reviewers", error: error.message });
+app.post('/journal/remind-reviewers', async (req, res) => {
+  const { paperId, reviewerIds, journalId } = req.body;
+
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    // Verify paper belongs to this journal
+    const paper = await prisma.journalPapers.findUnique({
+      where: { id: paperId },
+      select: { Title: true, JournalId: true }
+    });
+
+    if (!paper || paper.JournalId !== parseInt(journalId, 10)) {
+      return res.status(403).json({ message: "Unauthorized journal access." });
     }
+
+    const reviewers = await prisma.user.findMany({
+      where: { id: { in: reviewerIds.map(id => parseInt(id, 10)) } }
+    });
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+    // Send styled reminder email to each selected reviewer
+    for (const reviewer of reviewers) {
+      const bodyHtml = `
+                <p>Dear <strong>${reviewer.firstname} ${reviewer.lastname}</strong>,</p>
+                <p>This is a friendly reminder regarding the peer-review invitation for the manuscript:</p>
+                <div style="background-color: #f3f4f6; border-left: 4px solid #059669; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; font-style: italic;">"${paper.Title}"</p>
+                </div>
+                <p>The editorial team is looking forward to your expertise. Please log in to the Reviewer Portal of Journal ${journalName} to submit your feedback or update your status.</p>
+            `;
+      const emailHtml = getBeautifulEmailTemplate("Review Reminder", bodyHtml);
+      sendMail(reviewer.email, `Reminder: Review for Paper #${paperId}`, emailHtml);
+    }
+
+    res.status(200).json({ message: "Reminders sent successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to send reminders." });
+  }
 });
 
 
 // ============================================================================
-// EIC EDITOR MANAGEMENT ENDPOINTS
+// USER DASHBOARD ENDPOINTS
 // ============================================================================
 
-// POST: Remind Assigned Editor
-app.post('/api/journal/eic/remind-editor', async (req, res) => {
-    const { paperId, editorId } = req.body;
-    try {
-        const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
-        const user = await prisma.user.findUnique({ where: { id: parseInt(editorId, 10) } });
-        
-        const emailSubject = `Reminder: Pending Action Required for Paper #${paperId}`;
-        const emailText = `Dear ${user.firstname} ${user.lastname},\n\nThis is a friendly reminder regarding the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Editor Portal to review the current status and take any necessary actions (e.g., assigning reviewers or submitting a recommendation to the EIC).\n\nBest regards,\nSubmitEase Editor-in-Chief`;
-        
-        // Fire asynchronously using the transporter you set up previously
-        sendAutomatedEmail(user.email, emailSubject, emailText);
-        
-        res.status(200).json({ message: "Reminder sent successfully" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to send reminder", error: error.message });
+app.get('/user/dashboard-stats/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const id = parseInt(userId);
+
+  try {
+    const journalAccepted = await prisma.journalPapers.count({
+      where: { Authors: { some: { id: id } }, Status: 'Accepted' }
+    });
+    const confAccepted = await prisma.paper.count({
+      where: { Authors: { some: { id: id } }, Status: 'Accepted' }
+    });
+
+    const userPapers = await prisma.paper.findMany({
+      where: { Authors: { some: { id: id } } },
+      select: { ConferenceId: true }
+    });
+    const uniqueConferenceCount = new Set(userPapers.map(p => p.ConferenceId)).size;
+
+    const journalCount = await prisma.journalAssignment.count({
+      where: { UserId: id }
+    });
+
+    const totalJournal = await prisma.journalPapers.count({
+      where: { Authors: { some: { id: id } } }
+    });
+    const totalConf = await prisma.paper.count({
+      where: { Authors: { some: { id: id } } }
+    });
+
+    const journalActivity = await prisma.journalPapers.findMany({
+      where: { Authors: { some: { id: id } } },
+      take: 3,
+      orderBy: { submittedAt: 'desc' },
+      select: {
+        id: true, Title: true, Status: true, submittedAt: true,
+        Journal: { select: { name: true } }
+      }
+    });
+
+    const recentActivity = journalActivity.map(item => ({
+      id: item.id,
+      title: item.Title,
+      status: item.Status,
+      journalName: item.Journal?.name || 'Unknown Journal',
+      time: new Date(item.submittedAt).toLocaleDateString()
+    }));
+
+    if (recentActivity.length === 0) {
+      recentActivity.push({
+        isDefault: true, title: "Dashboard Accessed", description: "You logged into SubmitEase.",
+        time: new Date().toLocaleDateString()
+      });
     }
+
+    res.status(200).json({
+      publishedCount: journalAccepted + confAccepted,
+      conferenceCount: uniqueConferenceCount,
+      journalCount: journalCount,
+      totalSubmissions: totalJournal + totalConf,
+      recentActivity
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-// POST: Change Assigned Editor
-app.post('/api/journal/eic/change-editor', async (req, res) => {
-    const { paperId, oldEditorId, newEditorId } = req.body;
-    try {
-        // 1. Remove the old assignment record entirely
-        await prisma.journalEditors.deleteMany({
-            where: { 
-                PaperId: paperId, 
-                EditorId: parseInt(oldEditorId, 10) 
-            }
-        });
+app.get('/user/:id/registered-journals', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const assignments = await prisma.journalAssignment.findMany({
+      where: { UserId: userId },
+      include: { Journal: { select: { id: true, name: true, Publication: true, status: true } } }
+    });
 
-        // 2. Create the new assignment record
-        const newAssignment = await prisma.journalEditors.create({
-            data: { 
-                PaperId: paperId, 
-                EditorId: parseInt(newEditorId, 10), 
-                Status: 'Active' 
-            }
-        });
+    const journalMap = new Map();
+    assignments.forEach(a => {
+      if (a.Journal && a.Journal.status !== 'Closed') {
+        journalMap.set(a.Journal.id, { ...a.Journal, roles: a.role });
+      }
+    });
 
-        // 3. Fetch details for the email
-        const paper = await prisma.journalPapers.findUnique({ where: { id: paperId } });
-        const newEditor = await prisma.user.findUnique({ where: { id: parseInt(newEditorId, 10) } });
-        
-        // 4. Send Email Notification to the NEW Editor
-        const emailSubject = `New Assignment: Associate Editor for Paper #${paperId}`;
-        const emailText = `Dear ${newEditor.firstname} ${newEditor.lastname},\n\nYou have been newly assigned as the Associate Editor for the manuscript titled: "${paper.Title}".\n\nPlease log in to the SubmitEase Editor Portal to take over the management of this paper's peer-review process.\n\nBest regards,\nSubmitEase Editor-in-Chief`;
-        
-        sendAutomatedEmail(newEditor.email, emailSubject, emailText);
-        
-        res.status(200).json({ message: "Editor changed successfully", assignment: newAssignment });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to change editor", error: error.message });
-    }
+    res.status(200).json(Array.from(journalMap.values()));
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch registered journals" });
+  }
 });
 
-// GET: Fetch dynamic stats for the user dashboard
-app.get('/api/user/dashboard-stats/:userId', async (req, res) => {
-    const { userId } = req.params;
-    const id = parseInt(userId);
+app.post('/journals/discover', async (req, res) => {
+  try {
+    const { expertise } = req.body;
+    const allOpenJournals = await prisma.journal.findMany({
+      where: { status: { in: ['Open', 'Active'] } },
+      select: { id: true, name: true, Publication: true, Keywords: true, link: true }
+    });
 
-    try {
-        // 1. Papers Published (Accepted in Journals OR Conferences)
-        const journalAccepted = await prisma.journalPapers.count({
-            where: { Authors: { some: { id: id } }, Status: 'Accepted' }
-        });
-        const confAccepted = await prisma.paper.count({
-            where: { Authors: { some: { id: id } }, Status: 'Accepted' }
-        });
+    let recommended = [];
+    let available = [];
 
-        // 2. UNIQUE Conferences Involved 
-        // We fetch all papers by the user and use a Set to get unique ConferenceIds
-        const userPapers = await prisma.paper.findMany({
-            where: { Authors: { some: { id: id } } },
-            select: { ConferenceId: true }
-        });
-        const uniqueConferenceCount = new Set(userPapers.map(p => p.ConferenceId)).size;
+    if (expertise && expertise.length > 0) {
+      const lowerExpertise = expertise.map(e => e.toLowerCase().trim());
+      allOpenJournals.forEach(journal => {
+        const journalKeywords = journal.Keywords || [];
+        const hasMatch = journalKeywords.some(k => lowerExpertise.includes(k.toLowerCase().trim()));
 
-        // 3. Total Submissions (Journal + Conference regardless of status)
-        const totalJournal = await prisma.journalPapers.count({
-            where: { Authors: { some: { id: id } } }
-        });
-        const totalConf = await prisma.paper.count({
-            where: { Authors: { some: { id: id } } }
-        });
-
-        // 4. Fetch Recent Activity
-        const journalActivity = await prisma.journalPapers.findMany({
-            where: { Authors: { some: { id: id } } },
-            take: 3,
-            orderBy: { submittedAt: 'desc' },
-            select: { Title: true, Status: true, submittedAt: true }
-        });
-
-        const recentActivity = journalActivity.map(item => ({
-            title: item.Title,
-            description: `Manuscript status: ${item.Status}`,
-            time: new Date(item.submittedAt).toLocaleDateString()
-        }));
-
-        res.status(200).json({
-            publishedCount: journalAccepted + confAccepted,
-            conferenceCount: uniqueConferenceCount,
-            totalSubmissions: totalJournal + totalConf,
-            recentActivity
-        });
-    } catch (error) {
-        console.error("Dashboard Stats Error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        if (hasMatch) recommended.push(journal);
+        else available.push(journal);
+      });
+    } else {
+      available = allOpenJournals;
     }
+
+    res.status(200).json({ recommended, available });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to discover journals" });
+  }
 });
 
-// ==================== END JOURNAL-SPECIFIC ENDPOINTS ====================
+app.post('/journals/register-user', async (req, res) => {
+  try {
+    const { userId, journalId } = req.body;
+
+    await prisma.journalAssignment.upsert({
+      where: { JournalId_UserId: { JournalId: journalId, UserId: userId } },
+      update: {},
+      create: { JournalId: journalId, UserId: userId, role: ["Author"] }
+    });
+    res.status(200).json({ message: "Registered successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to register for journal" });
+  }
+});
 
 // ============================================================================
-// PUBLIC ENDPOINTS (Landing Page)
+// PUBLIC / LANDING PAGE ENDPOINTS
 // ============================================================================
 
-// GET: Public Platform Stats for Landing Page
 app.get('/public/platform-stats', async (req, res) => {
-    try {
-        // 1. Count total registered users
-        const usersCount = await prisma.user.count();
+  try {
+    const usersCount = await prisma.user.count();
+    const conferencesCount = await prisma.conference.count();
+    const journalPapersCount = await prisma.journalPapers.count();
+    const confPapersCount = await prisma.paper.count();
+    const journalCount = await prisma.journal.count();
 
-        // 2. Count total conferences 
-        // (Note: If your Prisma model is named differently, change 'conference' to match it, e.g., 'ConferenceDetails')
-        const conferencesCount = await prisma.conference.count(); 
-
-        // 3. Count total papers submitted (combining Journal and Conference papers)
-        const journalPapersCount = await prisma.journalPapers.count();
-        const confPapersCount = await prisma.paper.count();
-        const totalPapersCount = journalPapersCount + confPapersCount;
-
-        res.status(200).json({
-            users: usersCount,
-            conferences: conferencesCount,
-            papers: totalPapersCount
-        });
-    } catch (error) {
-        console.error("Public Stats Error:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
+    res.status(200).json({
+      users: usersCount,
+      conferences: conferencesCount,
+      journals: journalCount,
+      papers: journalPapersCount + confPapersCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
+app.post('/check-email', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    res.status(200).json({ exists: !!user });
+  } catch (error) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.post('/journals/register', async (req, res) => {
+  const { email, password, journalName, journalLink, publication } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: "User account not found." });
+
+    if (password) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return res.status(401).json({ error: "Incorrect password." });
+    }
+
+    const newJournal = await prisma.journal.create({
+      data: {
+        name: journalName, link: journalLink || "",
+        Publication: publication, status: "Pending", hostID: user.id,
+        submittedAt: new Date()
+      }
+    });
+
+    const bodyHtml = `
+            <p>Hello <strong>${user.firstname}</strong>,</p>
+            <p>We have successfully received your application to host the following journal on SubmitEase:</p>
+            <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h2 style="color: #065f46; margin: 0 0 10px 0;">${journalName}</h2>
+                <span style="background-color: #d1fae5; color: #065f46; padding: 6px 16px; border-radius: 9999px; font-size: 14px; font-weight: bold;">Status: Pending Approval</span>
+            </div>
+            <p>Our administration team is reviewing your request. You will receive an update at this email address once a decision has been made.</p>
+        `;
+    const emailHtml = getBeautifulEmailTemplate("Journal Request Received", bodyHtml);
+    try {
+      await sendMail(email, 'Journal Registration Request Received', emailHtml);
+    } catch (mailErr) {
+      console.error("Failed to send journal registration confirmation email:", mailErr);
+    }
+
+    res.status(201).json({ message: "Journal registered successfully!", journal: newJournal });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to register journal" });
+  }
+});
+
+app.post('/conference/registeration', async (req, res) => {
+  const { name, location, startsAt, endAt, deadline, link, status, Partners, tracks, hostID, password } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: hostID } });
+    if (!user) return res.status(404).json({ error: "Host user not found." });
+
+    if (password) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return res.status(401).json({ error: "Incorrect password." });
+    }
+
+    const newConference = await prisma.conference.create({
+      data: { name, location, startsAt: new Date(startsAt), endAt: new Date(endAt), deadline: new Date(deadline), link, status, Partners, hostID }
+    });
+
+    if (tracks && tracks.length > 0) {
+      const trackPromises = tracks.map(trackName => prisma.tracks.create({ data: { Name: trackName, ConferenceId: newConference.id } }));
+      await Promise.all(trackPromises);
+    }
+
+    const bodyHtml = `
+            <p>Hello <strong>${user.firstname}</strong>,</p>
+            <p>We have successfully received your application to host the following conference on SubmitEase:</p>
+            <div style="background-color: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h2 style="color: #3730a3; margin: 0 0 10px 0;">${name}</h2>
+                <span style="background-color: #e0e7ff; color: #3730a3; padding: 6px 16px; border-radius: 9999px; font-size: 14px; font-weight: bold;">Status: Pending Approval</span>
+            </div>
+            <p>Our administration team is reviewing your request. You will receive an update at this email address once your conference has been officially approved.</p>
+        `;
+    // Intentionally using standard theme color for conferences
+    const emailHtml = getBeautifulEmailTemplate("Conference Request Received", bodyHtml);
+    try {
+      await sendMail(user.email, 'Conference Registration Request Received', emailHtml);
+    } catch (mailErr) {
+      console.error("Failed to send conference registration confirmation email:", mailErr);
+    }
+
+    res.status(201).json({ message: "Conference registered successfully!", conference: newConference });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to register conference" });
+  }
+});
 
 // --- Schedule the Job ---
 cron.schedule('0 0 * * *', () => {

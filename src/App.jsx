@@ -34,6 +34,7 @@ import AdminConferences from "./components/Admin_ConferenceManagement";
 import AdminJournal from "./components/Admin_JournalManagement";
 import EIC from "./components/EIC_dashboard.jsx";
 import JournalEditorPaperDetails from "./components/JournalEditorPaperDetails.jsx";
+import JournalHost from "./components/JournalHost.jsx";
 function App() {
   return (
     <UserProvider>
@@ -60,14 +61,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/journal"
-            element={
-              <ProtectedRoute>
-                <JournalPortal />
-              </ProtectedRoute>
-            }
-          />
+          
           <Route
             path="/Paper/:paperId"
             element={
@@ -172,8 +166,21 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* =========================================
+              AUTHOR ROUTES
+          ========================================= */}
+          
           <Route
-            path="/journal/paper/:paperId"
+            path="/journal/:journalid/author"
+            element={
+              <ProtectedRoute>
+                <JournalPortal />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/journal/:journalid/author/paper/:paperId"
             element={
               <ProtectedRoute>
                 <ViewJournalPaper />
@@ -181,7 +188,19 @@ function App() {
             }
           />
           <Route
-            path="/journal/editor"
+            path="/journal/:journalid/author/revision/:paperId"
+            element={
+              <ProtectedRoute>
+                <ViewRevisionPaper />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =========================================
+              EDITOR ROUTES
+          ========================================= */}
+          <Route
+            path="/journal/:journalid/editor"
             element={
               <ProtectedRoute>
                 <EditorPortal />
@@ -189,15 +208,19 @@ function App() {
             }
           />
           <Route
-            path="/journal/revision/:paperId"
+            path="/journal/:journalid/editor/paper/:paperId"
             element={
               <ProtectedRoute>
-                <ViewRevisionPaper />
+                <JournalEditorPaperDetails />
               </ProtectedRoute>
             }
           />
+
+          {/* =========================================
+              REVIEWER ROUTES
+          ========================================= */}
           <Route
-            path="/journal/ManageReviews"
+            path="/journal/:journalid/reviewer"
             element={
               <ProtectedRoute>
                 <JournalManageReviews />
@@ -205,7 +228,7 @@ function App() {
             }
           />
           <Route
-            path="/journal/ReviewPaper/:paperId"
+            path="/journal/:journalid/reviewer/paper/:paperId"
             element={
               <ProtectedRoute>
                 <JournalReviewPaper />
@@ -213,6 +236,33 @@ function App() {
             }
           />
 
+          {/* =========================================
+              EDITOR-IN-CHIEF (EIC) ROUTES
+          ========================================= */}
+          <Route
+            path="/journal/:journalid/eic"
+            element={
+              <ProtectedRoute>
+                <EIC />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =========================================
+              JOURNAL HOST ROUTES
+          ========================================= */}
+          <Route
+            path="/journal/:journalid/journalhost"
+            element={
+              <ProtectedRoute>
+                <JournalHost/>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =========================================
+              ADMIN ROUTES
+          ========================================= */}
           <Route
             path="/admin/dashboard"
             element={
@@ -234,22 +284,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminJournal />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/eic/dashboard"
-            element={
-              <ProtectedRoute>
-                <EIC />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/journal/editor/paper/:paperId"
-            element={
-              <ProtectedRoute>
-                <JournalEditorPaperDetails />
               </ProtectedRoute>
             }
           />

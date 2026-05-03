@@ -1,7 +1,7 @@
 "use client";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 // --- Helper Functions ---
@@ -36,7 +36,6 @@ const getTabCategory = (paper) => {
   const revs = paper.Revisions || [];
   
   if (revs.length > 0) {
-    // If it has revisions, route based on the LATEST revision's status
     const revStatus = revs[0].Status;
     if (revStatus === "Accepted") return "Accepted"; 
     if (revStatus === "Rejected" || revStatus === "Declined") return "Declined Revisions";
@@ -45,10 +44,49 @@ const getTabCategory = (paper) => {
     return revStatus; 
   }
   
-  // If no revisions, route based on the base paper's status
   return paper.Status; 
 };
 
+// --- CORE LOGIC: Calculate Progress (Using Strictly Backend Variables) ---
+const calculateProgress = (paper) => {
+  const rawStatus = paper.effectiveStatus || paper.Status || "";
+  const status = rawStatus.toLowerCase();
+
+  if (status === "pending submission") {
+    return <span className="text-xs font-medium text-gray-500 italic">Pending Submission</span>;
+  }
+
+  if (status === "accepted" || status === "rejected" || status === "revision required") {
+    return <span className="text-xs font-semibold text-green-600">✅ Completed</span>;
+  }
+
+  if (status === "under review" || status === "awaiting final decision") {
+    const hasEditor = paper.hasEditor !== undefined ? paper.hasEditor : false;
+    const totalReviews = paper.reviewersInvited !== undefined ? paper.reviewersInvited : 0;
+    const completedReviews = paper.reviewersSubmitted !== undefined ? paper.reviewersSubmitted : 0;
+    const editorDecisionMade = paper.editorDecisionMade !== undefined ? paper.editorDecisionMade : false;
+
+    return (
+      <div className="flex flex-col text-xs text-gray-600 gap-1 mt-1">
+        <span className="flex items-center gap-1 font-medium">
+          {hasEditor ? "🧑‍🏫 Editor Assigned" : "⏳ Awaiting Editor"}
+        </span>
+        {hasEditor && (
+          <>
+            <span className="flex items-center gap-1">
+              📝 {completedReviews}/{totalReviews} Reviews Completed
+            </span>
+            <span className="flex items-center gap-1">
+              {editorDecisionMade ? "⚖️ Editor Decision Made" : "⏳ Awaiting Editor Decision"}
+            </span>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return <span className="text-xs text-gray-400">Processing</span>;
+};
 
 // --- Stats Component ---
 const StatsGrid = ({ papers }) => {
@@ -117,8 +155,8 @@ const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
-// --- Updated Paper List Component with Dual Status Support ---
-const PaperList = ({ papers, isRevisionTab }) => {
+// --- Updated Paper List Component with Progress Column ---
+const PaperList = ({ papers, isRevisionTab, journalid }) => {
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [searchTerm, setSearchTerm] = useState("");
@@ -142,20 +180,25 @@ const PaperList = ({ papers, isRevisionTab }) => {
   }, [searchTerm, papers]);
 
   const sortedAndFilteredPapers = useMemo(() => {
-    const processedPapers = (papers || []).map((paper) => ({
-      ...paper,
-      effectiveStatus: paper.Revisions?.[0]?.Status || paper.Status, 
-    }));
+    const processedPapers = (papers || []).map((paper) => {
+      // NEW: Extract the latest revision if it exists
+      const latestRev = paper.Revisions?.[0];
+      
+      return {
+        ...paper,
+        effectiveStatus: latestRev?.Status || paper.Status, 
+        effectiveTitle: latestRev?.Title || paper.Title,         // Uses Revision Title
+        effectiveKeywords: latestRev?.Keywords || paper.Keywords // Uses Revision Keywords
+      };
+    });
 
     const filtered = processedPapers.filter((paper) => {
       const lowerSearch = searchTerm.toLowerCase();
-      const keywordsString = Array.isArray(paper.Keywords) ? paper.Keywords.join(" ").toLowerCase() : "";
-      const journalName = paper.Journal?.name || "";
+      const keywordsString = Array.isArray(paper.effectiveKeywords) ? paper.effectiveKeywords.join(" ").toLowerCase() : "";
       
       return (
-        paper.Title?.toLowerCase().includes(lowerSearch) ||
-        paper.id?.toString().includes(lowerSearch) ||
-        journalName.toLowerCase().includes(lowerSearch) ||
+        paper.effectiveTitle?.toLowerCase().includes(lowerSearch) ||
+        paper.id?.toString().includes(lowerSearch) || // Original ID remains searchable
         paper.effectiveStatus?.toLowerCase().includes(lowerSearch) ||
         keywordsString.includes(lowerSearch)
       );
@@ -197,7 +240,7 @@ const PaperList = ({ papers, isRevisionTab }) => {
       <div className="p-4">
         <input
           type="text"
-          placeholder="Search submissions (Title, ID, Journal, Status...)"
+          placeholder="Search submissions (Title, ID, Status, Keywords...)"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
@@ -224,6 +267,9 @@ const PaperList = ({ papers, isRevisionTab }) => {
                 Status {sortBy === "Status" && (sortOrder === "asc" ? "↑" : "↓")}
               </th>
               <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
+                Progress
+              </th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
                 Actions
               </th>
             </tr>
@@ -232,29 +278,35 @@ const PaperList = ({ papers, isRevisionTab }) => {
             {currentPapers.length > 0 ? (
               currentPapers.map((paper) => (
                 <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
+                  {/* Shows Original ID */}
                   <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">
-                    {paper.id}
+                    {paper.id} 
                   </td>
+                  
+                  {/* Shows Latest Revision Title */}
                   <td className="py-3 px-4">
                     <div>
-                      <p className="text-sm font-medium text-[#1f2937]">{paper.Title}</p>
-                      <p className="text-xs text-[#6b7280]">{paper.Journal?.name}</p>
+                      <p className="text-sm font-medium text-[#1f2937]">{paper.effectiveTitle}</p>
                     </div>
                   </td>
+                  
                   <td className="py-3 px-4 text-sm text-[#1f2937]">
                     {formatDate(paper.submittedAt)}
                   </td>
+                  
+                  {/* Shows Latest Revision Keywords */}
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
-                      {(paper.Keywords || []).map((keyword, index) => (
+                      {(paper.effectiveKeywords || []).map((keyword, index) => (
                         <span key={index} className="px-2 py-1 text-xs bg-[#059669]/10 text-[#059669] rounded-md">
                           {keyword}
                         </span>
                       ))}
                     </div>
                   </td>
+                  
+                  {/* Shows "Revised Paper" Badge + Latest Status */}
                   <td className="py-3 px-4">
-                    {/* DUAL STATUS DISPLAY LOGIC */}
                     {paper.Revisions && paper.Revisions.length > 0 && !isRevisionTab ? (
                         <div className="flex items-center gap-3">
                             <span className="px-2 py-1 text-xs font-semibold rounded-full leading-tight bg-orange-100 text-orange-700 whitespace-nowrap">
@@ -270,8 +322,12 @@ const PaperList = ({ papers, isRevisionTab }) => {
                     )}
                   </td>
                   <td className="py-3 px-4">
+                      {/* PROGRESS DISPLAY */}
+                      {calculateProgress(paper)}
+                  </td>
+                  <td className="py-3 px-4">
                     <button
-                      onClick={() => navigate(`/journal/paper/${paper.id}`)}
+                      onClick={() => navigate(`/journal/${journalid}/author/paper/${paper.id}`)}
                       className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors"
                     >
                       View
@@ -281,7 +337,7 @@ const PaperList = ({ papers, isRevisionTab }) => {
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="text-center text-gray-500 py-4">
+                <td colSpan="7" className="text-center text-gray-500 py-4">
                   No submissions match your search.
                 </td>
               </tr>
@@ -322,14 +378,22 @@ const reorder = (list, startIndex, endIndex) => {
 export default function JournalPortal() {
   const { user, setUser, setloginStatus } = useUserData();
   const navigate = useNavigate();
+  const { journalid } = useParams();
 
   const [papers, setPapers] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
+  const [journalUsers, setJournalUsers] = useState([]);
+  const [platformUsers, setPlatformUsers] = useState([]);
+  const [currentJournalName, setCurrentJournalName] = useState("");
 
   // --- UI State ---
   const [showSubmissionForm, setShowSubmissionForm] = useState(false);
   const [activeTab, setActiveTab] = useState("all"); 
   const [activeSubTab, setActiveSubTab] = useState("rev_required"); 
+
+  // --- Author Modal State ---
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
+  const [authorModalTab, setAuthorModalTab] = useState("journal"); // 'journal', 'platform', 'new'
+  const [authorSearchTerm, setAuthorSearchTerm] = useState("");
 
   // --- Form State ---
   const [title, setTitle] = useState("");
@@ -340,7 +404,6 @@ export default function JournalPortal() {
   const [additionalFiles, setAdditionalFiles] = useState([]); 
   
   // --- Invite Form State ---
-  const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -354,16 +417,88 @@ export default function JournalPortal() {
     navigate("/home");
   };
 
+  const getPapers = async () => {
+    if (user?.id && journalid) {
+      try {
+        const response = await fetch(`http://localhost:3001/journal/papers?authorId=${user.id}&journalId=${journalid}`);
+        const data = await response.json();
+        setPapers(data.papers || []);
+      } catch (err) { setPapers([]); }
+    }
+  };
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+        if (!journalid) return;
+
+        // Fetch Tab 1: Users associated with THIS journal
+        try {
+            // Updated to fetch from the journal-scoped endpoint as requested
+            const journalUsersRes = await fetch(`http://localhost:3001/journal/users?journalId=${journalid}`);
+            if (journalUsersRes.ok) {
+                const data = await journalUsersRes.json();
+                setJournalUsers(data.users || []);
+            }
+        } catch(e) { console.error("Error fetching journal users", e); }
+
+        // Fetch Tab 2: ALL Platform Users (for the Register Other Users tab)
+        try {
+            // Updated to fetch from the global platform users endpoint
+            const platformUsersRes = await fetch(`http://localhost:3001/users/emails`); 
+            if (platformUsersRes.ok) {
+                const data = await platformUsersRes.json();
+                setPlatformUsers(data.users || []);
+            }
+        } catch(e) { console.error("Error fetching platform users", e); }
+
+        // Find current journal name from user context
+        if (user && user.activeJournals) {
+            const matchingJournal = user.activeJournals.find(j => j.journalId === parseInt(journalid, 10));
+            if (matchingJournal) {
+                setCurrentJournalName(matchingJournal.journalName);
+            }
+        }
+    };
+
+    fetchUserData();
+    getPapers();
+  }, [user, journalid]);
+
+  // --- Filtering Logic for Unified Modal ---
+  const modalUsersToDisplay = useMemo(() => {
+      let list = authorModalTab === 'journal' ? journalUsers : platformUsers;
+      
+      // Filter out people already added as authors
+      list = list.filter(u => u && u.id && !authors.some(a => a && a.id === u.id));
+
+      // If viewing the 'Register Other Users' tab, exclude those already in the journal
+      if (authorModalTab === 'platform') {
+          list = list.filter(u => !journalUsers.some(ju => ju.id === u.id));
+      }
+
+      // Apply text search filter
+      if (authorSearchTerm.trim()) {
+          const lowerTerm = authorSearchTerm.toLowerCase();
+          list = list.filter(u => 
+              u.firstname?.toLowerCase().includes(lowerTerm) ||
+              u.lastname?.toLowerCase().includes(lowerTerm) ||
+              u.email?.toLowerCase().includes(lowerTerm) ||
+              u.organisation?.toLowerCase().includes(lowerTerm) ||
+              (u.expertise && u.expertise.some(exp => exp.toLowerCase().includes(lowerTerm)))
+          );
+      }
+
+      return list;
+  }, [authorModalTab, journalUsers, platformUsers, authors, authorSearchTerm]);
+
   const newSubmission = () => {
     setTitle("");
     setAbstract("");
     setKeywords("");
     setPdfFile(null);
     setAdditionalFiles([]);
-    setShowInviteForm(false);
-    setInviteFirstName("");
-    setInviteLastName("");
-    setInviteEmail("");
+    setShowAuthorModal(false);
+    setAuthorSearchTerm("");
 
     if (user && user.id) {
       setAuthors([user]);
@@ -373,11 +508,52 @@ export default function JournalPortal() {
     setShowSubmissionForm(true);
   };
 
-  const addAuthorById = (userId) => {
-    const userObj = allUsers.find(u => u.id === parseInt(userId, 10));
+  // --- AUTHOR MODAL SUBMIT LOGIC ---
+  const handleAddJournalUser = (userId) => {
+    const userObj = journalUsers.find(u => u.id === userId);
     if (userObj && !authors.some(a => a.id === userObj.id)) {
       setAuthors(prev => [...prev, userObj]);
     }
+    setShowAuthorModal(false);
+    setAuthorSearchTerm("");
+  };
+
+  const handleRegisterAndAddPlatformUser = async (userId) => {
+    try {
+        const res = await fetch('http://localhost:3001/journals/register-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: parseInt(userId, 10), journalId: parseInt(journalid, 10) })
+        });
+        if (res.ok) {
+            const userObj = platformUsers.find(u => u.id === userId);
+            if (userObj && !authors.some(a => a.id === userObj.id)) {
+                setAuthors(prev => [...prev, userObj]);
+            }
+            setShowAuthorModal(false);
+            setAuthorSearchTerm("");
+        } else {
+            alert("Failed to register user to journal.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Network error while registering user.");
+    }
+  };
+
+  const handleInviteNewAuthor = (e) => {
+    e?.preventDefault();
+    if (!inviteEmail || !inviteFirstName || !inviteLastName) return alert("Fill required fields");
+    
+    const mockNewUser = { id: Date.now(), firstname: inviteFirstName, lastname: inviteLastName, email: inviteEmail, organisation: inviteOrg };
+    setAuthors(prev => [...prev, mockNewUser]);
+    setShowAuthorModal(false);
+    
+    // Clear form
+    setInviteFirstName("");
+    setInviteLastName("");
+    setInviteEmail("");
+    setInviteOrg("");
   };
 
   const handleRemoveAuthor = (index) => {
@@ -388,15 +564,6 @@ export default function JournalPortal() {
   const onDragEnd = (result) => {
     if (!result.destination) return;
     setAuthors(reorder(authors, result.source.index, result.destination.index));
-  };
-
-  const handleInviteAuthor = async (e) => {
-    e?.preventDefault();
-    if (!inviteEmail || !inviteFirstName || !inviteLastName) return alert("Fill required fields");
-    
-    const mockNewUser = { id: Date.now(), firstname: inviteFirstName, lastname: inviteLastName, email: inviteEmail, organisation: inviteOrg };
-    setAuthors(prev => [...prev, mockNewUser]);
-    setShowInviteForm(false);
   };
 
   const handleAddAdditionalFile = (e) => {
@@ -413,11 +580,12 @@ export default function JournalPortal() {
 
   const handlePaperSubmit = async (event) => {
     event.preventDefault();
-    if (!pdfFile) return alert("Please upload a PDF");
+    if (!journalid) return alert("Journal ID is missing");
     
     const formData = new FormData();
     formData.append('title', title);
     formData.append('abstract', abstract);
+    formData.append('journalId', journalid);
     formData.append('keywords', JSON.stringify(keywords.split(',')));
     formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
     formData.append('pdfFile', pdfFile);
@@ -446,56 +614,43 @@ export default function JournalPortal() {
     }
   };
 
-  const getPapers = async () => {
-    if (user?.id) {
-      try {
-        const response = await fetch(`http://localhost:3001/journal/papers?authorId=${user.id}`);
-        const data = await response.json();
-        setPapers(data.papers || []);
-      } catch (err) { setPapers([]); }
-    }
-  };
-
-  useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const userRes = await fetch('http://localhost:3001/users/emails');
-            const userData = await userRes.json();
-            setAllUsers(userData.users || []);
-        } catch(e) { console.error(e); }
-    };
-    fetchData();
-    getPapers();
-  }, [user]);
-
   const Header = ({ user }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const navigate = useNavigate();
   
     const ROLE_CONFIG = {
-      "Author": { label: "Author", path: "/journal" },
-      "Journal Editor": { label: "Editor", path: "/journal/editor" },
-      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
-      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
-
+      "Author": { label: "Author", path: `/journal/${journalid}/author` },
+      "Journal Editor": { label: "Editor", path: `/journal/${journalid}/editor` },
+      "Journal Reviewer": { label: "Reviewer", path: `/journal/${journalid}/reviewer` },
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: `/journal/${journalid}/eic` },
+      "Journal Host": { label: "Journal Host", path: `/journal/${journalid}/journalhost` }
     };
   
     const availablePortals = useMemo(() => {
-      if (!user || !user.role || !Array.isArray(user.role)) return [];
-      return user.role
+      if (!user || !user.activeJournals) return [];
+      const currentJournal = user.activeJournals.find((j) => j.journalId === parseInt(journalid, 10));
+      const rolesForThisJournal = currentJournal?.roles || [];
+      
+      return rolesForThisJournal
         .map(roleString => ROLE_CONFIG[roleString])
         .filter(Boolean);
-    }, [user]);
+    }, [user, journalid]);
   
     return (
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
                 <span className="text-lg font-bold text-white">S</span>
               </div>
               <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+              {currentJournalName && (
+                  <>
+                      <span className="text-gray-300 mx-1">|</span>
+                      <span className="text-sm font-semibold text-[#059669] truncate max-w-[200px] md:max-w-md">{currentJournalName}</span>
+                  </>
+              )}
             </div>
           </div>
   
@@ -515,15 +670,17 @@ export default function JournalPortal() {
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
                   {availablePortals.length > 0 && (<div className="border-gray-100 my-1"></div>)}
-                  {availablePortals.length > 0 && (
+                  {availablePortals.length > 0 ? (
                     <>
                       <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Your Roles</h6>
                       {availablePortals.map((option, index) => (
-                        <button key={index} onClick={() => { navigate(option.path); setIsDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]">
+                        <button key={index} onMouseDown={() => { navigate(option.path); setIsDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]">
                           {option.label}
                         </button>
                       ))}
                     </>
+                  ) : (
+                      <p className="px-4 py-2 text-sm text-gray-500 italic">No portal access assigned.</p>
                   )}
                 </div>
               )}
@@ -537,14 +694,12 @@ export default function JournalPortal() {
     );
   };
 
-  // --- Derived Paper Lists by Tab Category ---
   const pendingPapers = papers.filter(p => getTabCategory(p) === "Pending Submission");
   const sentBackPapers = papers.filter(p => getTabCategory(p) === "Sent Back To Author");
   const underReviewPapers = papers.filter(p => getTabCategory(p) === "Under Review");
   const acceptedPapers = papers.filter(p => getTabCategory(p) === "Accepted");
   const rejectedPapers = papers.filter(p => getTabCategory(p) === "Rejected");
 
-  // Revisions Sub-Tabs
   const revRequiredPapers = papers.filter(p => getTabCategory(p) === "Revision Required");
   const revPendingPapers = papers.filter(p => getTabCategory(p) === "Pending Revision Submission");
   const revUnderReviewPapers = papers.filter(p => getTabCategory(p) === "Revisions Under Review");
@@ -632,72 +787,71 @@ export default function JournalPortal() {
             {activeTab === "all" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                     <h3 className="text-xl font-semibold text-[#1f2937] mb-4">All Manuscripts</h3>
-                    {/* Pass isRevisionTab as false because this is the 'All' tab */}
-                    <PaperList papers={papers} isRevisionTab={false} />
+                    <PaperList papers={papers} isRevisionTab={false} journalid={journalid} />
                 </div>
             )}
 
             {activeTab === "pending" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Drafts & Pending Submissions</h3>
-                     <PaperList papers={pendingPapers} isRevisionTab={false} />
+                     <PaperList papers={pendingPapers} isRevisionTab={false} journalid={journalid} />
                 </div>
             )}
 
             {activeTab === "sent_back" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Sent Back To Author</h3>
-                     <PaperList papers={sentBackPapers} isRevisionTab={false} />
+                     <PaperList papers={sentBackPapers} isRevisionTab={false} journalid={journalid} />
                 </div>
             )}
 
             {activeTab === "under_review" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Papers Under Review</h3>
-                     <PaperList papers={underReviewPapers} isRevisionTab={false} />
+                     <PaperList papers={underReviewPapers} isRevisionTab={false} journalid={journalid} />
                 </div>
             )}
 
-            {/* Revision Sub-Tabs Views - Pass isRevisionTab as TRUE */}
+            {/* Revision Sub-Tabs Views */}
             {activeTab === "revisions" && activeSubTab === "rev_required" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Revision Required</h3>
-                     <PaperList papers={revRequiredPapers} isRevisionTab={true} />
+                     <PaperList papers={revRequiredPapers} isRevisionTab={true} journalid={journalid} />
                 </div>
             )}
             
             {activeTab === "revisions" && activeSubTab === "rev_pending" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Pending Revision Submission</h3>
-                     <PaperList papers={revPendingPapers} isRevisionTab={true} />
+                     <PaperList papers={revPendingPapers} isRevisionTab={true} journalid={journalid} />
                 </div>
             )}
             
             {activeTab === "revisions" && activeSubTab === "rev_under_review" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Revisions Under Review</h3>
-                     <PaperList papers={revUnderReviewPapers} isRevisionTab={true} />
+                     <PaperList papers={revUnderReviewPapers} isRevisionTab={true} journalid={journalid} />
                 </div>
             )}
             
             {activeTab === "revisions" && activeSubTab === "rev_declined" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Declined Revisions</h3>
-                     <PaperList papers={revDeclinedPapers} isRevisionTab={true} />
+                     <PaperList papers={revDeclinedPapers} isRevisionTab={true} journalid={journalid} />
                 </div>
             )}
 
             {activeTab === "accepted" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Published / Accepted Papers</h3>
-                     <PaperList papers={acceptedPapers} isRevisionTab={false} />
+                     <PaperList papers={acceptedPapers} isRevisionTab={false} journalid={journalid} />
                 </div>
             )}
 
             {activeTab === "rejected" && (
                 <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg p-6">
                      <h3 className="text-xl font-semibold text-[#1f2937] mb-4">Rejected Submissions</h3>
-                     <PaperList papers={rejectedPapers} isRevisionTab={false} />
+                     <PaperList papers={rejectedPapers} isRevisionTab={false} journalid={journalid} />
                 </div>
             )}
         </div>
@@ -705,7 +859,7 @@ export default function JournalPortal() {
 
       {/* --- SUBMISSION MODAL --- */}
       {showSubmissionForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
           <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4">
              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-[#1f2937]">New Manuscript Submission</h3>
@@ -732,7 +886,13 @@ export default function JournalPortal() {
                </div>
 
                <div>
-                  <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors (drag to reorder)</label>
+                  <label className="block text-sm font-medium text-[#1f2937] mb-2 flex justify-between items-center">
+                    <span>Authors (drag to reorder)</span>
+                    <button type="button" onClick={() => setShowAuthorModal(true)} className="text-sm px-3 py-1 bg-[#059669]/10 text-[#059669] font-medium rounded-md hover:bg-[#059669]/20 transition-colors">
+                      + Add / Invite Author
+                    </button>
+                  </label>
+
                   <div className="space-y-2">
                     <DragDropContext onDragEnd={onDragEnd}>
                       <Droppable droppableId="authors-droppable-new">
@@ -741,7 +901,7 @@ export default function JournalPortal() {
                             {authors.map((author, index) => (
                               <Draggable key={author?.id ?? `new-author-${index}`} draggableId={String(author?.id ?? `new-author-${index}`)} index={index}>
                                 {(prov) => (
-                                  <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
+                                  <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white shadow-sm">
                                     <div {...prov.dragHandleProps} className="cursor-grab select-none text-[#6b7280]">☰</div>
                                     <div className="flex-1"><CompactAuthorCard author={author} /></div>
                                     <button type="button" onClick={() => handleRemoveAuthor(index)} className="px-3 py-1 text-sm font-medium text-red-600 border border-red-300 rounded-md hover:bg-red-50">Remove</button>
@@ -754,36 +914,6 @@ export default function JournalPortal() {
                         )}
                       </Droppable>
                     </DragDropContext>
-
-                    {!showInviteForm && (
-                      <div className="flex gap-2 items-center mt-2">
-                        <select defaultValue="" onChange={(e) => { addAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                          <option value="" disabled>-- Add another author by email --</option>
-                          {allUsers.filter(u => u && u.id && !authors.some(a => a && a.id === u.id)).map(u => (<option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>))}
-                        </select>
-                        <button type="button" onClick={() => setShowInviteForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
-                      </div>
-                    )}
-
-                    {showInviteForm && (
-                      <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
-                          <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
-                          <div className="grid grid-cols-2 gap-3">
-                            <input type="text" value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                            <input type="text" value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                          </div>
-                          <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email Address*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                          <input type="text" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} placeholder="Organisation" className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                          <select value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb]">
-                            <option value="">Select Country</option>
-                            {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                          <div className="flex gap-3">
-                            <button type="button" onClick={handleInviteAuthor} className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90">Add User</button>
-                            <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
-                          </div>
-                      </div>
-                    )}
                   </div>
                </div>
 
@@ -835,6 +965,113 @@ export default function JournalPortal() {
                </div>
              </form>
           </div>
+        </div>
+      )}
+
+      {/* --- UNIFIED USER SELECTION MODAL --- */}
+      {showAuthorModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+                
+                <div className="flex justify-between items-center p-5 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                    <h3 className="text-lg font-bold text-[#1f2937]">Add Co-Author</h3>
+                    <button onClick={() => setShowAuthorModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+                </div>
+
+                <div className="flex border-b border-[#e5e7eb] px-5 pt-3 bg-white">
+                    <button 
+                        className={`pb-3 mr-6 text-sm font-bold border-b-2 transition-colors ${authorModalTab === 'journal' ? 'text-[#059669] border-[#059669]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+                        onClick={() => { setAuthorModalTab('journal'); setAuthorSearchTerm(''); }}
+                    >
+                        Registered Journal Users
+                    </button>
+                    <button 
+                        className={`pb-3 mr-6 text-sm font-bold border-b-2 transition-colors ${authorModalTab === 'platform' ? 'text-[#059669] border-[#059669]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+                        onClick={() => { setAuthorModalTab('platform'); setAuthorSearchTerm(''); }}
+                    >
+                        Register Other Users To Journal
+                    </button>
+                    <button 
+                        className={`pb-3 text-sm font-bold border-b-2 transition-colors ${authorModalTab === 'new' ? 'text-[#059669] border-[#059669]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+                        onClick={() => setAuthorModalTab('new')}
+                    >
+                        Invite Brand New User
+                    </button>
+                </div>
+
+                <div className="p-5 overflow-y-auto bg-gray-50 flex-1">
+                    {authorModalTab === 'new' ? (
+                        <form onSubmit={handleInviteNewAuthor} className="space-y-4 max-w-md mx-auto mt-4">
+                            <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm space-y-4">
+                                <p className="text-sm text-gray-600 mb-2">We will create a temporary account, assign them the <strong>Author</strong> role, attach them to this paper, and automatically email them login instructions.</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input type="text" placeholder="First Name *" required value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                    <input type="text" placeholder="Last Name *" required value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                </div>
+                                <input type="email" placeholder="Email Address *" required value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                <input type="text" placeholder="Organisation" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md text-sm focus:ring-[#059669] focus:border-[#059669] focus:outline-none" />
+                                <select value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] text-sm">
+                                    <option value="">Select Country</option>
+                                    {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <button type="submit" className="w-full mt-2 px-4 py-2 bg-[#059669] text-white font-medium text-sm rounded-md hover:bg-[#047857] shadow-sm transition-colors">
+                                    Invite & Add Author
+                                </button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    placeholder={`Search by name, email, organisation, or expertise...`}
+                                    value={authorSearchTerm}
+                                    onChange={(e) => setAuthorSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white shadow-sm"
+                                />
+                                <svg className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+
+                            {authorModalTab === 'platform' && (
+                                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md">
+                                    <p className="text-xs text-yellow-800 font-medium">These users are registered on SubmitEase but are not associated with this journal. Selecting them will register them to the journal and assign them to this paper.</p>
+                                </div>
+                            )}
+
+                            <div className="space-y-3 mt-4">
+                                {modalUsersToDisplay.length === 0 ? (
+                                    <div className="text-center py-8 bg-white rounded-md border border-gray-200">
+                                        <p className="text-sm text-gray-500 italic">No users found matching your search.</p>
+                                    </div>
+                                ) : (
+                                    modalUsersToDisplay.map(u => (
+                                        <div key={u.id} className="p-4 border border-[#e5e7eb] rounded-md hover:border-[#059669] flex justify-between items-center bg-white shadow-sm transition-colors group">
+                                            <div className="flex-1 pr-4">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <p className="font-bold text-[#1f2937]">{u.firstname} {u.lastname}</p>
+                                                    <p className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{u.email}</p>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row sm:gap-6 mt-2">
+                                                    <p className="text-xs text-[#059669] font-medium"><span className="text-gray-500">Org:</span> {u.organisation || 'Not Specified'}</p>
+                                                    <p className="text-xs text-[#059669] font-medium truncate" title={u.expertise?.length ? u.expertise.join(', ') : ''}><span className="text-gray-500">Expertise:</span> {u.expertise?.length ? u.expertise.join(', ') : 'Not Specified'}</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => authorModalTab === 'platform' ? handleRegisterAndAddPlatformUser(u.id) : handleAddJournalUser(u.id)} 
+                                                className="ml-2 px-5 py-2 bg-emerald-50 text-[#059669] border border-[#059669] font-bold text-xs rounded hover:bg-[#059669] hover:text-white transition-colors whitespace-nowrap"
+                                            >
+                                                {authorModalTab === 'platform' ? `Register & Add` : `Add Co-Author`}
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
       )}
     </div>

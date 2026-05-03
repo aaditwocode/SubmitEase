@@ -59,7 +59,7 @@ const Header = ({ user, handleLogout }) => {
 
 export default function AdminConferences() {
     const navigate = useNavigate();
-    const { user, setUser, setloginStatus } = useUserData();
+    const { user, setUser, setloginStatus, loading } = useUserData();
 
     const [activeTab, setActiveTab] = useState("stats");
     const [pendingConferences, setPendingConferences] = useState({ newPending: [] });
@@ -76,14 +76,24 @@ export default function AdminConferences() {
     const [isLoadingConf, setIsLoadingConf] = useState(false);
 
     useEffect(() => {
-        fetch('http://localhost:3001/admin/conferences/pending')
-            .then(res => res.json())
-            .then(data => setPendingConferences(data));
+        if (loading) return;
 
-        fetch('http://localhost:3001/admin/conferences/stats')
-            .then(res => res.json())
-            .then(data => setConferenceStats(data.stats));
-    }, []);
+        if (!user || user.isAdmin != 1) { 
+            setUser(null);
+            setloginStatus(false);
+            navigate("/home");
+        } else {
+            fetch('http://localhost:3001/admin/conferences/pending')
+                .then(res => res.json())
+                .then(data => setPendingConferences(data))
+                .catch(err => console.error("Failed to fetch pending conferences:", err));
+
+            fetch('http://localhost:3001/admin/conferences/stats')
+                .then(res => res.json())
+                .then(data => setConferenceStats(data.stats))
+                .catch(err => console.error("Failed to fetch conference stats:", err));
+        }
+    }, [user, loading, navigate, setUser, setloginStatus]);
 
     const handleLogout = () => {
         setUser(null);

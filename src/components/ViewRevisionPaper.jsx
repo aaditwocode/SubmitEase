@@ -1,27 +1,18 @@
 "use client";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
-// --- Small reusable author card (compact) ---
+// --- Small reusable author card (compact & read-only) ---
 const CompactAuthorCard = ({ author }) => {
     if (!author) return null;
     return (
-        <div className="p-3 border rounded-md bg-white">
+        <div className="p-3 border rounded-md bg-white shadow-sm flex-1">
             <p className="text-sm font-semibold text-[#1f2937]">{author.firstname} {author.lastname} <span className="text-xs text-gray-500">({author.email})</span></p>
             <p className="text-xs text-[#6b7280]">Expertise: {Array.isArray(author.expertise) ? author.expertise.join(', ') : (author.expertise || '—')}</p>
             <p className="text-xs text-[#6b7280]">Organisation: {author.organisation || '—'}</p>
         </div>
     );
-};
-
-// --- Utility to reorder array on drag end ---
-const reorder = (list, startIndex, endIndex) => {
-    const result = Array.from(list);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
-    return result;
 };
 
 // --- Helper for status badge ---
@@ -44,64 +35,44 @@ const getStatusBadge = (status) => {
 };
 
 export default function ViewRevisionPaper() {
-    const { user, setUser, loginStatus, setloginStatus } = useUserData();
+    const { user, setUser, setloginStatus } = useUserData();
     const navigate = useNavigate();
-    const { paperId } = useParams();
-    const countries = [
-        "United States", "United Kingdom", "Canada", "Germany", "France", "Japan",
-        "Australia", "Netherlands", "Sweden", "Switzerland", "Singapore", "South Korea",
-        "China", "India", "Brazil", "Italy", "Spain", "Norway", "Denmark", "Finland",
-    ];
+    const { journalid, paperId } = useParams(); 
 
     // --- Page & Data State ---
     const [paper, setPaper] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [isEditable, setIsEditable] = useState(false);
-    const [allUsers, setAllUsers] = useState([]);
+    const [currentJournalName, setCurrentJournalName] = useState("");
 
-    // --- Form State ---
+    // --- Display Data ---
     const [title, setTitle] = useState("");
     const [abstract, setAbstract] = useState("");
     const [keywords, setKeywords] = useState("");
     const [authors, setAuthors] = useState([]);
-    
-    // --- File Upload State ---
-    const [pdfFile, setPdfFile] = useState(null);
-    const [responseSheetFile, setResponseSheetFile] = useState(null); // Response to Reviewers
-    const [previousPaperFile, setPreviousPaperFile] = useState(null); // NEW: Previous/Marked-up Paper
-    const [additionalFiles, setAdditionalFiles] = useState([]); 
-
-    // --- Invite Form State ---
-    const [showInviteForm, setShowInviteForm] = useState(false);
-    const [inviteFirstName, setInviteFirstName] = useState("");
-    const [inviteLastName, setInviteLastName] = useState("");
-    const [inviteEmail, setInviteEmail] = useState("");
-    const [inviteOrg, setInviteOrg] = useState("");
-    const [inviteCountry, setInviteCountry] = useState("");
 
     // --- 1. Main Data Fetching ---
     useEffect(() => {
-        if (!paperId) {
+        if (!paperId || !journalid) {
             setLoading(false);
-            setError("No paper ID found.");
+            setError("Missing paper ID or Journal ID.");
             return;
         }
+        
         const fetchPaper = async () => {
             setLoading(true);
             try {
-                const response = await fetch(`http://localhost:3001/journal/getpaperbyid/${paperId}`);
+                // Fetch strictly the revision paper ID
+                const response = await fetch(`http://localhost:3001/journal/getpaperbyid/${paperId}?journalId=${journalid}`);
                 if (!response.ok) throw new Error("Failed to fetch paper details.");
                 const data = await response.json();
+                
                 setPaper(data.paper);
-                const editable = data.paper.Status === 'Pending Submission';
-                setIsEditable(editable);
+                setTitle(data.paper.Title || "");
+                setAbstract(data.paper.Abstract || "");
+                setKeywords((data.paper.Keywords || []).join(', '));
 
-                setTitle(data.paper.Title);
-                setAbstract(data.paper.Abstract);
-                setKeywords(data.paper.Keywords.join(', '));
-
-                // Sort authors
+                // Sort authors for display
                 const fetchedAuthors = data.paper.Authors || [];
                 const authorOrder = data.paper.AuthorOrder;
                 let sortedAuthors = fetchedAuthors;
@@ -120,192 +91,55 @@ export default function ViewRevisionPaper() {
                 setLoading(false);
             }
         };
+
+        if (user && user.activeJournals) {
+            const matchingJournal = user.activeJournals.find(j => j.journalId === parseInt(journalid, 10));
+            if (matchingJournal) {
+                setCurrentJournalName(matchingJournal.journalName);
+            }
+        }
+
         fetchPaper();
-    }, [paperId]);
-
-    // --- 2. Fetch Users ---
-    useEffect(() => {
-        const fetchUsers = async () => {
-            try {
-                const response = await fetch('http://localhost:3001/users/emails');
-                if (response.ok) {
-                    const data = await response.json();
-                    setAllUsers(data.users || []);
-                }
-            } catch (error) { console.error("Failed to fetch users:", error); }
-        };
-        fetchUsers();
-    }, []);
-
-    // --- Handlers ---
-    const addAuthorById = (userId) => {
-        const userObj = allUsers.find(u => u.id === parseInt(userId, 10));
-        if (userObj && !authors.some(a => a.id === userObj.id)) setAuthors(prev => [...prev, userObj]);
-    };
-    const handleRemoveAuthor = (idx) => {
-        if (authors.length <= 1) return alert('At least one author is required.');
-        setAuthors(prev => prev.filter((_, i) => i !== idx));
-    };
-
-    const onDragEnd = (result) => {
-        if (!result.destination) return;
-        if (result.source.droppableId === "authors-droppable") {
-            setAuthors(reorder(authors, result.source.index, result.destination.index));
-        }
-    };
-
-    const handleInviteAuthor = async (e) => {
-        e.preventDefault();
-        if (!inviteEmail || !inviteFirstName || !inviteLastName) return alert("Fill required fields.");
-        try {
-            const response = await fetch('http://localhost:3001/users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: inviteEmail, firstname: inviteFirstName, lastname: inviteLastName, organisation: inviteOrg, password: "default123", role: ["Author"], expertise: [], country: inviteCountry }),
-            });
-            if (!response.ok) throw new Error("Failed to invite.");
-            const newUser = await response.json();
-            
-            setAuthors(prev => [...prev, newUser]);
-            setAllUsers(prev => [...prev, newUser]);
-            setShowInviteForm(false);
-            setInviteEmail(""); setInviteFirstName(""); setInviteLastName(""); setInviteOrg(""); setInviteCountry("");
-        } catch (error) { alert(`Error: ${error.message}`); }
-    };
-
-    // --- Additional Files Handlers ---
-    const handleAddAdditionalFile = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setAdditionalFiles(prev => [...prev, file]);
-            e.target.value = null; 
-        }
-    };
-    const handleRemoveAdditionalFile = (indexToRemove) => {
-        setAdditionalFiles(prev => prev.filter((_, index) => index !== indexToRemove));
-    };
-
-    // --- Submission Logics ---
-    const handleUpdatePaper = async (e) => {
-        e.preventDefault();
-        const formData = new FormData();
-        formData.append('paperId', paperId);
-        formData.append('title', title);
-        formData.append('abstract', abstract);
-        formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
-        formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
-        
-        if (pdfFile) formData.append('pdfFile', pdfFile);
-
-        // Append Response Sheet FIRST
-        if (responseSheetFile) {
-            formData.append('additionalFiles', responseSheetFile);
-        }
-
-        // Append Previous Paper SECOND
-        if (previousPaperFile) {
-            formData.append('additionalFiles', previousPaperFile);
-        }
-
-        // Then append the rest of the additional documents
-        if (additionalFiles && additionalFiles.length > 0) {
-            additionalFiles.forEach((file) => {
-                formData.append('additionalFiles', file); 
-            });
-        }
-
-        try {
-            const response = await fetch(`http://localhost:3001/journal/editpaper`, { method: 'POST', body: formData });
-            if (!response.ok) throw new Error('Failed to update.');
-            const data = await response.json();
-            setPaper(data.paper);
-            setAuthors(data.paper.Authors || []);
-            setKeywords(data.paper.Keywords.join(', '));
-            alert('Draft saved!');
-            
-            // Clear files out
-            setPdfFile(null);
-            setResponseSheetFile(null);
-            setPreviousPaperFile(null);
-            setAdditionalFiles([]); 
-        } catch (error) { alert(`Error: ${error.message}`); }
-        navigate('/journal');
-    };
-
-    const handleSubmitForReview = async (e) => {
-        e.preventDefault();
-        
-        if (!pdfFile && !paper.URL) {
-            return alert("Please upload the Revised Manuscript (PDF) before submitting.");
-        }
-
-        if (!window.confirm("Submit revision for review? Once submitted, you cannot edit this version.")) return;
-        
-        const formData = new FormData();
-        formData.append('paperId', paperId);
-        formData.append('title', title);
-        formData.append('abstract', abstract);
-        formData.append('keywords', JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean)));
-        formData.append('authorIds', JSON.stringify(authors.map(a => a.id)));
-        
-        if (pdfFile) formData.append('pdfFile', pdfFile);
-
-        if (responseSheetFile) formData.append('additionalFiles', responseSheetFile);
-        if (previousPaperFile) formData.append('additionalFiles', previousPaperFile);
-
-        if (additionalFiles && additionalFiles.length > 0) {
-            additionalFiles.forEach((file) => {
-                formData.append('additionalFiles', file); 
-            });
-        }
-
-        try {
-            const response = await fetch(`http://localhost:3001/journal/submitpaper`, { method: 'POST', body: formData });
-            if (!response.ok) throw new Error('Failed to submit.');
-            const data = await response.json();
-            setPaper(data.paper);
-            setIsEditable(false);
-            
-            setPdfFile(null);
-            setResponseSheetFile(null);
-            setPreviousPaperFile(null);
-            setAdditionalFiles([]);
-            alert('Revision Submitted!');
-        } catch (error) { alert(`Error: ${error.message}`); }
-        navigate('/journal');
-    };
+    }, [paperId, journalid, user]);
 
     if (loading) return <div className="p-8 text-center">Loading...</div>;
     if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
     if (!paper) return <div className="p-8 text-center">Paper not found.</div>;
 
-    const displayPdfUrl = paper.FinalPaperURL || paper.URL;
+    // Prefers RevisionPaperURL (the full merged doc with response sheet) if it exists
+    const displayPdfUrl = paper.RevisionPaperURL || paper.FinalPaperURL || paper.URL;
     const cacheBustKey = new Date(paper.updatedAt || paper.submittedAt).getTime();
     
+    // Explicit Review Filtering for this specific revision
+    const visibleReviews = paper.Reviews?.filter(r => r.isVisibleToAuthor) || [];
+
     const handleLogout = () => {
         setUser(null);
         setloginStatus(false);
         navigate("/home");
     };
     
-    // Header Logic
     const Header = ({ user }) => {
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const navigate = useNavigate();
       
         const ROLE_CONFIG = {
-      "Author": { label: "Author", path: "/journal" },
-      "Journal Editor": { label: "Editor", path: "/journal/editor" },
-      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
-        "Editor-in-Chief": { label: "Editor-in-Chief", path: "/eic/dashboard" }
-    };
+            "Author": { label: "Author", path: `/journal/${journalid}/author` },
+            "Journal Editor": { label: "Editor", path: `/journal/${journalid}/editor` },
+            "Journal Reviewer": { label: "Reviewer", path: `/journal/${journalid}/reviewer` },
+            "Editor-in-Chief": { label: "Editor-in-Chief", path: `/journal/${journalid}/eic` },
+            "Journal Host": { label: "Journal Host", path: `/journal/${journalid}/journalhost` }
+        };
       
         const availablePortals = useMemo(() => {
-          if (!user || !user.role || !Array.isArray(user.role)) return [];
-          return user.role
-            .map(roleString => ROLE_CONFIG[roleString])
-            .filter(Boolean);
-        }, [user]);
+            if (!user || !user.activeJournals) return [];
+            const currentJournal = user.activeJournals.find((j) => j.journalId === parseInt(journalid, 10));
+            const rolesForThisJournal = currentJournal?.roles || [];
+            
+            return rolesForThisJournal
+              .map(roleString => ROLE_CONFIG[roleString])
+              .filter(Boolean);
+        }, [user, journalid]);
       
         return (
           <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -317,6 +151,12 @@ export default function ViewRevisionPaper() {
                     <span className="text-lg font-bold text-white">S</span>
                   </div>
                   <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+                  {currentJournalName && (
+                      <>
+                          <span className="text-gray-300 mx-1">|</span>
+                          <span className="text-sm font-semibold text-[#059669] truncate max-w-[200px] md:max-w-md">{currentJournalName}</span>
+                      </>
+                  )}
                 </div>
               </div>
       
@@ -340,7 +180,7 @@ export default function ViewRevisionPaper() {
                         <>
                           <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Your Roles</h6>
                           {availablePortals.map((option, index) => (
-                            <button key={index} onClick={() => { navigate(option.path); setIsDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]">
+                            <button key={index} onMouseDown={() => { navigate(option.path); setIsDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]">
                               {option.label}
                             </button>
                           ))}
@@ -356,137 +196,49 @@ export default function ViewRevisionPaper() {
             </div>
           </header>
         );
-      };
+    };
 
     return (
         <div className="min-h-screen bg-[#ffffff]">
             <Header user={user} />
             <main className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
                 <div className="grid grid-cols-1 lg:grid-cols-6 gap-8">
-                    {/* Left: Metadata */}
+                    {/* Left: Metadata (Read-Only) */}
                     <div className="lg:col-span-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg shadow-xl p-6 w-full space-y-4 h-full">
-                        <button 
-                            onClick={() => navigate('/journal/paper/'+paper.OriginalPaperId)} 
-                            className="text-[#059669] text-sm font-medium hover:underline mb-2 flex items-center gap-1"
-                        >
-                            ← Back to Main Paper
-                        </button>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold text-[#1f2937]">Revision Details</h3>
                             {getStatusBadge(paper.Status)}
                         </div>
                         <form className="space-y-4">
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Paper ID</label><label className="block w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-gray-100 text-gray-500 cursor-not-allowed">{paper.id}</label></div>
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] disabled:bg-gray-100" /></div>
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label><textarea value={abstract} onChange={(e) => setAbstract(e.target.value)} rows={4} readOnly={!isEditable} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] read-only:bg-gray-100" /></div>
-                            <div><label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords</label><input type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] disabled:bg-gray-100" /></div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#1f2937] mb-1">Paper ID</label>
+                                <label className="block w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-gray-100 text-gray-500 cursor-not-allowed">{paper.id}</label>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#1f2937] mb-1">Paper Title</label>
+                                <input type="text" value={title} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#1f2937] mb-1">Abstract</label>
+                                <textarea value={abstract} rows={5} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#1f2937] mb-1">Keywords</label>
+                                <input type="text" value={keywords} disabled className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed" />
+                            </div>
                             
                             <div>
                                 <label className="block text-sm font-medium text-[#1f2937] mb-2">Authors</label>
-                                {isEditable ? (
-                                    <DragDropContext onDragEnd={onDragEnd}>
-                                        <Droppable droppableId="authors-droppable">
-                                            {(provided) => (
-                                                <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
-                                                    {authors.map((a, i) => (
-                                                        <Draggable key={a.id} draggableId={String(a.id)} index={i}>
-                                                            {(prov) => (
-                                                                <div ref={prov.innerRef} {...prov.draggableProps} className="flex items-center gap-3 p-3 border rounded bg-white">
-                                                                    <div {...prov.dragHandleProps} className="cursor-grab text-[#6b7280]">☰</div>
-                                                                    <div className="flex-1"><CompactAuthorCard author={a} /></div>
-                                                                    <button type="button" onClick={() => handleRemoveAuthor(i)} className="text-red-600 text-sm border border-red-200 px-2 py-1 rounded hover:bg-red-50">Remove</button>
-                                                                </div>
-                                                            )}
-                                                        </Draggable>
-                                                    ))}
-                                                    {provided.placeholder}
-                                                </div>
-                                            )}
-                                        </Droppable>
-                                    </DragDropContext>
-                                ) : (
-                                    <div className="space-y-2">{authors.map(a => <CompactAuthorCard key={a.id} author={a} />)}</div>
-                                )}
+                                <div className="space-y-2">
+                                    {authors.map((a, i) => (
+                                        <div key={a.id} className="flex items-center gap-3">
+                                            <span className="text-sm font-bold text-gray-400">{i + 1}.</span>
+                                            <CompactAuthorCard author={a} />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            
-                            {isEditable && (
-                                <>
-                                    {!showInviteForm && (
-                                        <div className="flex gap-2 items-center mt-2">
-                                            <select onChange={(e) => { addAuthorById(e.target.value); e.target.value = ""; }} className="flex-1 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                                                <option value="">-- Add another author by email --</option>
-                                                {allUsers.filter(u => !authors.some(a => a.id === u.id)).map(u => <option key={u.id} value={u.id}>{u.email} — {u.firstname} {u.lastname}</option>)}
-                                            </select>
-                                            <button type="button" onClick={() => setShowInviteForm(true)} className="px-4 py-2 text-sm font-medium bg-[#059669]/10 text-[#059669] rounded-lg hover:bg-[#059669]/20">Invite</button>
-                                        </div>
-                                    )}
-                                    {showInviteForm && (
-                                        <div className="p-4 border border-dashed border-[#059669] rounded-lg space-y-3 bg-white mt-4">
-                                            <h4 className="font-medium text-[#1f2937]">Invite New Author</h4>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <input type="text" value={inviteFirstName} onChange={e => setInviteFirstName(e.target.value)} placeholder="First Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                                <input type="text" value={inviteLastName} onChange={e => setInviteLastName(e.target.value)} placeholder="Last Name*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                            </div>
-                                            <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email Address*" required className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                            <input type="text" value={inviteOrg} onChange={e => setInviteOrg(e.target.value)} placeholder="Organisation" className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]" />
-                                            <select value={inviteCountry} onChange={e => setInviteCountry(e.target.value)} className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md bg-[#f9fafb] focus:outline-none focus:ring-2 focus:ring-[#059669]">
-                                                <option value="">Select Country</option>
-                                                {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                                            </select>
-                                            <div className="flex gap-3">
-                                                <button type="button" onClick={handleInviteAuthor} className="px-4 py-2 text-sm font-medium bg-[#059669] text-white rounded-lg hover:bg-[#059669]/90">Add User</button>
-                                                <button type="button" onClick={() => setShowInviteForm(false)} className="px-4 py-2 text-sm font-medium border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    {/* --- MAIN REVISED PAPER --- */}
-                                    <div className="pt-4 border-t border-[#e5e7eb] mt-4">
-                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">1. Revised Manuscript (Clean PDF)</label>
-                                        <input type="file" onChange={(e) => setPdfFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#059669]/10 file:text-[#059669] hover:file:bg-[#059669]/20" />
-                                    </div>
-
-                                    {/* --- RESPONSE TO REVIEWERS --- */}
-                                    <div className="pt-2 mt-2">
-                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">2. Response to Reviewers (PDF)</label>
-                                        <input type="file" onChange={(e) => setResponseSheetFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#f59e0b]/10 file:text-[#f59e0b] hover:file:bg-[#f59e0b]/20" />
-                                        <p className="text-[11px] text-gray-500 mt-1">Please provide a document detailing your answers to the reviewers' comments.</p>
-                                    </div>
-
-                                    {/* --- PREVIOUS / MARKED-UP PAPER --- */}
-                                    <div className="pt-2 mt-2">
-                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">3. Previous/Marked-up Manuscript (PDF)</label>
-                                        <input type="file" onChange={(e) => setPreviousPaperFile(e.target.files[0])} accept=".pdf" className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#8b5cf6]/10 file:text-[#8b5cf6] hover:file:bg-[#8b5cf6]/20" />
-                                        <p className="text-[11px] text-gray-500 mt-1">Upload the previous version of the paper with tracked changes or highlights.</p>
-                                    </div>
-
-                                    {/* --- OTHER ADDITIONAL DOCUMENTS --- */}
-                                    <div className="pt-2 mt-2">
-                                        <label className="block text-sm font-medium text-[#1f2937] mb-1">4. Other Additional Documents</label>
-                                        <p className="text-[11px] text-[#6b7280] mb-2">Upload any other supporting documents one by one.</p>
-                                        
-                                        {additionalFiles.length > 0 && (
-                                            <div className="mb-3 space-y-2">
-                                                {additionalFiles.map((file, i) => (
-                                                    <div key={i} className="flex items-center justify-between p-2 text-sm border border-[#e5e7eb] rounded-md bg-white shadow-sm">
-                                                        <span className="font-medium text-[#1f2937] truncate flex-1">
-                                                            <span className="text-[#3b82f6] mr-2 font-bold">{i + 1}.</span> {file.name}
-                                                        </span>
-                                                        <button type="button" onClick={() => handleRemoveAdditionalFile(i)} className="ml-3 px-2 py-1 text-[10px] font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors">Remove</button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <input type="file" onChange={handleAddAdditionalFile} className="w-full text-sm text-[#6b7280] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#3b82f6]/10 file:text-[#3b82f6] hover:file:bg-[#3b82f6]/20 cursor-pointer" />
-                                    </div>
-
-                                    <div className="flex gap-3 pt-4 border-t border-[#e5e7eb] mt-6">
-                                        <button onClick={handleUpdatePaper} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Draft</button>
-                                        <button onClick={handleSubmitForReview} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90">Submit Revision</button>
-                                        <button onClick={() => navigate('/journal/paper/'+paper.OriginalPaperId)} className="px-4 py-2 border border-[#e5e7eb] rounded-md hover:bg-[#f3f4f6]">Cancel</button>
-                                    </div>
-                                </>
-                            )}
                         </form>
                     </div>
 
@@ -503,9 +255,35 @@ export default function ViewRevisionPaper() {
                                 Open in New Tab ↗
                             </a>
                         </div>
-                        <iframe src={`${displayPdfUrl}?v=${cacheBustKey}`} className="border rounded-md flex-grow" width="100%" height="100%" />
+                        <iframe src={`${displayPdfUrl}?v=${cacheBustKey}`} className="border rounded-md flex-grow" width="100%" height="100%" title="Revision Document" />
                     </div>
                 </div>
+
+                {/* --- VISIBLE REVIEWER COMMENTS SECTION (BOTTOM) --- */}
+                {visibleReviews.length > 0 && (
+                    <div className="bg-white border border-[#e5e7eb] rounded-lg shadow-xl p-6 mt-8">
+                        <h3 className="text-lg font-bold text-[#1f2937] mb-4 flex items-center gap-2">
+                            <span>📝</span> Editorial & Reviewer Feedback
+                        </h3>
+                        <div className="space-y-4">
+                            {visibleReviews.map((review, idx) => (
+                                <div key={review.id} className="p-4 border border-gray-200 rounded-md bg-gray-50">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="font-semibold text-sm text-[#059669]">Reviewer {idx + 1}</p>
+                                        {review.Recommendation && (
+                                            <span className="px-2 py-0.5 text-xs font-medium bg-white border border-gray-200 rounded text-gray-600">
+                                                Recommendation: {review.Recommendation}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-sm text-gray-700 whitespace-pre-wrap bg-white p-3 border border-gray-100 rounded">
+                                        {review.Comment || "No written feedback provided."}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );

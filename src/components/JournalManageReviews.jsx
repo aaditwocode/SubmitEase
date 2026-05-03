@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useUserData } from "./UserContext";
 
 // --- Helper Functions ---
@@ -34,8 +34,113 @@ const getRecommendationBadge = (recommendation) => {
     return <span className={badgeClasses}>{recommendation}</span>;
 };
 
-// --- Table Component for Submitted Reviews (WITH TABS ALWAYS VISIBLE) ---
-const ReviewList = ({ reviews, navigate }) => {
+// --- Header Component ---
+const Header = ({ user, journalid, currentJournalName, onLogout }) => {
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const navigate = useNavigate();
+  
+    const ROLE_CONFIG = {
+      "Author": { label: "Author", path: `/journal/${journalid}/author` },
+      "Journal Editor": { label: "Editor", path: `/journal/${journalid}/editor` },
+      "Journal Reviewer": { label: "Reviewer", path: `/journal/${journalid}/reviewer` },
+      "Editor-in-Chief": { label: "Editor-In-Chief", path: `/journal/${journalid}/eic` },
+      "Journal Host": { label: "Journal Host", path: `/journal/${journalid}/journalhost` },
+    };
+  
+    const availablePortals = useMemo(() => {
+      if (!user || !user.activeJournals) return [];
+      const currentJournal = user.activeJournals.find((j) => j.journalId === parseInt(journalid, 10));
+      const rolesForThisJournal = currentJournal?.roles || [];
+      
+      return rolesForThisJournal
+        .map(roleString => ROLE_CONFIG[roleString])
+        .filter(Boolean);
+    }, [user, journalid]);
+  
+    return (
+      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
+                <span className="text-lg font-bold text-white">S</span>
+              </div>
+              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
+              {currentJournalName && (
+                  <>
+                      <span className="text-gray-300 mx-1">|</span>
+                      <span className="text-sm font-semibold text-[#059669] truncate max-w-[200px] md:max-w-md">{currentJournalName}</span>
+                  </>
+              )}
+            </div>
+          </div>
+  
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+                className="group flex items-center gap-2 rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6] transition-colors bg-white"
+              >
+                Switch Portal
+                <svg 
+                  className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} 
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+  
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
+                  {availablePortals.length > 0 && (
+                    <div className="border-gray-100 my-1"></div>
+                  )}
+                  {availablePortals.length > 0 && (
+                    <>
+                      <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Your Roles
+                      </h6>
+                      {availablePortals.map((option, index) => (
+                        <button
+                          key={index}
+                          onMouseDown={() => {
+                            navigate(option.path);
+                            setIsDropdownOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+  
+            <button 
+              onClick={() => navigate('/dashboard')}
+              className="hidden sm:block rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90"
+            >
+              Return To Dashboard
+            </button>
+  
+            <button 
+              onClick={onLogout} 
+              className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+};
+
+// --- Table Component for Submitted Reviews ---
+const ReviewList = ({ reviews, navigate, journalid }) => {
     const [activeTab, setActiveTab] = useState("Accepted");
     const [sortBy, setSortBy] = useState("reviewSubmittedAt");
     const [sortOrder, setSortOrder] = useState("desc");
@@ -55,7 +160,6 @@ const ReviewList = ({ reviews, navigate }) => {
     const filteredAndSortedReviews = useMemo(() => {
         if (!reviews) return [];
 
-        // 1. Filter by Active Tab
         const tabFiltered = reviews.filter(review => {
             const rec = review.Recommendation?.toLowerCase() || "";
             if (activeTab === "Accepted") return rec.includes("accept");
@@ -64,7 +168,6 @@ const ReviewList = ({ reviews, navigate }) => {
             return false;
         });
 
-        // 2. Filter by Search Term
         const filtered = tabFiltered.filter(review => {
             const lowerSearch = searchTerm.toLowerCase();
             return (
@@ -75,7 +178,6 @@ const ReviewList = ({ reviews, navigate }) => {
             );
         });
 
-        // 3. Sort
         const getSortValue = (review, key) => {
             switch (key) {
                 case 'paperId': return review.Paper?.id || '';
@@ -96,11 +198,8 @@ const ReviewList = ({ reviews, navigate }) => {
         });
     }, [reviews, sortBy, sortOrder, searchTerm, activeTab]);
 
-    // REMOVED the early return here so the tabs always render!
-
     return (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-            {/* Tabs Header */}
             <div className="flex border-b border-[#e5e7eb] overflow-x-auto">
                 {tabs.map(tab => (
                     <button
@@ -121,7 +220,7 @@ const ReviewList = ({ reviews, navigate }) => {
                 <div className="p-4">
                     <input
                         type="text"
-                        placeholder="Search submitted reviews (ID, Title, Journal, Recommendation...)"
+                        placeholder="Search submitted reviews (ID, Title, Recommendation...)"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
@@ -156,7 +255,6 @@ const ReviewList = ({ reviews, navigate }) => {
                                     <td className="py-3 px-4">
                                         <div>
                                             <p className="text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
-                                            <p className="text-xs text-[#6b7280] truncate">{review.Paper?.Journal?.name}</p>
                                         </div>
                                     </td>
                                     <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(review.Paper?.submittedAt)}</td>
@@ -164,7 +262,7 @@ const ReviewList = ({ reviews, navigate }) => {
                                     <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(review.submittedAt)}</td>
                                     <td className="py-3 px-4">
                                         <div className="flex justify">
-                                            <button onClick={() => navigate(`/journal/ReviewPaper/${review.Paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
+                                            <button onClick={() => navigate(`/journal/${journalid}/reviewer/paper/${review.Paper.id}`)} className="px-3 py-1 text-xs border border-[#e5e7eb] rounded hover:bg-[#e5e7eb] transition-colors">
                                                 View
                                             </button>
                                         </div>
@@ -206,14 +304,13 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
         const filtered = (reviews || []).filter(review => {
             const lowerSearch = searchTerm.toLowerCase();
             const authorString = review.Paper?.Authors
-                .map(a => `${a.firstname} ${a.lastname}`.toLowerCase())
-                .join(' ');
+                ? review.Paper.Authors.map(a => `${a.firstname} ${a.lastname}`.toLowerCase()).join(' ')
+                : '';
             
             return (
                 review.Paper?.id?.toString().includes(lowerSearch) ||
                 review.Paper?.Title?.toLowerCase().includes(lowerSearch) ||
-                review.Paper?.Journal?.name?.toLowerCase().includes(lowerSearch) ||
-                (!review.isBlind && authorString.includes(lowerSearch))
+                authorString.includes(lowerSearch)
             );
         });
 
@@ -243,7 +340,7 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
             <div className="p-4 border-b border-[#e5e7eb]">
                 <input
                     type="text"
-                    placeholder="Search invitations (ID, Title, Journal, Authors...)"
+                    placeholder="Search invitations (ID, Title, Authors...)"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
@@ -262,7 +359,7 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
                             Authors
                         </th>
                         <th onClick={() => handleSort("paperSubmittedAt")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
-                            Paper Submitted At{sortBy === "paperSubmittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
+                            Paper Submitted {sortBy === "paperSubmittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
                         </th>
                         <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
                             Actions
@@ -272,7 +369,7 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
                 <tbody>
                     {filteredAndSortedInvitations.length > 0 ? (
                         filteredAndSortedInvitations.map((review) => {
-                            const authorString = review.Paper?.Authors.length
+                            const authorString = review.Paper?.Authors && review.Paper.Authors.length > 0
                                 ? review.Paper.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ")
                                 : "N/A";
 
@@ -280,13 +377,10 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
                                 <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
                                     <td className="py-3 px-4 text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.id}</td>
                                     <td className="py-3 px-4">
-                                        <div>
-                                            <p className="text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
-                                            <p className="text-center text-xs text-[#6b7280] truncate">{review.Paper?.Journal?.name}</p>
-                                        </div>
+                                        <p className="text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
                                     </td>
                                     <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate">
-                                        {review.isBlind ? "Anonymous Authors" : authorString}
+                                        {authorString}
                                     </td>
                                     <td className="text-center py-3 px-4 text-sm text-[#1f2937]">
                                         {formatDate(review.Paper?.submittedAt)}
@@ -322,7 +416,7 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
 };
 
 // --- Table Component for Pending Reviews ---
-const PendingReviewList = ({ reviews, navigate }) => {
+const PendingReviewList = ({ reviews, navigate, journalid }) => {
     const [sortBy, setSortBy] = useState("paperSubmittedAt");
     const [sortOrder, setSortOrder] = useState("desc");
     const [searchTerm, setSearchTerm] = useState("");
@@ -342,14 +436,13 @@ const PendingReviewList = ({ reviews, navigate }) => {
         const filtered = (reviews || []).filter(review => {
             const lowerSearch = searchTerm.toLowerCase();
             const authorString = review.Paper?.Authors
-                .map(a => `${a.firstname} ${a.lastname}`.toLowerCase())
-                .join(' ');
+                ? review.Paper.Authors.map(a => `${a.firstname} ${a.lastname}`.toLowerCase()).join(' ')
+                : '';
             
             return (
                 review.Paper?.id?.toString().includes(lowerSearch) ||
                 review.Paper?.Title?.toLowerCase().includes(lowerSearch) ||
-                review.Paper?.Journal?.name?.toLowerCase().includes(lowerSearch) ||
-                (!review.isBlind && authorString.includes(lowerSearch))
+                authorString.includes(lowerSearch)
             );
         });
 
@@ -379,7 +472,7 @@ const PendingReviewList = ({ reviews, navigate }) => {
             <div className="p-4 border-b border-[#e5e7eb]">
                 <input
                     type="text"
-                    placeholder="Search pending reviews (ID, Title, Journal, Authors...)"
+                    placeholder="Search pending reviews (ID, Title, Authors...)"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
@@ -398,7 +491,7 @@ const PendingReviewList = ({ reviews, navigate }) => {
                             Authors
                         </th>
                         <th onClick={() => handleSort("paperSubmittedAt")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
-                            Paper Submitted On{sortBy === "paperSubmittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
+                            Paper Submitted {sortBy === "paperSubmittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
                         </th>
                         <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
                             Actions
@@ -408,27 +501,24 @@ const PendingReviewList = ({ reviews, navigate }) => {
                 <tbody>
                     {filteredAndSortedPendingReviews.length > 0 ? (
                         filteredAndSortedPendingReviews.map((review) => {
-                            const authorString = review.Paper?.Authors.length
+                            const authorString = review.Paper?.Authors && review.Paper.Authors.length > 0
                                 ? review.Paper.Authors.map(a => `${a.firstname} ${a.lastname}`).join(", ")
                                 : "N/A";
                             return (
                             <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
                                 <td className="py-3 px-4 text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.id}</td>
                                 <td className="py-3 px-4">
-                                    <div>
-                                        <p className="text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
-                                        <p className="text-center text-xs text-[#6b7280] truncate">{review.Paper?.Journal?.name}</p>
-                                    </div>
+                                    <p className="text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
                                 </td>
                                 <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate">
-                                    {review.isBlind ? "Anonymous Authors" : authorString}
+                                    {authorString}
                                 </td>
                                 <td className="text-center py-3 px-4 text-sm text-[#1f2937]">
                                     {formatDate(review.Paper?.submittedAt)}
                                 </td>
                                 <td className="py-3 px-4">
                                     <div className="flex justify-center">
-                                        <button onClick={() => navigate(`/journal/ReviewPaper/${review.Paper.id}`)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap text-sm">
+                                        <button onClick={() => navigate(`/journal/${journalid}/reviewer/paper/${review.Paper.id}`)} className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#059669]/90 transition-colors whitespace-nowrap text-sm">
                                             Review Now
                                         </button>
                                     </div>
@@ -449,115 +539,32 @@ const PendingReviewList = ({ reviews, navigate }) => {
     );
 };
 
-// --- Header Component ---
-const Header = ({ user }) => {
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const navigate = useNavigate();
-    const { setUser, setloginStatus } = useUserData();
-  
-    const ROLE_CONFIG = {
-      "Author": { label: "Author", path: "/journal" },
-      "Journal Editor": { label: "Editor", path: "/journal/editor" },
-      "Journal Reviewer": { label: "Reviewer", path: "/journal/ManageReviews" },
-      "Editor-in-Chief": { label: "Editor-In-Chief", path: "/eic/dashboard" },
-    };
-  
-    const availablePortals = useMemo(() => {
-      if (!user || !user.role || !Array.isArray(user.role)) return [];
-      return user.role
-        .map(roleString => ROLE_CONFIG[roleString])
-        .filter(Boolean);
-    }, [user]);
-  
-    const handleLogout = () => {
-      setUser(null);
-      setloginStatus(false);
-      navigate("/home");
-    };
-  
-    return (
-      <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#059669]">
-                <span className="text-lg font-bold text-white">S</span>
-              </div>
-              <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
-            </div>
-          </div>
-  
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
-                className="group flex items-center gap-2 rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6] transition-colors bg-white"
-              >
-                Switch Portal
-                <svg 
-                  className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} 
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-  
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-[#e5e7eb] py-2 z-50">
-                  {availablePortals.length > 0 && (
-                    <div className="border-gray-100 my-1"></div>
-                  )}
-                  {availablePortals.length > 0 && (
-                    <>
-                      <h6 className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                        Your Roles
-                      </h6>
-                      {availablePortals.map((option, index) => (
-                        <button
-                          key={index}
-                          onClick={() => {
-                            navigate(option.path);
-                            setIsDropdownOpen(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-sm text-[#1f2937] hover:bg-[#f3f4f6] hover:text-[#059669]"
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-  
-            <button 
-              onClick={() => navigate('/dashboard')}
-              className="hidden sm:block rounded-lg bg-[#059669] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#059669]/90"
-            >
-              Return To Dashboard
-            </button>
-  
-            <button 
-              onClick={handleLogout} 
-              className="rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#374151] transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-    );
-};
 
 // --- Main Page Component ---
 export default function ManageReviews() {
     const { user, setUser, setloginStatus } = useUserData();
     const navigate = useNavigate();
+    const { journalid } = useParams();
+    
     const [allReviews, setAllReviews] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [currentJournalName, setCurrentJournalName] = useState("");
+
+    const handleLogout = () => {
+        setUser(null);
+        setloginStatus(false);
+        navigate("/home");
+    };
+
+    useEffect(() => {
+        if (user && user.activeJournals && journalid) {
+            const matchingJournal = user.activeJournals.find(j => j.journalId === parseInt(journalid, 10));
+            if (matchingJournal) {
+                setCurrentJournalName(matchingJournal.journalName);
+            }
+        }
+    }, [user, journalid]);
 
     const handleAccept = async (reviewId) => {
         let originalReviews = []; 
@@ -574,7 +581,7 @@ export default function ManageReviews() {
             const response = await fetch('http://localhost:3001/journal/reviewInvitationResponse', {
                 method:"POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reviewId, response: 'Under Review' }), 
+                body: JSON.stringify({ reviewId, response: 'Under Review', journalId: journalid }), 
             });
             if (!response.ok) {
                 throw new Error(`Server failed with status: ${response.status}`);
@@ -590,6 +597,7 @@ export default function ManageReviews() {
         let originalReviews = []; 
         setAllReviews(prevReviews => {
             originalReviews = prevReviews;
+            // Optimistic removal for Decline
             return prevReviews.filter(review => review.id !== reviewId);
         });
 
@@ -597,7 +605,7 @@ export default function ManageReviews() {
             const response = await fetch('http://localhost:3001/journal/reviewInvitationResponse', {
                 method:"POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reviewId, response: 'Declined' }), 
+                body: JSON.stringify({ reviewId, response: 'Declined', journalId: journalid }), 
             });
             if (!response.ok) {
                 throw new Error(`Server failed with status: ${response.status}`);
@@ -610,21 +618,20 @@ export default function ManageReviews() {
     };
 
     useEffect(() => {
-        if (user?.id) {
+        if (user?.id && journalid) {
             const getMyReviews = async () => {
                 setLoading(true);
                 try {
                     const response = await fetch("http://localhost:3001/journal/get-your-reviews", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ reviewerId: user.id }),
+                        body: JSON.stringify({ reviewerId: user.id, journalId: journalid }),
                     });
                     if (response.status === 404) {
                         setAllReviews([]); setError(null); return;
                     }
                     if (!response.ok) throw new Error("Failed to fetch assigned reviews.");
                     const data = await response.json();
-                    // Server returns journal-only reviews
                     setAllReviews(data.reviews || []);
                 } catch (err) {
                     setError(err.message);
@@ -634,7 +641,7 @@ export default function ManageReviews() {
             };
             getMyReviews();
         } else setLoading(false);
-    }, [user]);
+    }, [user, journalid]);
 
     const pendingInvitations = useMemo(() =>
         allReviews.filter(r => r.Status === 'Pending Invitation'),
@@ -650,7 +657,7 @@ export default function ManageReviews() {
 
     return (
         <div className="min-h-screen bg-[#f9fafb]">
-            <Header user={user} />
+            <Header user={user} journalid={journalid} currentJournalName={currentJournalName} onLogout={handleLogout} />
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="space-y-8">
                     <h2 className="text-3xl font-bold text-[#1f2937]">Journal Reviewer Dashboard</h2>
@@ -674,6 +681,7 @@ export default function ManageReviews() {
                                 <PendingReviewList 
                                     reviews={pendingReviews} 
                                     navigate={navigate} 
+                                    journalid={journalid}
                                 />
                             </div>
 
@@ -682,6 +690,7 @@ export default function ManageReviews() {
                                 <ReviewList 
                                     reviews={submittedReviews} 
                                     navigate={navigate} 
+                                    journalid={journalid}
                                 />
                             </div>
                         </>
