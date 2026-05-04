@@ -4909,3 +4909,5 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Server connected to Prisma Postgres, running at http://localhost:${port}`);
 });
+
+export default app;
