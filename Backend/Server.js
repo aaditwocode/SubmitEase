@@ -37,7 +37,7 @@ const transporter = nodemailer.createTransport({
 
 function sendMail(to, sub, msg) {
   transporter.sendMail({
-    from: process.env.EMAIL_USER,
+    from: `"SubmitEase System" <${process.env.EMAIL_USER}>`,
     to: to,
     subject: sub,
     html: msg
@@ -3324,17 +3324,29 @@ app.post('/journal/get-your-reviews', async (req, res) => {
 
 app.post('/journal/get-review', async (req, res) => {
   const { paperId, reviewerId, journalId } = req.body;
+  
   if (!journalId) return res.status(400).json({ message: "Journal ID required." });
 
   try {
     const review = await prisma.journalReviews.findFirst({
       where: {
-        PaperId: paperId,
+        PaperId: paperId, 
         ReviewerId: parseInt(reviewerId, 10),
-        Paper: { JournalId: parseInt(journalId, 10) }
+        Paper: { 
+            JournalId: parseInt(journalId, 10)
+        }
+      },
+      include: {
+        Paper: {
+          include: {
+            Authors: true 
+          }
+        } 
       }
     });
+
     if (!review) return res.status(404).json({ message: 'No journal review found.' });
+    
     res.status(200).json(review);
   } catch (error) {
     console.error("Get Review Error:", error);
@@ -4801,7 +4813,7 @@ app.post('/check-email', async (req, res) => {
 });
 
 app.post('/journals/register', async (req, res) => {
-  const { email, password, journalName, journalLink, publication } = req.body;
+  const { email, password, journalName, journalLink, publication,keywords } = req.body;
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
@@ -4816,6 +4828,7 @@ app.post('/journals/register', async (req, res) => {
       data: {
         name: journalName, link: journalLink || "",
         Publication: publication, status: "Pending", hostID: user.id,
+        Keywords: keywords || [],
         submittedAt: new Date()
       }
     });

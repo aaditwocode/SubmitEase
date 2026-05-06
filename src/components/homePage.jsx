@@ -60,7 +60,7 @@ export default function WelcomePage() {
   });
 
   const [authData, setAuthData] = useState({ email: '', password: '' });
-  const [journalData, setJournalData] = useState({ name: '', link: '', publication: '' });
+  const [journalData, setJournalData] = useState({ name: '', link: '', publication: '' , keywords: ''});
   const [confData, setConfData] = useState({
       name: "", city: "", country: "", startsAtDate: "", endAtDate: "",
       deadlineDate: "", deadlineTime: "", link: "", Partners: [], tracks: [], status: "Pending Approval"
@@ -123,7 +123,6 @@ export default function WelcomePage() {
       }
   };
 
-  // Step 2A: Journal Registration Submit
   const handleJournalSubmit = async (e) => {
       e.preventDefault();
       setModal(prev => ({ ...prev, loading: true, error: '' }));
@@ -133,7 +132,10 @@ export default function WelcomePage() {
               password: authData.password,
               journalName: journalData.name,
               journalLink: journalData.link,
-              publication: journalData.publication
+              publication: journalData.publication,
+              keywords: journalData.keywords 
+                  ? journalData.keywords.split(',').map(k => k.trim()).filter(Boolean) 
+                  : [],
           };
 
           const res = await fetch('http://localhost:3001/journals/register', {
@@ -624,14 +626,25 @@ export default function WelcomePage() {
                                 <input type="text" required placeholder="e.g. IEEE, Springer, University Name" value={journalData.publication} onChange={e => setJournalData({...journalData, publication: e.target.value})} className="w-full px-4 py-2 border border-[#e5e7eb] rounded-lg text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none" />
                             </div>
                             
+                            <div>
+                                <label className="block text-sm font-medium text-[#374151] mb-1">Keywords (Comma separated)</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. AI, Machine Learning, Robotics" 
+                                    value={journalData.keywords} 
+                                    onChange={e => setJournalData({...journalData, keywords: e.target.value})} 
+                                    className="w-full px-4 py-2 border border-[#e5e7eb] rounded-lg text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none" 
+                                />
+                            </div>
+
                             {modal.userExists && (
-                                <div>
+                                <div className="pt-2 border-t mt-4">
                                     <label className="block text-sm font-medium text-[#374151] mb-1">Confirm Your Password</label>
                                     <input type="password" required value={authData.password} onChange={e => setAuthData({...authData, password: e.target.value})} className="w-full px-4 py-2 border border-[#e5e7eb] rounded-lg text-sm focus:ring-2 focus:ring-[#059669] focus:outline-none" />
                                 </div>
                             )}
 
-                            <button disabled={modal.loading} type="submit" className="w-full py-2.5 mt-2 bg-[#059669] text-white font-bold text-sm rounded-lg hover:bg-[#047857] transition-colors disabled:bg-gray-400">
+                            <button disabled={modal.loading} type="submit" className="w-full py-2.5 mt-4 bg-[#059669] text-white font-bold text-sm rounded-lg hover:bg-[#047857] transition-colors disabled:bg-gray-400">
                                 {modal.loading ? "Submitting Request..." : "Submit Journal Request"}
                             </button>
                         </form>

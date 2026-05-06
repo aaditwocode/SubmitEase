@@ -210,59 +210,17 @@ export default function JournalReviewPaper() {
         }
     }, [user, journalid]);
 
-    // --- 1. Main Data Fetching Effect (Get Paper Details) ---
-    useEffect(() => {
-        if (!paperId || !journalid) {
-            setLoading(false);
-            setError("No paper ID or Journal ID found in the URL.");
-            return;
-        }
-        const fetchPaper = async () => {
+ useEffect(() => {
+        // Prevent fetching if required params are missing
+        if (!paperId || !user?.id || !journalid) return;
+
+        const fetchReviewAndPaperData = async () => {
             setLoading(true);
-            setError(null); 
+            setError(null);
+
             try {
-                const response = await fetch(`http://localhost:3001/journal/getpaperbyid/${paperId}?journalId=${journalid}`);
-                if (!response.ok) {
-                    throw new Error("Failed to fetch paper details.");
-                }
-                const data = await response.json();
-                setPaper(data.paper);
-
-                setTitle(data.paper.Title);
-                setAbstract(data.paper.Abstract);
-                setKeywords(data.paper.Keywords.join(', '));
-
-                const fetchedAuthors = data.paper.Authors || [];
-                const authorOrder = data.paper.AuthorOrder;
-
-                if (authorOrder && authorOrder.length > 0 && fetchedAuthors.length > 0) {
-                    const authorMap = new Map(fetchedAuthors.map(author => [author.id, author]));
-                    const sortedAuthors = authorOrder.map(id => authorMap.get(id)).filter(Boolean);
-                    const authorsInOrderSet = new Set(authorOrder);
-                    const authorsNotInOrder = fetchedAuthors.filter(author => !authorsInOrderSet.has(author.id));
-                    setAuthors([...sortedAuthors, ...authorsNotInOrder]);
-                } else {
-                    setAuthors(fetchedAuthors);
-                }
-
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchPaper();
-    }, [paperId, journalid]);
-
-    // --- 2. Secondary Data Fetching (Get Existing Review) ---
-    useEffect(() => {
-        if (!paperId || !user?.id || !journalid) {
-            return;
-        }
-
-        const fetchReview = async () => {
-            try {
-                const response = await fetch(`http://localhost:3001/journal/reviewer/get-review`, {
+                // Fetch everything from the updated single endpoint
+                const response = await fetch(`http://localhost:3001/journal/get-review`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -273,18 +231,9 @@ export default function JournalReviewPaper() {
                 });
 
                 if (response.status === 404) {
-                    setSubmissionStatus(false);
-                    setComment("");
-                    setRecommendation("");
-                    setIsBlind(true);
-                    setScoreOriginality(null);
-                    setScoreClarity(null);
-                    setScoreSoundness(null);
-                    setScoreSignificance(null);
-                    setScoreRelevance(null);
-                    return;
+                    throw new Error("You have not been assigned to review this paper.");
                 }
-
+                
                 if (response.status === 403 || response.status === 401) {
                     throw new Error("You are not eligible to review this paper.");
                 }
@@ -294,35 +243,64 @@ export default function JournalReviewPaper() {
                     throw new Error(errData.message || 'Failed to Fetch Review.');
                 }
 
-                const updatedReview = await response.json();
-                if (updatedReview.submittedAt) {
-                    setSubmissionStatus(true);
+                // 1. Extract the data
+                const reviewData = await response.json();
+                const paperData = reviewData.Paper;
+
+                // 2. Set Review States
+                setSubmissionStatus(!!reviewData.submittedAt);
+                setComment(reviewData.Comment || ""); 
+                setRecommendation(reviewData.Recommendation || ""); 
+                setIsBlind(reviewData.isBlind || false); 
+                setScoreOriginality(reviewData.scoreOriginality || null);
+                setScoreClarity(reviewData.scoreClarity || null);
+                setScoreSoundness(reviewData.scoreSoundness || null);
+                setScoreSignificance(reviewData.scoreSignificance || null);
+                setScoreRelevance(reviewData.scoreRelevance || null);
+
+                // 3. Set Paper States (Extracted from the included Paper object)
+                if (paperData) {
+                    setPaper(paperData);
+                    setTitle(paperData.Title);
+                    setAbstract(paperData.Abstract);
+                    setKeywords(paperData.Keywords ? paperData.Keywords.join(', ') : "");
+
+                    // 4. Smart Author Logic (Hide if Blind Review)
+                    if (reviewData.isBlind) {
+                        setAuthors([]); // Strictly hide authors
+                    } else {
+                        const fetchedAuthors = paperData.Authors || [];
+                        const authorOrder = paperData.AuthorOrder || [];
+
+                        if (authorOrder.length > 0 && fetchedAuthors.length > 0) {
+                            const authorMap = new Map(fetchedAuthors.map(a => [a.id, a]));
+                            const sortedAuthors = authorOrder.map(id => authorMap.get(id)).filter(Boolean);
+                            const authorsInOrderSet = new Set(authorOrder);
+                            const authorsNotInOrder = fetchedAuthors.filter(a => !authorsInOrderSet.has(a.id));
+                            setAuthors([...sortedAuthors, ...authorsNotInOrder]);
+                        } else {
+                            setAuthors(fetchedAuthors);
+                        }
+                    }
                 } else {
-                    setSubmissionStatus(false);
+                    throw new Error("Paper details were not found attached to this review.");
                 }
-                
-                setComment(updatedReview.Comment || ""); 
-                setRecommendation(updatedReview.Recommendation || ""); 
-                setIsBlind(updatedReview.isBlind || false); 
-                setScoreOriginality(updatedReview.scoreOriginality || null);
-                setScoreClarity(updatedReview.scoreClarity || null);
-                setScoreSoundness(updatedReview.scoreSoundness || null);
-                setScoreSignificance(updatedReview.scoreSignificance || null);
-                setScoreRelevance(updatedReview.scoreRelevance || null);
 
             } catch (error) {
-                setError((prevError) => prevError || error.message);
+                setError(error.message);
+            } finally {
+                setLoading(false);
             }
         };
 
-        fetchReview();
-    }, [paperId, user?.id, journalid]); 
+        fetchReviewAndPaperData();
+    }, [paperId, user?.id, journalid]);
 
     // --- Review Form Handlers ---
     const handleSaveReview = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch(`http://localhost:3001/journal/reviewer/save-review`, {
+            const response = await fetch(`http://localhost:3001/journal/save-review`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -373,7 +351,7 @@ export default function JournalReviewPaper() {
 
         if (window.confirm(`Are you sure you want to submit this review as "${recommendation}"? This action cannot be undone.`)) {
             try {
-                const response = await fetch(`http://localhost:3001/journal/reviewer/submit-review`, {
+                const response = await fetch(`http://localhost:3001/journal/submit-review`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -498,7 +476,7 @@ export default function JournalReviewPaper() {
 
                         <div>
                             <label htmlFor="review-comment" className="block text-sm font-medium text-[#1f2937] mb-1">
-                                Comments for Author & Journal Host
+                                Comments for Author & Journal Editor
                             </label>
                             <textarea
                                 id="review-comment"

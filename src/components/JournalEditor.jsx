@@ -362,7 +362,7 @@ const PaperList = ({ papers, showProgress = false, isTransferView = false }) => 
               currentPapers.map((paper) => (
                 <tr key={paper.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
                   <td className="py-3 px-4 text-sm font-medium text-[#1f2937]">
-                    #{paper.id}
+                    {paper.id}
                   </td>
                   <td className="py-3 px-4">
                     <div>
