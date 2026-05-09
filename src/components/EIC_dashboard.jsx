@@ -9,21 +9,21 @@ const Header = ({ user, journalid, currentJournalName, handleLogout }) => {
   const navigate = useNavigate();
 
   const ROLE_CONFIG = {
-      "Author": { label: "Author", path: `/journal/${journalid}/author` },
-      "Journal Editor": { label: "Editor", path: `/journal/${journalid}/editor` },
-      "Journal Reviewer": { label: "Reviewer", path: `/journal/${journalid}/reviewer` },
-      "Editor-in-Chief": { label: "Editor-In-Chief", path: `/journal/${journalid}/eic` },
-      "Journal Host": { label: "Journal Host", path: `/journal/${journalid}/journalhost` }
-    };
+    "Author": { label: "Author", path: `/journal/${journalid}/author` },
+    "Journal Editor": { label: "Editor", path: `/journal/${journalid}/editor` },
+    "Journal Reviewer": { label: "Reviewer", path: `/journal/${journalid}/reviewer` },
+    "Editor-in-Chief": { label: "Editor-In-Chief", path: `/journal/${journalid}/eic` },
+    "Journal Host": { label: "Journal Host", path: `/journal/${journalid}/journalhost` }
+  };
 
   const availablePortals = useMemo(() => {
     if (!user || !user.activeJournals) return [];
     const currentJournal = user.activeJournals.find((j) => j.journalId === parseInt(journalid, 10));
     const rolesForThisJournal = currentJournal?.roles || [];
-    
+
     return rolesForThisJournal
-        .map(roleString => ROLE_CONFIG[roleString])
-        .filter(Boolean);
+      .map(roleString => ROLE_CONFIG[roleString])
+      .filter(Boolean);
   }, [user, journalid]);
 
   return (
@@ -36,10 +36,10 @@ const Header = ({ user, journalid, currentJournalName, handleLogout }) => {
             </div>
             <span className="text-xl font-bold text-[#1f2937]">SubmitEase</span>
             {currentJournalName && (
-                <>
-                    <span className="text-gray-300 mx-1">|</span>
-                    <span className="text-sm font-semibold text-[#059669] truncate max-w-[200px] md:max-w-md">{currentJournalName}</span>
-                </>
+              <>
+                <span className="text-gray-300 mx-1">|</span>
+                <span className="text-sm font-semibold text-[#059669] truncate max-w-[200px] md:max-w-md">{currentJournalName}</span>
+              </>
             )}
           </div>
         </div>
@@ -85,7 +85,7 @@ const Header = ({ user, journalid, currentJournalName, handleLogout }) => {
 // --- Helper Functions ---
 const getStatusBadge = (status, isOverdue) => {
   let badgeClasses = "px-2 py-1 text-xs font-semibold rounded-full leading-tight ";
-  
+
   if (isOverdue) {
     return <span className="px-2 py-1 text-xs font-semibold rounded-full leading-tight bg-red-100 text-red-700 animate-pulse border border-red-200">⚠️ Overdue</span>;
   }
@@ -93,7 +93,7 @@ const getStatusBadge = (status, isOverdue) => {
   switch (status) {
     case "Under Review": badgeClasses += "bg-yellow-50 text-yellow-700 border border-yellow-200"; break;
     case "Accepted": badgeClasses += "bg-green-50 text-green-700 border border-green-200"; break;
-    case "Rejected": 
+    case "Rejected":
     case "Desk Rejected": badgeClasses += "bg-red-50 text-red-700 border border-red-200"; break;
     default: badgeClasses += "bg-gray-100 text-gray-700 border border-gray-200";
   }
@@ -112,7 +112,7 @@ export default function JournalEICDashboard() {
 
   const [activeTab, setActiveTab] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  
+
   // Sort States
   const [sortBy, setSortBy] = useState("submittedAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -129,10 +129,10 @@ export default function JournalEICDashboard() {
   // Extract Journal Name for Header
   useEffect(() => {
     if (user && user.activeJournals && journalid) {
-        const matchingJournal = user.activeJournals.find(j => j.journalId === parseInt(journalid, 10));
-        if (matchingJournal) {
-            setCurrentJournalName(matchingJournal.journalName);
-        }
+      const matchingJournal = user.activeJournals.find(j => j.journalId === parseInt(journalid, 10));
+      if (matchingJournal) {
+        setCurrentJournalName(matchingJournal.journalName);
+      }
     }
   }, [user, journalid]);
 
@@ -170,7 +170,7 @@ export default function JournalEICDashboard() {
 
     papers.forEach(paper => {
       if (!paper.Editors || paper.Editors.length === 0) return;
-      
+
       const editorRecord = paper.Editors[0];
       const editorInfo = editorRecord.Editor;
       if (!editorInfo) return;
@@ -187,8 +187,8 @@ export default function JournalEICDashboard() {
           acceptedCount: 0,
           rejectedCount: 0,
           revisionCount: 0,
-          finalizedCount: 0, 
-          matchCount: 0 
+          finalizedCount: 0,
+          matchCount: 0
         };
       }
 
@@ -216,8 +216,8 @@ export default function JournalEICDashboard() {
     });
 
     return Object.values(statsMap).map(editor => {
-      editor.matchPercentage = editor.finalizedCount > 0 
-        ? Math.round((editor.matchCount / editor.finalizedCount) * 100) 
+      editor.matchPercentage = editor.finalizedCount > 0
+        ? Math.round((editor.matchCount / editor.finalizedCount) * 100)
         : null;
       return editor;
     });
@@ -242,13 +242,13 @@ export default function JournalEICDashboard() {
     else if (activeTab === "completed") list = completedPapers;
     else list = papers;
 
-    let filtered = list.filter(p => 
-      p.Title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    let filtered = list.filter(p =>
+      p.Title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.id?.toString().toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return filtered.sort((a, b) => {
-      let aVal = a[sortBy] || ""; 
+      let aVal = a[sortBy] || "";
       let bVal = b[sortBy] || "";
 
       if (sortBy === "submittedAt") {
@@ -265,6 +265,22 @@ export default function JournalEICDashboard() {
     });
   }, [activeTab, papers, searchTerm, sortBy, sortOrder]);
 
+  const TabButton = ({ id, label, count, colorClass, activeTab, setActiveTab }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`pb-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === id
+          ? "border-[#059669] text-[#059669]"
+          : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"
+        }`}
+    >
+      {label}
+      {count !== undefined && count > 0 && (
+        <span className={`text-[10px] px-2 py-0.5 rounded-full ${colorClass || (activeTab === id ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600')}`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-[#ffffff]">
@@ -272,8 +288,8 @@ export default function JournalEICDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-            <h2 className="text-3xl font-bold text-[#1f2937]">Editor-in-Chief Dashboard</h2>
-            <p className="text-sm text-[#6b7280] mt-1">Manage pipeline, oversee editor assignments, and render final publication decisions.</p>
+          <h2 className="text-3xl font-bold text-[#1f2937]">Editor-in-Chief Dashboard</h2>
+          <p className="text-sm text-[#6b7280] mt-1">Manage pipeline, oversee editor assignments, and render final publication decisions.</p>
         </div>
 
         {/* STATS GRID */}
@@ -296,21 +312,71 @@ export default function JournalEICDashboard() {
           </div>
         </div>
 
-        {/* RE-ORDERED TABS */}
-        <div className="border-b border-[#e5e7eb] flex gap-6 mb-6 overflow-x-auto">
-           {['all', 'triage', 'in_review', 'decisions', 'completed', 'editor_stats'].map(tab => (
-               <button
-                 key={tab}
-                 onClick={() => {
-                     setActiveTab(tab);
-                     setExpandedEditorId(null); // Reset accordion on tab switch
-                 }}
-                 className={`pb-2 px-1 border-b-2 font-medium text-sm capitalize whitespace-nowrap transition-colors ${activeTab === tab ? "border-[#059669] text-[#059669]" : "border-transparent text-[#6b7280] hover:text-[#1f2937] hover:border-[#e5e7eb]"}`}
-               >
-                 {tab.replace('_', ' ')}
-               </button>
-           ))}
-        </div>
+        {/* Helper function to handle the tab switch AND reset the accordion */}
+        {(() => {
+          const handleTabSwitch = (tab) => {
+            setActiveTab(tab);
+            setExpandedEditorId(null);
+          };
+
+          return (
+            <div className="border-b border-[#e5e7eb] flex flex-wrap gap-6 mb-6">
+              <TabButton
+                id="all"
+                label="All"
+                count={papers.length}
+                activeTab={activeTab}
+                setActiveTab={handleTabSwitch}
+              />
+
+              <div className="w-px bg-gray-300 h-6 my-auto mx-2"></div>
+
+              <TabButton
+                id="triage"
+                label="Triage"
+                count={triagePapers.length}
+                colorClass={activeTab === "triage" ? "bg-red-100 text-red-700" : "bg-red-50 text-red-600"}
+                activeTab={activeTab}
+                setActiveTab={handleTabSwitch}
+              />
+
+              <TabButton
+                id="in_review"
+                label="In Review"
+                count={inReviewPapers.length}
+                colorClass={activeTab === "in_review" ? "bg-orange-100 text-orange-700" : "bg-orange-50 text-orange-600"}
+                activeTab={activeTab}
+                setActiveTab={handleTabSwitch}
+              />
+
+              <TabButton
+                id="decisions"
+                label="Decisions"
+                count={decisionPapers.length}
+                colorClass={activeTab === "decisions" ? "bg-purple-100 text-purple-700" : "bg-purple-50 text-purple-600"}
+                activeTab={activeTab}
+                setActiveTab={handleTabSwitch}
+              />
+
+              <TabButton
+                id="completed"
+                label="Completed"
+                count={completedPapers.length}
+                colorClass={activeTab === "completed" ? "bg-blue-100 text-blue-700" : "bg-blue-50 text-blue-600"}
+                activeTab={activeTab}
+                setActiveTab={handleTabSwitch}
+              />
+
+              <TabButton
+                id="editor_stats"
+                label="Editor Stats"
+                colorClass={activeTab === "editor_stats" ? "bg-teal-100 text-teal-700" : "bg-teal-50 text-teal-600"}
+                activeTab={activeTab}
+                setActiveTab={handleTabSwitch}
+              />
+            </div>
+          );
+        })()}
 
         {/* CONDITIONAL RENDERING: Papers List vs Editor Stats */}
         {activeTab === 'editor_stats' ? (
@@ -345,8 +411,8 @@ export default function JournalEICDashboard() {
                       return (
                         <React.Fragment key={stat.id}>
                           {/* --- Main Editor Row --- */}
-                          <tr 
-                            onClick={() => setExpandedEditorId(isExpanded ? null : stat.id)} 
+                          <tr
+                            onClick={() => setExpandedEditorId(isExpanded ? null : stat.id)}
                             className={`cursor-pointer transition-colors ${isExpanded ? 'bg-emerald-50' : 'bg-white hover:bg-[#f3f4f6]/50'}`}
                           >
                             <td className="py-4 px-4 flex items-center gap-3">
@@ -415,8 +481,8 @@ export default function JournalEICDashboard() {
                                                   )}
                                                 </td>
                                                 <td className="py-3 px-3 text-right">
-                                                  <button 
-                                                    onClick={() => navigate(`/journal/${journalid}/editor/paper/${paper.id}`)} 
+                                                  <button
+                                                    onClick={() => navigate(`/journal/${journalid}/editor/paper/${paper.id}`)}
                                                     className="px-3 py-1 bg-white border border-[#059669] text-[#059669] font-medium rounded text-xs hover:bg-emerald-50 transition-colors"
                                                   >
                                                     View
@@ -445,12 +511,12 @@ export default function JournalEICDashboard() {
           /* --- STANDARD PAPERS VIEW --- */
           <div className="bg-[#f9fafb] rounded-lg shadow-sm border border-[#e5e7eb] flex flex-col">
             <div className="p-4 border-b border-[#e5e7eb]">
-              <input 
-                type="text" 
-                placeholder="Search manuscripts by ID or Title..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                className="w-full md:w-1/3 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white text-sm" 
+              <input
+                type="text"
+                placeholder="Search manuscripts by ID or Title..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full md:w-1/3 px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669] bg-white text-sm"
               />
             </div>
 
@@ -506,22 +572,22 @@ export default function JournalEICDashboard() {
                           <td className="py-4 px-4 whitespace-nowrap">
                             {getStatusBadge(paper.Status, paper.isOverdue)}
                             {currentEditor && currentEditor.Recommendation && (
-                                <p className="text-xs font-bold text-purple-700 mt-2">Rec: {currentEditor.Recommendation}</p>
+                              <p className="text-xs font-bold text-purple-700 mt-2">Rec: {currentEditor.Recommendation}</p>
                             )}
                           </td>
                           <td className="py-4 px-4">
                             {currentEditor ? (
-                                <div>
-                                    <p className="text-sm font-medium text-[#1f2937]">{currentEditor.Editor.firstname} {currentEditor.Editor.lastname}</p>
-                                    <p className="text-xs text-[#6b7280] mt-0.5">Status: {currentEditor.status || "Active"}</p>
-                                </div>
+                              <div>
+                                <p className="text-sm font-medium text-[#1f2937]">{currentEditor.Editor.firstname} {currentEditor.Editor.lastname}</p>
+                                <p className="text-xs text-[#6b7280] mt-0.5">Status: {currentEditor.status || "Active"}</p>
+                              </div>
                             ) : (
-                                <span className="text-sm text-gray-400 italic">Unassigned</span>
+                              <span className="text-sm text-gray-400 italic">Unassigned</span>
                             )}
                           </td>
                           <td className="py-4 px-4 text-right whitespace-nowrap">
-                            <button 
-                              onClick={() => navigate(`/journal/${journalid}/editor/paper/${paper.id}`)} 
+                            <button
+                              onClick={() => navigate(`/journal/${journalid}/editor/paper/${paper.id}`)}
                               className="px-4 py-2 bg-[#059669] text-white font-medium rounded-md text-xs hover:bg-[#047857] transition-colors shadow-sm"
                             >
                               Manage Paper

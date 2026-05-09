@@ -235,6 +235,9 @@ const ReviewList = ({ reviews, navigate, journalid }) => {
                             <th onClick={() => handleSort("paperTitle")} className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
                                 Paper Title {sortBy === "paperTitle" && (sortOrder === "asc" ? "↑" : "↓")}
                             </th>
+                            <th className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
+                                Abstract
+                            </th>
                             <th onClick={() => handleSort("paperSubmittedAt")} className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
                                 Paper Submitted {sortBy === "paperSubmittedAt" && (sortOrder === "asc" ? "↑" : "↓")}
                             </th>
@@ -251,11 +254,18 @@ const ReviewList = ({ reviews, navigate, journalid }) => {
                         {filteredAndSortedReviews.length > 0 ? (
                             filteredAndSortedReviews.map((review) => (
                                 <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                                    <td className="py-3 px-4 text-sm font-medium text-[#1f2937] truncate">{review.Paper?.id}</td>
+                                    <td className="py-3 px-4 text-sm font-medium text-[#1f2937] truncate" title={review.Paper?.id}>
+                                        {review.Paper?.id}
+                                    </td>
                                     <td className="py-3 px-4">
                                         <div>
-                                            <p className="text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
+                                            <p className="text-sm font-medium text-[#1f2937] truncate" title={review.Paper?.Title}>
+                                                {review.Paper?.Title}
+                                            </p>
                                         </div>
+                                    </td>
+                                    <td className="py-3 px-4 text-sm text-[#1f2937] truncate" title={review.Paper?.Abstract}>
+                                        {review.Paper?.Abstract || "N/A"}
                                     </td>
                                     <td className="py-3 px-4 text-sm text-[#1f2937]">{formatDate(review.Paper?.submittedAt)}</td>
                                     <td className="py-3 px-4">{getRecommendationBadge(review.Recommendation)}</td>
@@ -356,6 +366,9 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
                             Paper Title {sortBy === "paperTitle" && (sortOrder === "asc" ? "↑" : "↓")}
                         </th>
                         <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
+                            Abstract
+                        </th>
+                        <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
                             Authors
                         </th>
                         <th onClick={() => handleSort("paperSubmittedAt")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
@@ -375,11 +388,18 @@ const PendingInvitationList = ({ reviews, onAccept, onDecline }) => {
 
                             return (
                                 <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                                    <td className="py-3 px-4 text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.id}</td>
-                                    <td className="py-3 px-4">
-                                        <p className="text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
+                                    <td className="py-3 px-4 text-center text-sm font-medium text-[#1f2937] truncate" title={review.Paper?.id}>
+                                        {review.Paper?.id}
                                     </td>
-                                    <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate">
+                                    <td className="py-3 px-4">
+                                        <p className="text-center text-sm font-medium text-[#1f2937] truncate" title={review.Paper?.Title}>
+                                            {review.Paper?.Title}
+                                        </p>
+                                    </td>
+                                    <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate" title={review.Paper?.Abstract}>
+                                        {review.Paper?.Abstract || "N/A"}
+                                    </td>
+                                    <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate " title={authorString}>
                                         {authorString}
                                     </td>
                                     <td className="text-center py-3 px-4 text-sm text-[#1f2937]">
@@ -478,7 +498,7 @@ const PendingReviewList = ({ reviews, navigate, journalid }) => {
                     className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
                 />
             </div>
-            <table className="w-full">
+            <table className="w-full table-fixed">
                 <thead>
                     <tr className="border-b border-[#e5e7eb]">
                         <th onClick={() => handleSort("paperId")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
@@ -486,6 +506,9 @@ const PendingReviewList = ({ reviews, navigate, journalid }) => {
                         </th>
                         <th onClick={() => handleSort("paperTitle")} className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
                             Paper Title {sortBy === "paperTitle" && (sortOrder === "asc" ? "↑" : "↓")}
+                        </th>
+                        <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
+                            Abstract
                         </th>
                         <th className="text-center py-3 px-4 text-sm font-medium text-[#6b7280] whitespace-nowrap">
                             Authors
@@ -506,11 +529,18 @@ const PendingReviewList = ({ reviews, navigate, journalid }) => {
                                 : "N/A";
                             return (
                             <tr key={review.id} className="border-b border-[#e5e7eb] hover:bg-[#f3f4f6]/50 transition-colors">
-                                <td className="py-3 px-4 text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.id}</td>
-                                <td className="py-3 px-4">
-                                    <p className="text-center text-sm font-medium text-[#1f2937] truncate">{review.Paper?.Title}</p>
+                                <td className="py-3 px-4 text-center text-sm font-medium text-[#1f2937] truncate" title={review.Paper?.id}>
+                                    {review.Paper?.id}
                                 </td>
-                                <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate">
+                                <td className="py-3 px-4">
+                                    <p className="text-center text-sm font-medium text-[#1f2937] truncate" title={review.Paper?.Title}>
+                                        {review.Paper?.Title}
+                                    </p>
+                                </td>
+                                <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate" title={review.Paper?.Abstract}>
+                                    {review.Paper?.Abstract || "N/A"}
+                                </td>
+                                <td className="text-center py-3 px-4 text-sm text-[#1f2937] truncate " title={authorString}>
                                     {authorString}
                                 </td>
                                 <td className="text-center py-3 px-4 text-sm text-[#1f2937]">

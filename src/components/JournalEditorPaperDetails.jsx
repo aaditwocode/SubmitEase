@@ -160,6 +160,10 @@ export default function JournalEditorPaperDetails() {
     const [deskRejectModalOpen, setDeskRejectModalOpen] = useState(false);
     const [deskRejectMessage, setDeskRejectMessage] = useState("");
 
+    // Send Back To Author Modal States
+    const [sendBackModalOpen, setSendBackModalOpen] = useState(false);
+    const [sendBackMessage, setSendBackMessage] = useState("");
+
     const handleLogout = () => { setUser(null); setloginStatus(false); navigate("/home"); };
 
     useEffect(() => {
@@ -225,6 +229,10 @@ export default function JournalEditorPaperDetails() {
         setDeskRejectModalOpen(true);
     };
 
+    const handleSendBackToAuthor = () => {
+        setSendBackMessage("");
+        setSendBackModalOpen(true);
+    };
     const submitDeskReject = async (e) => {
         e.preventDefault();
         if (!window.confirm("Are you sure you want to desk reject this paper? This action cannot be undone.")) return;
@@ -237,6 +245,20 @@ export default function JournalEditorPaperDetails() {
             alert("Paper Desk Rejected and Author Notified!");
             window.location.reload();
         } catch(err) { alert("Failed to desk reject"); }
+    };
+
+    const submitSendBack = async (e) => {
+        e.preventDefault();
+        if (!window.confirm("Are you sure you want to send this paper back to the author?")) return;
+        try {
+            await fetch('http://localhost:3001/journal/editor/send-back-to-author', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paperId, journalId: journalid, message: deskRejectMessage })
+            });
+            alert("Paper Sent Back to Author and Notified!");
+            window.location.reload();
+        } catch(err) { alert("Failed to send back to author"); }
     };
 
     const handleFinalSubmit = async () => {
@@ -575,13 +597,19 @@ export default function JournalEditorPaperDetails() {
                                         </h3>
                                         <p className="text-sm text-emerald-700 mt-1">{isEIC ? "Assign an Editor to handle peer review, or Desk Reject if out of scope." : "You are the assigned editor for this manuscript."}</p>
                                     </div>
-                                    {currentEditor ? (
+                                    {(isEIC && currentEditor) ? (
                                         <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
                                             Editor Assigned
                                         </span>
-                                    ) : (isEIC && !isReviewLocked) ? (
-                                        <button onClick={handleDeskReject} className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-md hover:bg-red-100 border border-red-200 text-sm transition-colors">Desk Reject (No Review)</button>
-                                    ) : null}
+                                    ) : (isEIC && !currentEditor && !isReviewLocked) ? (
+                                        <button onClick={handleDeskReject} className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-md hover:bg-red-100 border border-red-200 text-sm transition-colors">
+                                            Desk Reject (No Review)
+                                        </button>
+                                    ) : (
+                                        <button onClick={handleSendBackToAuthor} className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-md hover:bg-red-100 border border-red-200 text-sm transition-colors">
+                                            Send Back To Author
+                                        </button>
+                                    )}
                                 </div>
                                 
                                 {currentEditor ? (
@@ -957,6 +985,43 @@ export default function JournalEditorPaperDetails() {
                                     Confirm Desk Reject & Send Email
                                 </button>
                                 <button type="button" onClick={() => setDeskRejectModalOpen(false)} className="px-4 py-2 bg-white border border-[#e5e7eb] text-gray-700 font-medium text-sm rounded-md hover:bg-gray-50 transition-colors">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* --- Send Back To Author MODAL --- */}
+            {sendBackModalOpen && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[120]">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+                        <div className="flex justify-between items-center p-5 border-b border-[#e5e7eb] bg-blue-50">
+                            <h3 className="text-lg font-bold text-blue-800">Send Back To Author</h3>
+                            <button onClick={() => setSendBackModalOpen(false)} className="text-red-400 hover:text-red-600 text-xl leading-none">✕</button>
+                        </div>
+                        
+                        <form onSubmit={submitSendBack} className="p-5">
+                            <div className="mb-4 text-sm text-gray-700">
+                                <p className="mb-2">You are about to send this paper back to the author.</p>
+                                <p className="font-bold">Please provide a reason to be emailed to the author:</p>
+                            </div>
+                            
+                            <textarea 
+                                required
+                                rows={6}
+                                placeholder="e.g., This manuscript falls outside the scope of our journal..."
+                                value={sendBackMessage}
+                                onChange={(e) => setSendBackMessage(e.target.value)}
+                                className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"
+                            />
+
+                            <div className="flex gap-3 pt-4 mt-4">
+                                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded-md hover:bg-blue-700 shadow-sm transition-colors">
+                                    Confirm Send Back & Send Email
+                                </button>
+                                <button type="button" onClick={() => setSendBackModalOpen(false)} className="px-4 py-2 bg-white border border-[#e5e7eb] text-gray-700 font-medium text-sm rounded-md hover:bg-gray-50 transition-colors">
                                     Cancel
                                 </button>
                             </div>

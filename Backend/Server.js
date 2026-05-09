@@ -4264,7 +4264,7 @@ app.post('/journal/editor/papers', async (req, res) => {
         Status: effectiveStatus,
         reviewersInvited: paper.Reviews ? paper.Reviews.length : 0,
         reviewersSubmitted: paper.Reviews ? paper.Reviews.filter(r => r.Status === 'Submitted').length : 0,
-        reviewersAccepted: paper.Reviews ? paper.Reviews.filter(r => r.Status === 'Accepted' || r.Status === 'Completed' || r.Status === 'Submitted').length : 0,
+        reviewersAccepted: paper.Reviews ? paper.Reviews.filter(r => r.Status === 'Accepted' || r.Status === 'Completed' || r.Status === 'Submitted' || r.Status === 'Under Review').length : 0,
         editorRecommendation: editorRecord?.Recommendation || null,
         isbeingtransferred: isIncomingTransfer || isOutgoingTransfer,
         transferType: isIncomingTransfer ? 'incoming' : (isOutgoingTransfer ? 'outgoing' : null)
@@ -4277,6 +4277,28 @@ app.post('/journal/editor/papers', async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+const sanitizeReviews = (reviews) => {
+  if (!reviews) return [];
+  
+  return reviews.map(review => {
+    if (review.status === 'submitted') {
+      return review; // Safe to show
+    }
+    // Mask sensitive data if 'pending' or 'draft'
+    return {
+      ...review,
+      Recommendation: null,
+      comment: null,
+      scoreOriginality: null,
+      scoreSignificance: null,
+      scoreClarity: null,
+      scoreSoundness: null,
+      scoreRelevance: null,
+      avgScore: null
+    };
+  });
+};
 
 app.get('/journal/editor/paper/:id', async (req, res) => {
   const { id } = req.params;
@@ -4323,6 +4345,14 @@ app.get('/journal/editor/paper/:id', async (req, res) => {
     });
 
     if (!paper) return res.status(404).json({ error: "Paper not found." });
+    paper.Reviews = sanitizeReviews(paper.Reviews);
+
+    if (paper.Revisions && paper.Revisions.length > 0) {
+      paper.Revisions = paper.Revisions.map(revision => ({
+        ...revision,
+        Reviews: sanitizeReviews(revision.Reviews)
+      }));
+    }
     res.status(200).json({ paper });
   } catch (error) {
     console.error("Fetch Editor Paper Error:", error);
@@ -4353,6 +4383,59 @@ app.post('/journal/editor/recommendation', async (req, res) => {
   }
 });
 
+app.post('/journal/editor/send-back-to-author', async (req, res) => {
+  const { paperId, message, journalId } = req.body;
+  
+  if (!journalId) return res.status(400).json({ message: "Journal ID required." });
+
+  try {
+    const updatedPaper = await prisma.journalPapers.update({
+      where: { 
+          id: paperId, 
+          JournalId: parseInt(journalId, 10) 
+      },
+      data: { 
+          Status: 'Sent Back to Author', 
+          Editors: {
+              deleteMany: {} 
+          }
+      },
+      include: { 
+          Authors: true 
+      }
+    });
+
+    const journal = await prisma.journal.findUnique({ where: { id: parseInt(journalId, 10) } });
+    const journalName = journal ? journal.name : "SubmitEase Journal";
+
+    if (updatedPaper.Authors && updatedPaper.Authors.length > 0) {
+      const primaryAuthor = updatedPaper.Authors[0];
+      
+      // Updated Email Template: Changed wording and switched colors from Red to Amber/Orange
+      const body = `
+                <p>Dear <strong>${primaryAuthor.firstname} ${primaryAuthor.lastname}</strong>,</p>
+                <p>Thank you for submitting your manuscript <strong>"${updatedPaper.Title}"</strong> to Journal ${journalName}.</p>
+                <p>After an initial editorial review, we are sending your manuscript back to you. Some modifications or formatting corrections are required before we can proceed with the formal peer-review process.</p>
+                
+                <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h3 style="color: #92400e; margin-top: 0; font-size: 16px;">Required Corrections from the Editor:</h3>
+                    <p style="color: #b45309; font-style: italic; margin-bottom: 0;">"${message}"</p>
+                </div>
+                
+                <p>Please review the feedback above, update your manuscript, and resubmit it through your author dashboard.</p>
+            `;
+            
+      const emailHtml = getBeautifulEmailTemplate(`Action Required: Paper #${paperId}`, body, true);
+      sendMail(primaryAuthor.email, `Action Required for your submission: Paper #${paperId}`, emailHtml);
+    }
+
+    res.status(200).json({ message: "Paper sent back to author and editor assignment cleared." });
+    
+  } catch (error) {
+    console.error("Send Back Error:", error);
+    res.status(500).json({ message: "Failed to send paper back to author" });
+  }
+});
 
 // ============================================================================
 // EDITOR TRANSFER ENDPOINTS (With Emails)
