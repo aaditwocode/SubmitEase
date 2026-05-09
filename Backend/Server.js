@@ -4282,14 +4282,14 @@ const sanitizeReviews = (reviews) => {
   if (!reviews) return [];
   
   return reviews.map(review => {
-    if (review.status === 'submitted') {
+    if (review.Status === 'Submitted') {
       return review; // Safe to show
     }
     // Mask sensitive data if 'pending' or 'draft'
     return {
       ...review,
       Recommendation: null,
-      comment: null,
+      Comment: null,
       scoreOriginality: null,
       scoreSignificance: null,
       scoreClarity: null,

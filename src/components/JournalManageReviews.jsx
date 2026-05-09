@@ -226,7 +226,7 @@ const ReviewList = ({ reviews, navigate, journalid }) => {
                         className="w-full px-3 py-2 border border-[#e5e7eb] rounded-md focus:outline-none focus:ring-2 focus:ring-[#059669]"
                     />
                 </div>
-                <table className="w-full">
+                <table className="w-full table-fixed">
                     <thead>
                         <tr className="border-b border-[#e5e7eb]">
                             <th onClick={() => handleSort("paperId")} className="text-left py-3 px-4 text-sm font-medium text-[#6b7280] cursor-pointer hover:text-[#1f2937] whitespace-nowrap">
