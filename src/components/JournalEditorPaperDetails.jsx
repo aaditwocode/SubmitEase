@@ -910,7 +910,7 @@ export default function JournalEditorPaperDetails() {
                             </div>
 
                             <div className="mb-6">
-                                <p className="text-sm text-gray-500 uppercase tracking-wider font-bold mb-3">Evaluation Metrics (Out of 10)</p>
+                                <p className="text-sm text-gray-500 uppercase tracking-wider font-bold mb-3">Evaluation Metrics (Out of 5)</p>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     <div className="bg-gray-50 p-3 rounded border border-gray-100">
                                         <p className="text-xs text-gray-500 mb-1">Originality</p>
